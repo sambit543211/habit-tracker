@@ -25,7 +25,24 @@ export interface Habit {
   createdDay: string;
   /** First day the habit no longer counts */
   archivedDay?: string;
+  /** Daily reminder time, "HH:MM" local */
+  remindAt?: string;
 }
+
+/** Nudge settings. Times are "HH:MM" local; null = off. */
+export interface Reminders {
+  enabled: boolean;
+  morning: string | null;
+  evening: string | null;
+  streak: string | null;
+}
+
+export const DEFAULT_REMINDERS: Reminders = {
+  enabled: true,
+  morning: '08:30',
+  evening: '21:00',
+  streak: '22:30',
+};
 
 export interface HabitLog {
   status: 'done' | 'missed';

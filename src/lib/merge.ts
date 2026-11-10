@@ -1,7 +1,9 @@
-import type { Data } from '../types';
+import type { Data, Reminders } from '../types';
 
 export interface Snapshot extends Data {
   onboarded: boolean;
+  /** undefined = not set on this side yet */
+  reminders?: Reminders;
 }
 
 /**
@@ -26,5 +28,6 @@ export function mergeSnapshots(local: Snapshot, remote: Snapshot): Snapshot {
     logs,
     startDay: days.length ? days.sort()[0] : undefined,
     onboarded: local.onboarded || remote.onboarded,
+    reminders: remote.reminders ?? local.reminders,
   };
 }

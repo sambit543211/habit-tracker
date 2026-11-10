@@ -2,7 +2,8 @@
  * Pure mapping + diffing between the local store shape and database rows.
  * Kept free of I/O so it can be unit-tested.
  */
-import type { Data, Habit, HabitLog, Plan } from '../types';
+import type { Data, Habit, HabitLog, Plan, Reminders } from '../types';
+import type { Snapshot } from './merge';
 
 export interface HabitRow {
   id: string;
@@ -12,6 +13,7 @@ export interface HabitRow {
   tiny: string | null;
   created_day: string;
   archived_day: string | null;
+  remind_at: string | null;
 }
 
 export interface PlanRow {
@@ -41,7 +43,32 @@ export interface ProfileRow {
   start_day: string | null;
   onboarded: boolean;
   timezone: string;
+  reminders_enabled?: boolean;
+  morning_reminder?: string | null;
+  evening_reminder?: string | null;
+  streak_reminder?: string | null;
 }
+
+/** Postgres returns "HH:MM:SS"; the app uses "HH:MM". */
+export const hhmm = (t: string | null | undefined) => (t ? t.slice(0, 5) : null);
+
+export const profileToRow = (s: Snapshot, user_id: string, timezone: string): ProfileRow => {
+  const row: ProfileRow = { user_id, start_day: s.startDay ?? null, onboarded: s.onboarded, timezone };
+  if (s.reminders) {
+    row.reminders_enabled = s.reminders.enabled;
+    row.morning_reminder = s.reminders.morning;
+    row.evening_reminder = s.reminders.evening;
+    row.streak_reminder = s.reminders.streak;
+  }
+  return row;
+};
+
+export const rowToReminders = (r: ProfileRow): Reminders => ({
+  enabled: r.reminders_enabled ?? true,
+  morning: hhmm(r.morning_reminder),
+  evening: hhmm(r.evening_reminder),
+  streak: hhmm(r.streak_reminder),
+});
 
 export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
   id: h.id,
@@ -51,6 +78,7 @@ export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
   tiny: h.tiny ?? null,
   created_day: h.createdDay,
   archived_day: h.archivedDay ?? null,
+  remind_at: h.remindAt ?? null,
 });
 
 export const rowToHabit = (r: HabitRow): Habit => ({
@@ -60,6 +88,7 @@ export const rowToHabit = (r: HabitRow): Habit => ({
   tiny: r.tiny ?? undefined,
   createdDay: r.created_day,
   archivedDay: r.archived_day ?? undefined,
+  remindAt: hhmm(r.remind_at) ?? undefined,
 });
 
 export const planToRow = (p: Plan, user_id: string): PlanRow => ({
@@ -119,21 +148,12 @@ export type Op =
   | { table: 'habit_logs'; kind: 'upsert'; key: string; row: LogRow }
   | { table: 'habit_logs'; kind: 'delete'; key: string; day: string; habit_id: string };
 
-interface Snapshot extends Data {
-  onboarded: boolean;
-}
-
 /** Compute the database operations needed to go from `prev` to `next`. */
 export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: string): Op[] {
   const ops: Op[] = [];
 
-  if (prev.startDay !== next.startDay || prev.onboarded !== next.onboarded) {
-    ops.push({
-      table: 'profiles',
-      kind: 'upsert',
-      key: 'profiles',
-      row: { user_id, start_day: next.startDay ?? null, onboarded: next.onboarded, timezone },
-    });
+  if (prev.startDay !== next.startDay || prev.onboarded !== next.onboarded || prev.reminders !== next.reminders) {
+    ops.push({ table: 'profiles', kind: 'upsert', key: 'profiles', row: profileToRow(next, user_id, timezone) });
   }
 
   if (prev.habits !== next.habits) {

@@ -3,6 +3,7 @@ import { useStore, useUI } from '../store';
 import { habitRate, habitStreak, habitsOn } from '../lib/score';
 import { FlameIcon, PlusIcon } from '../components/icons';
 import { AccountCard } from '../components/AccountCard';
+import { RemindersCard } from '../components/RemindersCard';
 
 export function Habits({ today }: { today: string }) {
   const habits = useStore((s) => s.habits);
@@ -82,6 +83,7 @@ export function Habits({ today }: { today: string }) {
           moving some to Plans.
         </p>
       )}
+      <RemindersCard />
       <AccountCard />
     </div>
   );

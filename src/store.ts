@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Data, Habit, Miss, MissTarget, Plan } from './types';
+import { DEFAULT_REMINDERS, type Data, type Habit, type Miss, type MissTarget, type Plan, type Reminders } from './types';
 import { addDays, dayKeyAt } from './lib/date';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
@@ -16,11 +16,13 @@ const uid = (): string => {
 
 interface Store extends Data {
   onboarded: boolean;
+  reminders: Reminders;
+  setReminders: (patch: Partial<Reminders>) => void;
   freshStartSeen?: string;
 
   completeOnboarding: (habits: { name: string; cue?: string }[]) => void;
-  addHabit: (h: { name: string; cue?: string; tiny?: string }) => void;
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny'>>) => void;
+  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string }) => void;
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt'>>) => void;
   archiveHabit: (id: string) => void;
 
   markHabit: (day: string, id: string) => void;
@@ -38,7 +40,7 @@ interface Store extends Data {
   dismissFreshStart: (day: string) => void;
 
   /** Replace all tracked data (used when loading from the cloud). */
-  replaceData: (data: Data & { onboarded: boolean }) => void;
+  replaceData: (data: Data & { onboarded: boolean; reminders?: Reminders }) => void;
   /** Wipe local data (sign-out). */
   reset: () => void;
 }
@@ -53,6 +55,9 @@ export const useStore = create<Store>()(
       logs: {},
       plans: [],
       onboarded: false,
+      reminders: DEFAULT_REMINDERS,
+
+      setReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch } })),
 
       completeOnboarding: (habits) => {
         const today = dayKeyAt();
@@ -66,11 +71,11 @@ export const useStore = create<Store>()(
         }));
       },
 
-      addHabit: ({ name, cue, tiny }) => {
+      addHabit: ({ name, cue, tiny, remindAt }) => {
         const today = dayKeyAt();
         set((s) => ({
           startDay: s.startDay ?? today,
-          habits: [...s.habits, { id: uid(), name, cue, tiny, createdDay: today }],
+          habits: [...s.habits, { id: uid(), name, cue, tiny, remindAt, createdDay: today }],
         }));
       },
 
@@ -171,10 +176,11 @@ export const useStore = create<Store>()(
           plans: data.plans,
           startDay: data.startDay,
           onboarded: data.onboarded,
+          reminders: data.reminders ?? DEFAULT_REMINDERS,
         }),
 
       reset: () =>
-        set({ habits: [], logs: {}, plans: [], startDay: undefined, onboarded: false, freshStartSeen: undefined }),
+        set({ habits: [], logs: {}, plans: [], startDay: undefined, onboarded: false, freshStartSeen: undefined, reminders: DEFAULT_REMINDERS }),
     }),
     { name: 'keep-habit-tracker', version: 1 },
   ),
