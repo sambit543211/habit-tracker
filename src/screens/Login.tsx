@@ -94,6 +94,20 @@ export function Login() {
             <Primary busy={busy} disabled={!email.trim()}>
               Email me a code
             </Primary>
+            <button
+              type="button"
+              onClick={() => {
+                const e = email.trim().toLowerCase();
+                if (!/^\S+@\S+\.\S+$/.test(e)) return setError('Enter your email first.');
+                setEmail(e);
+                setError(null);
+                setStep('code');
+                setTimeout(() => codeRef.current?.focus(), 350);
+              }}
+              className="mt-3 w-full py-2 text-[14px] font-medium text-muted"
+            >
+              Already have a code?
+            </button>
           </motion.form>
         ) : (
           <motion.div
