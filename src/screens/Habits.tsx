@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { habitRate, habitStreak, habitsOn } from '../lib/score';
 import { FlameIcon, PlusIcon } from '../components/icons';
+import { AccountCard } from '../components/AccountCard';
 
 export function Habits({ today }: { today: string }) {
   const habits = useStore((s) => s.habits);
@@ -81,6 +82,7 @@ export function Habits({ today }: { today: string }) {
           moving some to Plans.
         </p>
       )}
+      <AccountCard />
     </div>
   );
 }

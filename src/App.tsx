@@ -11,6 +11,10 @@ import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
 import { ReviewSheet } from './components/ReviewSheet';
 import { HabitEditor } from './components/HabitEditor';
+import { Login } from './screens/Login';
+import { Ring } from './components/Ring';
+import { useSync } from './sync';
+import { CLOUD_ENABLED } from './config';
 
 export default function App() {
   const onboarded = useStore((s) => s.onboarded);
@@ -18,6 +22,11 @@ export default function App() {
   const { today, hour } = useToday();
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
+  const ready = useSync((s) => s.ready);
+  const session = useSync((s) => s.session);
+
+  if (CLOUD_ENABLED && !ready) return <Splash />;
+  if (CLOUD_ENABLED && !session) return <Login />;
   if (!onboarded) return <Onboarding />;
 
   return (
@@ -43,5 +52,15 @@ export default function App() {
       <HabitEditor />
       <ReasonSheet />
     </>
+  );
+}
+
+function Splash() {
+  return (
+    <div className="grid min-h-dvh place-items-center">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1.4, ease: 'linear' }}>
+        <Ring value={0.7} color="var(--habit)" size={56} stroke={6} />
+      </motion.div>
+    </div>
   );
 }
