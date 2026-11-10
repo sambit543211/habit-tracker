@@ -3,10 +3,16 @@ import { persist } from 'zustand/middleware';
 import type { Data, Habit, Miss, MissTarget, Plan } from './types';
 import { addDays, dayKeyAt } from './lib/date';
 
-const uid = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+/** RFC 4122 v4 UUID (the database stores ids as uuid). */
+const uid = (): string => {
+  const c = globalThis.crypto as Crypto;
+  if (typeof c.randomUUID === 'function') return c.randomUUID();
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
 
 interface Store extends Data {
   onboarded: boolean;
@@ -30,6 +36,11 @@ interface Store extends Data {
   clearPlan: (id: string) => void;
 
   dismissFreshStart: (day: string) => void;
+
+  /** Replace all tracked data (used when loading from the cloud). */
+  replaceData: (data: Data & { onboarded: boolean }) => void;
+  /** Wipe local data (sign-out). */
+  reset: () => void;
 }
 
 const updatePlan = (plans: Plan[], id: string, patch: Partial<Plan>) =>
@@ -152,6 +163,18 @@ export const useStore = create<Store>()(
         }),
 
       dismissFreshStart: (day) => set({ freshStartSeen: day }),
+
+      replaceData: (data) =>
+        set({
+          habits: data.habits,
+          logs: data.logs,
+          plans: data.plans,
+          startDay: data.startDay,
+          onboarded: data.onboarded,
+        }),
+
+      reset: () =>
+        set({ habits: [], logs: {}, plans: [], startDay: undefined, onboarded: false, freshStartSeen: undefined }),
     }),
     { name: 'keep-habit-tracker', version: 1 },
   ),

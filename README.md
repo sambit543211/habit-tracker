@@ -17,7 +17,9 @@ A mobile-first habit tracker built around accountability: daily **habits** (non-
 - **Delight** — spring animations, animated checkmarks, haptics, confetti on all-habits-done and perfect days.
 - **PWA** — installable to the home screen, works offline. Dark & light themes follow the system.
 
-Data is stored locally on your device (localStorage). Cloud sync is planned for the mobile app.
+**Accounts & sync** — sign in with a 6-digit email code (Supabase Auth). Data is cached on the device so the app works offline; every change is queued and synced to Supabase Postgres, protected by Row Level Security so each user only sees their own rows. Data from before sign-in is merged into the account on first login.
+
+Database schema: [`supabase/schema.sql`](supabase/schema.sql). The Supabase URL and publishable key live in `src/config.ts` (public by design) and can be overridden with `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
 
 ## Develop
 
@@ -28,11 +30,11 @@ npm test         # scoring/streak unit tests
 npm run build    # production build in dist/
 ```
 
-Stack: React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Zustand.
+Stack: React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Zustand, Supabase.
 
 ## Deploy
 
-`.github/workflows/deploy.yml` publishes `main` to GitHub Pages. Enable it once under **Settings → Pages → Source: GitHub Actions**.
+Production runs on Vercel (auto-deploys `main`). `.github/workflows/deploy.yml` also publishes `main` to GitHub Pages.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for the product design and the behavioural science behind it.
 
