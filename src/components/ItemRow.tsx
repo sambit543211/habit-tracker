@@ -1,0 +1,171 @@
+import { motion, useMotionValue, useTransform } from 'framer-motion';
+import type { CSSProperties, ReactNode } from 'react';
+import { CheckIcon, XIcon } from './icons';
+import { haptic } from '../lib/feedback';
+
+export type RowStatus = 'pending' | 'done' | 'missed' | 'carried';
+
+interface ItemRowProps {
+  title: string;
+  subtitle?: ReactNode;
+  status: RowStatus;
+  accent: 'habit' | 'plan';
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  onDone: () => void;
+  onMiss: () => void;
+  onUndo: () => void;
+}
+
+const SWIPE = 84;
+
+/**
+ * A trackable item. Tap the circle to complete, swipe right to complete,
+ * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
+ */
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo }: ItemRowProps) {
+  const x = useMotionValue(0);
+  const doneOpacity = useTransform(x, [12, SWIPE], [0, 1]);
+  const missOpacity = useTransform(x, [-SWIPE, -12], [1, 0]);
+  const pending = status === 'pending';
+  const accentVar = `var(--${accent})`;
+
+  const done = () => {
+    haptic(12);
+    onDone();
+  };
+
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
+      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+      className="relative list-none"
+      style={{ '--accent': accentVar } as CSSProperties}
+    >
+      {pending && (
+        <>
+          <motion.div
+            style={{ opacity: doneOpacity, background: accentVar }}
+            className="absolute inset-0 flex items-center rounded-[20px] pl-5 text-black/80"
+          >
+            <CheckIcon size={22} strokeWidth={2.6} />
+          </motion.div>
+          <motion.div
+            style={{ opacity: missOpacity }}
+            className="absolute inset-0 flex items-center justify-end rounded-[20px] bg-miss pr-5 text-white"
+          >
+            <XIcon size={22} strokeWidth={2.6} />
+          </motion.div>
+        </>
+      )}
+
+      <motion.div
+        drag={pending ? 'x' : false}
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.55}
+        dragSnapToOrigin
+        style={{ x, touchAction: 'pan-y' }}
+        onDragEnd={(_, info) => {
+          if (info.offset.x > SWIPE) done();
+          else if (info.offset.x < -SWIPE) {
+            haptic(8);
+            onMiss();
+          }
+        }}
+        className="relative flex min-h-[64px] items-center gap-3.5 rounded-[20px] border border-line bg-surface px-4 py-3"
+      >
+        <StatusButton status={status} onClick={pending ? done : onUndo} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {leading}
+            <motion.span
+              animate={{ opacity: pending ? 1 : 0.55 }}
+              className={`truncate text-[15.5px] font-medium tracking-[-0.01em] ${
+                status === 'done' ? 'line-through decoration-[1.5px] decoration-(--accent)/60' : ''
+              }`}
+            >
+              {title}
+            </motion.span>
+          </div>
+          {subtitle && <div className="mt-0.5 truncate text-[13px] text-muted">{subtitle}</div>}
+        </div>
+        {trailing}
+        {pending && (
+          <motion.button
+            whileTap={{ scale: 0.85 }}
+            onClick={() => {
+              haptic(8);
+              onMiss();
+            }}
+            aria-label={`I didn't do ${title}`}
+            className="grid size-9 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-2 hover:text-miss"
+          >
+            <XIcon size={18} />
+          </motion.button>
+        )}
+      </motion.div>
+    </motion.li>
+  );
+}
+
+function StatusButton({ status, onClick }: { status: RowStatus; onClick: () => void }) {
+  const fill =
+    status === 'done'
+      ? 'var(--accent)'
+      : status === 'missed'
+        ? 'var(--miss)'
+        : status === 'carried'
+          ? 'var(--surface-3)'
+          : 'transparent';
+  return (
+    <motion.button
+      whileTap={{ scale: 0.8 }}
+      onClick={onClick}
+      aria-label={status === 'pending' ? 'Mark done' : 'Undo'}
+      className="relative grid size-8 shrink-0 place-items-center"
+    >
+      <motion.span
+        className="absolute inset-0 rounded-full border-2"
+        animate={{
+          backgroundColor: fill,
+          borderColor: status === 'pending' ? 'var(--line-strong)' : 'rgba(0,0,0,0)',
+          scale: status === 'pending' ? 1 : [1, 1.18, 1],
+        }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      />
+      <svg width="20" height="20" viewBox="0 0 24 24" className="relative" fill="none" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round">
+        {status === 'done' && (
+          <motion.path
+            d="M6 12.5l4 4L18 8.5"
+            stroke="rgba(0,0,0,0.78)"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.35, delay: 0.08, ease: 'easeOut' }}
+          />
+        )}
+        {status === 'missed' && (
+          <motion.path
+            d="M8 8l8 8M16 8l-8 8"
+            stroke="white"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.3 }}
+          />
+        )}
+        {status === 'carried' && (
+          <motion.path
+            d="M6 12h11M13 8l4 4-4 4"
+            stroke="var(--muted)"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.3 }}
+          />
+        )}
+      </svg>
+    </motion.button>
+  );
+}
