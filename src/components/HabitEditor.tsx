@@ -13,6 +13,7 @@ export function HabitEditor() {
   const [name, setName] = useState('');
   const [cue, setCue] = useState('');
   const [tiny, setTiny] = useState('');
+  const [remindAt, setRemindAt] = useState('');
   const [confirm, setConfirm] = useState(false);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function HabitEditor() {
     setName(habit?.name ?? '');
     setCue(habit?.cue ?? '');
     setTiny(habit?.tiny ?? '');
+    setRemindAt(habit?.remindAt ?? '');
     setConfirm(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
@@ -28,7 +30,7 @@ export function HabitEditor() {
   const save = () => {
     const n = name.trim();
     if (!n) return;
-    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined };
+    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined };
     if (habit) updateHabit(habit.id, data);
     else addHabit(data);
     close();
@@ -52,6 +54,17 @@ export function HabitEditor() {
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Tiny version for hard days</label>
       <input value={tiny} onChange={(e) => setTiny(e.target.value)} placeholder="Read 1 page" className={field} />
+
+      <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
+      <div className="mt-1.5 flex items-center gap-2">
+        <input type="time" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} className={`${field} mt-0 tabular`} />
+        {remindAt && (
+          <button onClick={() => setRemindAt('')} className="shrink-0 rounded-2xl bg-surface-2 px-4 py-3.5 text-[14px] text-muted">
+            Clear
+          </button>
+        )}
+      </div>
+      <p className="mt-1.5 text-[12.5px] text-faint">Time it to your trigger. Skipped if you've already done it.</p>
 
       <motion.button
         whileTap={{ scale: 0.98 }}

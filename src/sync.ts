@@ -12,8 +12,10 @@ import { supabase } from './lib/supabase';
 import { useStore } from './store';
 import {
   diff,
+  profileToRow,
   rowToHabit,
   rowToPlan,
+  rowToReminders,
   rowsToLogs,
   type HabitRow,
   type LogRow,
@@ -22,6 +24,7 @@ import {
   type ProfileRow,
 } from './lib/mapping';
 import { mergeSnapshots, type Snapshot } from './lib/merge';
+import { refreshPush } from './lib/push';
 
 type Status = 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -98,6 +101,7 @@ const snap = (s: Snapshot): Snapshot => ({
   logs: s.logs,
   startDay: s.startDay,
   onboarded: s.onboarded,
+  reminders: s.reminders,
 });
 
 useStore.subscribe((next, prev) => {
@@ -226,6 +230,7 @@ async function fetchRemote(): Promise<Snapshot> {
     logs: rowsToLogs(logs),
     startDay: p?.start_day ?? undefined,
     onboarded: p?.onboarded ?? false,
+    reminders: p ? rowToReminders(p) : undefined,
   };
 }
 
@@ -277,21 +282,16 @@ async function initialSync() {
     useSync.setState({ status: 'syncing' });
     const remote = await fetchRemote();
     // First sign-in on this device: merge anything created locally into the account.
-    const target = known ? remote : mergeSnapshots(snap(useStore.getState()), remote);
+    const merged = known ? remote : mergeSnapshots(snap(useStore.getState()), remote);
+    const target = { ...merged, reminders: merged.reminders ?? useStore.getState().reminders };
     if (known && outbox.size) return; // still can't push — keep local for now
     applyRemote(target);
     enqueue(diff(remote, target, id, timezone()));
     // Refresh the profile so the server knows this device's timezone.
-    enqueue([
-      {
-        table: 'profiles',
-        kind: 'upsert',
-        key: 'profiles',
-        row: { user_id: id, start_day: target.startDay ?? null, onboarded: target.onboarded, timezone: timezone() },
-      },
-    ]);
+    enqueue([{ table: 'profiles', kind: 'upsert', key: 'profiles', row: profileToRow(target, id, timezone()) }]);
     write(USER_KEY, id);
     initialDone = true;
+    void refreshPush();
     useSync.setState({ status: 'idle', lastSynced: Date.now() });
   } catch {
     // Offline: carry on with local data; we'll reconcile on the next pull.
