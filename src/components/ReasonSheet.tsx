@@ -58,7 +58,7 @@ export function ReasonSheet() {
       <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h2>
       <p className="mt-1.5 text-[14px] text-muted">What got in the way? No judgment — it's data that helps you design a better tomorrow.</p>
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2">
         {REASONS.map((r) => {
           const active = reason === r.code;
           return (
@@ -66,11 +66,11 @@ export function ReasonSheet() {
               key={r.code}
               whileTap={{ scale: 0.94 }}
               onClick={() => setReason(r.code)}
-              className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3 text-[13px] font-medium transition-colors ${
+              className={`flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-left text-[14px] font-medium transition-colors ${
                 active ? 'border-miss bg-miss/10 text-text' : 'border-line bg-surface-2 text-muted'
               }`}
             >
-              <span className="text-[20px]">{r.emoji}</span>
+              <span className="text-[18px]">{r.emoji}</span>
               {r.label}
             </motion.button>
           );

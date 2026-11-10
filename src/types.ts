@@ -2,6 +2,8 @@ export type ReasonCode =
   | 'forgot'
   | 'no_time'
   | 'low_energy'
+  | 'distracted'
+  | 'other_priority'
   | 'overplanned'
   | 'blocked'
   | 'chose_not';

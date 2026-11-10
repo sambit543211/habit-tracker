@@ -6,7 +6,7 @@ A mobile-first habit tracker built around accountability: daily **habits** (non-
 
 - **Two rings + efficacy score** — Habits (left) and Plans (right), combined 50/50 into a daily efficacy %.
 - **Tick or cross** — tap the circle or swipe right to complete; tap × or swipe left to log a miss.
-- **Reasons for every miss** — one-tap reasons (Forgot, No time, Low energy, Overplanned, Blocked, Chose not to), optional note, and a "Next time, I will…" coping plan that can become the habit's new trigger.
+- **Reasons for every miss** — one-tap reasons (Forgot, No time, Low energy, Distracted, Something else, Overplanned, Blocked, Chose not to), optional note, and a "Next time, I will…" coping plan that can become the habit's new trigger.
 - **Plan tomorrow tonight** — evening ritual screen with max-3 must-dos and a planning-fallacy warning when you plan more than you usually finish.
 - **Carry over plans** — undone plans can move forward (still needs a reason); a "moved N×" counter exposes procrastination.
 - **Strict streaks** — the streak only grows on days you complete *every* habit.
