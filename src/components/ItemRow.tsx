@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useTransform } from 'framer-motion';
-import type { CSSProperties, ReactNode } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import { CheckIcon, XIcon } from './icons';
 import { haptic } from '../lib/feedback';
 
@@ -15,6 +15,8 @@ interface ItemRowProps {
   onDone: () => void;
   onMiss: () => void;
   onUndo: () => void;
+  /** Tap on the text opens details */
+  onOpen?: () => void;
 }
 
 const SWIPE = 84;
@@ -23,8 +25,9 @@ const SWIPE = 84;
  * A trackable item. Tap the circle to complete, swipe right to complete,
  * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen }: ItemRowProps) {
   const x = useMotionValue(0);
+  const dragged = useRef(false);
   const doneOpacity = useTransform(x, [12, SWIPE], [0, 1]);
   const missOpacity = useTransform(x, [-SWIPE, -12], [1, 0]);
   const pending = status === 'pending';
@@ -69,7 +72,11 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         dragElastic={0.55}
         dragSnapToOrigin
         style={{ x, touchAction: 'pan-y' }}
+        onDragStart={() => {
+          dragged.current = true;
+        }}
         onDragEnd={(_, info) => {
+          setTimeout(() => (dragged.current = false), 50);
           if (info.offset.x > SWIPE) done();
           else if (info.offset.x < -SWIPE) {
             haptic(8);
@@ -79,7 +86,12 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         className="relative flex min-h-[64px] items-center gap-3.5 rounded-[20px] border border-line bg-surface px-4 py-3"
       >
         <StatusButton status={status} onClick={pending ? done : onUndo} />
-        <div className="min-w-0 flex-1">
+        <div
+          className={`min-w-0 flex-1 ${onOpen ? 'cursor-pointer' : ''}`}
+          onClick={() => {
+            if (!dragged.current) onOpen?.();
+          }}
+        >
           <div className="flex items-center gap-2">
             {leading}
             <motion.span

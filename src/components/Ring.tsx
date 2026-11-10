@@ -13,8 +13,14 @@ export function Ring({ value, color, size = 96, stroke = 9, children }: RingProp
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const v = Math.max(0, Math.min(1, value ?? 0));
+  const full = v >= 1;
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <motion.div
+      className="relative shrink-0"
+      style={{ width: size, height: size }}
+      animate={full ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+      transition={{ duration: 0.6, delay: 0.5, ease: 'easeOut' }}
+    >
       <svg width={size} height={size} className="-rotate-90 overflow-visible">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
         <motion.circle
@@ -33,7 +39,7 @@ export function Ring({ value, color, size = 96, stroke = 9, children }: RingProp
         />
       </svg>
       <div className="absolute inset-0 grid place-items-center">{children}</div>
-    </div>
+    </motion.div>
   );
 }
 

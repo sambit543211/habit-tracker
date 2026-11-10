@@ -27,6 +27,25 @@ export interface Habit {
   archivedDay?: string;
   /** Daily reminder time, "HH:MM" local */
   remindAt?: string;
+  /** Temptation bundling: something enjoyable you only allow while doing it */
+  pairWith?: string;
+}
+
+/** Name + day shape, shown on Profile and used for the calendar. */
+export interface Profile {
+  name?: string;
+  /** "HH:MM" — start of your day */
+  wake: string;
+  /** "HH:MM" — when you go to sleep (may be after midnight) */
+  sleep: string;
+}
+
+export const DEFAULT_PROFILE: Profile = { wake: '08:00', sleep: '02:00' };
+
+export interface WeeklyReview {
+  wentWell?: string;
+  change?: string;
+  experiment?: string;
 }
 
 /** Nudge settings. Times are "HH:MM" local; null = off. */
@@ -64,6 +83,19 @@ export interface Plan {
   /** Id of the copy created when this plan was carried forward */
   carriedTo?: string;
   createdAt: number;
+  note?: string;
+  /** "HH:MM" start time — puts the plan on the calendar */
+  start?: string;
+  /** Minutes, at least 15 */
+  duration?: number;
+  /** Remind N minutes before `start` */
+  remindOffset?: number;
+  /** Remind at a fixed time (for plans without a start time) */
+  remindAt?: string;
+  /** WOOP: what might get in the way */
+  obstacle?: string;
+  /** WOOP: "If that happens, I will…" */
+  ifThen?: string;
 }
 
 export interface Data {
@@ -73,6 +105,10 @@ export interface Data {
   plans: Plan[];
   /** First day the user started tracking */
   startDay?: string;
+  /** reflections[day] = one line before bed */
+  reflections?: Record<string, string>;
+  /** weeklyReviews[weekStart (Monday)] */
+  weeklyReviews?: Record<string, WeeklyReview>;
 }
 
 /** Anything a "missed" sheet can be opened for. */

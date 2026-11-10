@@ -10,6 +10,9 @@ import { PlanRows } from '../components/PlanRows';
 import { PlanInput } from '../components/PlanInput';
 import { ArrowRightIcon, FlameIcon, MoonIcon, XIcon } from '../components/icons';
 import { celebrateBig, celebrateSmall, haptic } from '../lib/feedback';
+import { BedtimeNote } from '../components/BedtimeNote';
+import { reviewWeekFor } from '../components/WeeklyReviewSheet';
+import { greeting, sinceWake, windowLength } from '../lib/time';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
   const habits = useStore((s) => s.habits);
@@ -17,8 +20,10 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const logs = useStore((s) => s.logs);
   const startDay = useStore((s) => s.startDay);
   const freshStartSeen = useStore((s) => s.freshStartSeen);
+  const profile = useStore((s) => s.profile);
+  const weeklyReviews = useStore((s) => s.weeklyReviews);
   const { addPlan, dismissFreshStart } = useStore();
-  const { setTab, setReview } = useUI();
+  const { setTab, setReview, setReviewWeek } = useUI();
 
   const data = { habits, plans, logs, startDay };
   const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -34,6 +39,12 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const isFreshStart = (weekday(today) === 1 || today.endsWith('-01')) && freshStartSeen !== today;
   const atRisk = !st.todayDone && st.current > 0 && evening;
   const score = stats.score === null ? 0 : Math.round(stats.score * 100);
+  const firstName = profile.name?.split(/\s+/)[0];
+  const now = new Date();
+  const nowSince = sinceWake(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, profile);
+  const nearBed = nowSince >= windowLength(profile) - 120;
+  const wd = weekday(today);
+  const reviewDue = (wd === 0 || wd === 1) && !weeklyReviews[reviewWeekFor(today)] && !!startDay && startDay < today;
 
   return (
     <div className="flex flex-col gap-5">
@@ -41,10 +52,22 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       <header className="flex items-end justify-between pt-2">
         <div>
           <div className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">
-            {formatDay(today, { weekday: 'long' })}
+            {formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
-          <h1 className="text-[30px] leading-tight font-bold tracking-[-0.03em]">
-            {formatDay(today, { day: 'numeric', month: 'long' })}
+          <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em]">
+            {greeting(hour)}
+            {firstName ? <span className="text-muted">, </span> : null}
+            {firstName && (
+              <motion.span
+                initial={{ backgroundPosition: '200% 0' }}
+                animate={{ backgroundPosition: '0% 0' }}
+                transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: 'linear-gradient(90deg, var(--habit), var(--plan), var(--habit))', backgroundSize: '200% 100%' }}
+              >
+                {firstName}
+              </motion.span>
+            )}
           </h1>
         </div>
         <motion.div
@@ -72,6 +95,11 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           className="pointer-events-none absolute -top-24 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
           style={{ background: 'radial-gradient(closest-side, var(--habit), transparent), radial-gradient(closest-side, var(--plan), transparent)' }}
         />
+        {firstName && (
+          <div className="relative mb-3 text-center text-[11.5px] font-semibold tracking-[0.12em] text-muted uppercase">
+            {firstName}'s promises today
+          </div>
+        )}
         <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <RingStat label="Habits" color="var(--habit)" done={stats.habitsDone} total={stats.habitsTotal} pct={stats.habitPct} />
           <div className="flex flex-col items-center px-1">
@@ -109,6 +137,11 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             text="Whatever happened last week is history. Today counts."
             onDismiss={() => dismissFreshStart(today)} />
         )}
+        {reviewDue && (
+          <Banner key="weekly" tone="plan" onClick={() => setReviewWeek(true)}
+            title="Weekly review"
+            text="3 questions · 2 minutes · pick one experiment" />
+        )}
         {evening && (
           <Banner key="evening" tone="plan" icon={<MoonIcon size={18} />} onClick={() => setTab('plan')}
             title="Plan tomorrow"
@@ -137,7 +170,9 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </div>
       </section>
 
-      <p className="pb-2 text-center text-[12px] text-faint">Swipe right to complete · swipe left if you didn't</p>
+      {nearBed && <BedtimeNote day={today} />}
+
+      <p className="pb-2 text-center text-[12px] text-faint">Swipe right to complete · swipe left if you didn't · tap a plan for details</p>
     </div>
   );
 }
