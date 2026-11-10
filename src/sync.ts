@@ -16,6 +16,11 @@ import {
   rowToHabit,
   rowToPlan,
   rowToReminders,
+  rowToProfile,
+  rowsToReflections,
+  rowsToReviews,
+  type ReflectionRow,
+  type ReviewRow,
   rowsToLogs,
   type HabitRow,
   type LogRow,
@@ -102,6 +107,9 @@ const snap = (s: Snapshot): Snapshot => ({
   startDay: s.startDay,
   onboarded: s.onboarded,
   reminders: s.reminders,
+  profile: s.profile,
+  reflections: s.reflections,
+  weeklyReviews: s.weeklyReviews,
 });
 
 useStore.subscribe((next, prev) => {
@@ -125,6 +133,9 @@ const ORDER: [Op['table'], Op['kind']][] = [
   ['habits', 'upsert'],
   ['plans', 'upsert'],
   ['habit_logs', 'upsert'],
+  ['reflections', 'upsert'],
+  ['weekly_reviews', 'upsert'],
+  ['reflections', 'delete'],
   ['habit_logs', 'delete'],
   ['plans', 'delete'],
   ['habits', 'delete'],
@@ -135,6 +146,8 @@ const CONFLICT: Record<Op['table'], string> = {
   habits: 'id',
   plans: 'id',
   habit_logs: 'user_id,day,habit_id',
+  reflections: 'user_id,day',
+  weekly_reviews: 'user_id,week_start',
 };
 
 type Result = 'ok' | 'retry' | 'drop';
@@ -161,6 +174,11 @@ async function run(table: Op['table'], kind: Op['kind'], ops: Op[]): Promise<Res
       if (r === 'retry') return r;
     }
     return 'ok';
+  }
+  if (table === 'reflections') {
+    const days = (ops as Extract<Op, { table: 'reflections'; kind: 'delete' }>[]).map((o) => o.day);
+    const { error, status } = await sb.from('reflections').delete().in('day', days);
+    return classify(error, status);
   }
   const ids = (ops as { id: string }[]).map((o) => o.id);
   const { error, status } = await sb.from(table).delete().in('id', ids);
@@ -216,11 +234,13 @@ async function fetchAll<T>(table: string): Promise<T[]> {
 }
 
 async function fetchRemote(): Promise<Snapshot> {
-  const [profile, habits, plans, logs] = await Promise.all([
+  const [profile, habits, plans, logs, reflections, reviews] = await Promise.all([
     supabase!.from('profiles').select('*').eq('user_id', userId!).maybeSingle(),
     fetchAll<HabitRow>('habits'),
     fetchAll<PlanRow>('plans'),
     fetchAll<LogRow>('habit_logs'),
+    fetchAll<ReflectionRow>('reflections'),
+    fetchAll<ReviewRow>('weekly_reviews'),
   ]);
   if (profile.error) throw profile.error;
   const p = profile.data as ProfileRow | null;
@@ -231,6 +251,9 @@ async function fetchRemote(): Promise<Snapshot> {
     startDay: p?.start_day ?? undefined,
     onboarded: p?.onboarded ?? false,
     reminders: p ? rowToReminders(p) : undefined,
+    profile: p ? rowToProfile(p) : undefined,
+    reflections: rowsToReflections(reflections),
+    weeklyReviews: rowsToReviews(reviews),
   };
 }
 
@@ -283,7 +306,8 @@ async function initialSync() {
     const remote = await fetchRemote();
     // First sign-in on this device: merge anything created locally into the account.
     const merged = known ? remote : mergeSnapshots(snap(useStore.getState()), remote);
-    const target = { ...merged, reminders: merged.reminders ?? useStore.getState().reminders };
+    const local = useStore.getState();
+    const target = { ...merged, reminders: merged.reminders ?? local.reminders, profile: merged.profile ?? local.profile };
     if (known && outbox.size) return; // still can't push — keep local for now
     applyRemote(target);
     enqueue(diff(remote, target, id, timezone()));

@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { useSync } from '../sync';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import type { Reminders } from '../types';
+import { Switch } from './PlanEditor';
 
 const ROWS: { key: keyof Omit<Reminders, 'enabled'>; title: string; text: string; fallback: string }[] = [
   { key: 'morning', title: 'Close the loop', text: "Only if yesterday has open items", fallback: '08:30' },
@@ -99,24 +100,5 @@ export function RemindersCard() {
         </div>
       )}
     </section>
-  );
-}
-
-function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`relative h-[30px] w-[50px] shrink-0 rounded-full transition-colors ${on ? 'bg-habit' : 'bg-surface-3'}`}
-    >
-      <motion.span
-        layout
-        transition={{ type: 'spring', stiffness: 600, damping: 35 }}
-        className="absolute top-[3px] size-6 rounded-full bg-white shadow"
-        style={{ left: on ? 23 : 3 }}
-      />
-    </button>
   );
 }

@@ -42,6 +42,13 @@ export const RepeatIcon = (p: P) => (
   </svg>
 );
 
+export const UserIcon = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </svg>
+);
+
 export const XIcon = (p: P) => (
   <svg {...base(p)}>
     <path d="M6 6l12 12M18 6L6 18" />

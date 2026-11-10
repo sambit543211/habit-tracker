@@ -17,7 +17,8 @@ export function HabitRows({ habits, day, showTiny }: { habits: Habit[]; day: str
         {habits.map((h) => {
           const log = logs?.[h.id] as HabitLog | undefined;
           const status: 'pending' | 'done' | 'missed' = log?.status ?? 'pending';
-          let subtitle: ReactNode = h.cue ? `After I ${h.cue}` : undefined;
+          const base = [h.cue ? `After I ${h.cue}` : null, h.pairWith ? `🎧 with ${h.pairWith}` : null].filter(Boolean).join(' · ');
+          let subtitle: ReactNode = base || undefined;
           if (status === 'missed')
             subtitle = (
               <span>

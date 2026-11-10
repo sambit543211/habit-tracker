@@ -39,11 +39,13 @@ function localNow(tz: string) {
 }
 
 const toMin = (t: string | null) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
-const isDue = (t: string | null, nowMin: number) => {
-  const m = toMin(t);
-  if (m === null) return false;
-  const since = (nowMin - m + 1440) % 1440;
-  return since < WINDOW_MIN;
+const dueAt = (m: number | null, nowMin: number) => m !== null && (nowMin - m + 2880) % 1440 < WINDOW_MIN;
+const isDue = (t: string | null, nowMin: number) => dueAt(toMin(t), nowMin);
+const fmt = (t: string) => {
+  const m = toMin(t)!;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h % 12 === 0 ? 12 : h % 12}${mm ? `:${String(mm).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
 };
 
 const activeOn = (h: Row, day: string) => h.created_day <= day && (!h.archived_day || day < h.archived_day);
@@ -104,7 +106,7 @@ Deno.serve(async (req) => {
     const [{ data: habits }, { data: logs }, { data: plans }] = await Promise.all([
       db.from('habits').select('*').eq('user_id', p.user_id),
       db.from('habit_logs').select('day,habit_id,status').eq('user_id', p.user_id).gte('day', addDays(today, -60)),
-      db.from('plans').select('day,status').eq('user_id', p.user_id).in('day', [yesterday, today, tomorrow]),
+      db.from('plans').select('*').eq('user_id', p.user_id).in('day', [yesterday, today, tomorrow]),
     ]);
     const logSet = new Map<string, string>();
     for (const l of logs ?? []) logSet.set(`${l.day}:${l.habit_id}`, l.status);
@@ -153,6 +155,25 @@ Deno.serve(async (req) => {
         title: h.cue ? `After you ${h.cue}…` : 'Habit time',
         body: h.tiny ? `${h.name} — or just: ${h.tiny}` : h.name,
       });
+    }
+
+    // Plan reminders: N minutes before a time block, or at a chosen time.
+    for (const pl of ps.filter((x) => x.day === today && x.status === 'pending')) {
+      if (pl.start_time && pl.remind_offset !== null && pl.remind_offset !== undefined) {
+        const start = toMin(pl.start_time)!;
+        if (!dueAt(start - pl.remind_offset, now.minutes)) continue;
+        candidates.push({
+          kind: `plan:${pl.id}`,
+          title: pl.remind_offset === 0 ? `Starting now: ${pl.title}` : `In ${pl.remind_offset} min: ${pl.title}`,
+          body: pl.if_then ? `If ${pl.obstacle ?? 'something comes up'} → ${pl.if_then}` : pl.note || `${fmt(pl.start_time)} · ${pl.duration_min ?? 15} min`,
+        });
+      } else if (!pl.start_time && pl.remind_at && isDue(pl.remind_at, now.minutes)) {
+        candidates.push({
+          kind: `plan:${pl.id}`,
+          title: `${pl.must ? '⭐ ' : ''}${pl.title}`,
+          body: pl.note || (pl.if_then ? `If ${pl.obstacle ?? 'something comes up'} → ${pl.if_then}` : 'You planned this for today.'),
+        });
+      }
     }
 
     const userSubs = subs.filter((s) => s.user_id === p.user_id);

@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_REMINDERS, type Data, type Habit, type Miss, type MissTarget, type Plan, type Reminders } from './types';
+import {
+  DEFAULT_PROFILE,
+  DEFAULT_REMINDERS,
+  type Data,
+  type Habit,
+  type Miss,
+  type MissTarget,
+  type Plan,
+  type Profile,
+  type Reminders,
+  type WeeklyReview,
+} from './types';
 import { addDays, dayKeyAt } from './lib/date';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
@@ -14,22 +25,39 @@ const uid = (): string => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
 
+/** Editable plan details (everything except identity and status). */
+export type PlanDetails = Partial<
+  Pick<Plan, 'title' | 'must' | 'note' | 'start' | 'duration' | 'remindOffset' | 'remindAt' | 'obstacle' | 'ifThen'>
+>;
+
 interface Store extends Data {
   onboarded: boolean;
   reminders: Reminders;
   setReminders: (patch: Partial<Reminders>) => void;
+  profile: Profile;
+  setProfile: (patch: Partial<Profile>) => void;
+  reflections: Record<string, string>;
+  weeklyReviews: Record<string, WeeklyReview>;
+  setReflection: (day: string, text: string) => void;
+  setWeeklyReview: (weekStart: string, review: WeeklyReview) => void;
+  /** Local-only UI memory */
+  milestonesSeen: number[];
+  markMilestone: (n: number) => void;
+  dayClosedSeen?: string;
+  markDayClosed: (day: string) => void;
   freshStartSeen?: string;
 
   completeOnboarding: (habits: { name: string; cue?: string }[]) => void;
-  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string }) => void;
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt'>>) => void;
+  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string }) => void;
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith'>>) => void;
   archiveHabit: (id: string) => void;
 
   markHabit: (day: string, id: string) => void;
   missHabit: (day: string, id: string, miss: Miss) => void;
   clearHabit: (day: string, id: string) => void;
 
-  addPlan: (day: string, title: string, must: boolean) => void;
+  addPlan: (day: string, title: string, must: boolean, details?: PlanDetails) => string;
+  updatePlan: (id: string, details: PlanDetails) => void;
   deletePlan: (id: string) => void;
   toggleMust: (id: string) => void;
   markPlan: (id: string) => void;
@@ -40,7 +68,7 @@ interface Store extends Data {
   dismissFreshStart: (day: string) => void;
 
   /** Replace all tracked data (used when loading from the cloud). */
-  replaceData: (data: Data & { onboarded: boolean; reminders?: Reminders }) => void;
+  replaceData: (data: Data & { onboarded: boolean; reminders?: Reminders; profile?: Profile }) => void;
   /** Wipe local data (sign-out). */
   reset: () => void;
 }
@@ -56,8 +84,24 @@ export const useStore = create<Store>()(
       plans: [],
       onboarded: false,
       reminders: DEFAULT_REMINDERS,
+      profile: DEFAULT_PROFILE,
+      reflections: {},
+      weeklyReviews: {},
+      milestonesSeen: [],
 
       setReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch } })),
+      setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
+      setReflection: (day, text) =>
+        set((s) => {
+          const reflections = { ...s.reflections };
+          if (text.trim()) reflections[day] = text.trim();
+          else delete reflections[day];
+          return { reflections };
+        }),
+      setWeeklyReview: (weekStart, review) =>
+        set((s) => ({ weeklyReviews: { ...s.weeklyReviews, [weekStart]: review } })),
+      markMilestone: (n) => set((s) => ({ milestonesSeen: [...new Set([...s.milestonesSeen, n])] })),
+      markDayClosed: (day) => set({ dayClosedSeen: day }),
 
       completeOnboarding: (habits) => {
         const today = dayKeyAt();
@@ -71,11 +115,11 @@ export const useStore = create<Store>()(
         }));
       },
 
-      addHabit: ({ name, cue, tiny, remindAt }) => {
+      addHabit: ({ name, cue, tiny, remindAt, pairWith }) => {
         const today = dayKeyAt();
         set((s) => ({
           startDay: s.startDay ?? today,
-          habits: [...s.habits, { id: uid(), name, cue, tiny, remindAt, createdDay: today }],
+          habits: [...s.habits, { id: uid(), name, cue, tiny, remindAt, pairWith, createdDay: today }],
         }));
       },
 
@@ -115,16 +159,20 @@ export const useStore = create<Store>()(
           return { logs: { ...s.logs, [day]: dayLogs } };
         }),
 
-      addPlan: (day, title, must) => {
+      addPlan: (day, title, must, details) => {
         const today = dayKeyAt();
+        const id = uid();
         set((s) => ({
           startDay: s.startDay ?? today,
           plans: [
             ...s.plans,
-            { id: uid(), title, day, must, status: 'pending', carryCount: 0, createdAt: Date.now() },
+            { id, title, day, must, status: 'pending', carryCount: 0, createdAt: Date.now(), ...details },
           ],
         }));
+        return id;
       },
+
+      updatePlan: (id, details) => set((s) => ({ plans: updatePlan(s.plans, id, details) })),
 
       deletePlan: (id) => set((s) => ({ plans: s.plans.filter((p) => p.id !== id) })),
 
@@ -150,6 +198,13 @@ export const useStore = create<Store>()(
           status: 'pending',
           carryCount: plan.carryCount + 1,
           createdAt: Date.now(),
+          note: plan.note,
+          start: plan.start,
+          duration: plan.duration,
+          remindOffset: plan.remindOffset,
+          remindAt: plan.remindAt,
+          obstacle: plan.obstacle,
+          ifThen: plan.ifThen,
         };
         set((s) => ({
           plans: [...updatePlan(s.plans, id, { status: 'carried', miss, carriedTo: copy.id }), copy],
@@ -177,18 +232,40 @@ export const useStore = create<Store>()(
           startDay: data.startDay,
           onboarded: data.onboarded,
           reminders: data.reminders ?? DEFAULT_REMINDERS,
+          profile: data.profile ?? DEFAULT_PROFILE,
+          reflections: data.reflections ?? {},
+          weeklyReviews: data.weeklyReviews ?? {},
         }),
 
       reset: () =>
-        set({ habits: [], logs: {}, plans: [], startDay: undefined, onboarded: false, freshStartSeen: undefined, reminders: DEFAULT_REMINDERS }),
+        set({
+          habits: [],
+          logs: {},
+          plans: [],
+          startDay: undefined,
+          onboarded: false,
+          freshStartSeen: undefined,
+          reminders: DEFAULT_REMINDERS,
+          profile: DEFAULT_PROFILE,
+          reflections: {},
+          weeklyReviews: {},
+          milestonesSeen: [],
+          dayClosedSeen: undefined,
+        }),
     }),
     { name: 'keep-habit-tracker', version: 1 },
   ),
 );
 
 /** Ephemeral UI state (not persisted). */
+export type PlanEditTarget = { id: string } | { day: string; start?: string };
+
 interface UI {
-  tab: 'today' | 'plan' | 'insights' | 'habits';
+  tab: 'today' | 'plan' | 'insights' | 'habits' | 'profile';
+  editingPlan: PlanEditTarget | null;
+  editPlan: (t: PlanEditTarget | null) => void;
+  reviewWeekOpen: boolean;
+  setReviewWeek: (o: boolean) => void;
   missTarget: MissTarget | null;
   reviewOpen: boolean;
   editingHabit: string | 'new' | null;
@@ -200,6 +277,10 @@ interface UI {
 
 export const useUI = create<UI>()((set) => ({
   tab: 'today',
+  editingPlan: null,
+  editPlan: (editingPlan) => set({ editingPlan }),
+  reviewWeekOpen: false,
+  setReviewWeek: (reviewWeekOpen) => set({ reviewWeekOpen }),
   missTarget: null,
   reviewOpen: false,
   editingHabit: null,

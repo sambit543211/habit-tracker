@@ -9,5 +9,6 @@ export const SUPABASE_URL: string =
 export const SUPABASE_ANON_KEY: string =
   import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yHVsF0acBCSpJpQVO9hcag_fbl0XPJY';
 
-export const CLOUD_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+// VITE_LOCAL_ONLY=1 builds a cloud-free version (used for screenshots and offline testing).
+export const CLOUD_ENABLED = !import.meta.env.VITE_LOCAL_ONLY && Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 

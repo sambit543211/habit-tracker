@@ -4,12 +4,16 @@ import type { Plan } from '../types';
 import { ItemRow } from './ItemRow';
 import { StarIcon } from './icons';
 import { reasonLabel } from '../lib/reasons';
+import { planMetaText } from '../lib/planMeta';
 
 /** Trackable plan rows (today / past days). Must-dos first. */
 export function PlanRows({ plans }: { plans: Plan[] }) {
   const { markPlan, clearPlan } = useStore();
   const openMiss = useUI((s) => s.openMiss);
-  const sorted = [...plans].sort((a, b) => Number(b.must) - Number(a.must) || a.createdAt - b.createdAt);
+  const editPlan = useUI((s) => s.editPlan);
+  const sorted = [...plans].sort(
+    (a, b) => Number(b.must) - Number(a.must) || (a.start ?? '99').localeCompare(b.start ?? '99') || a.createdAt - b.createdAt,
+  );
   return (
     <ul className="flex flex-col gap-2">
       <AnimatePresence initial={false}>
@@ -24,6 +28,7 @@ export function PlanRows({ plans }: { plans: Plan[] }) {
             onDone={() => markPlan(p.id)}
             onMiss={() => openMiss({ kind: 'plan', id: p.id })}
             onUndo={() => clearPlan(p.id)}
+            onOpen={() => editPlan({ id: p.id })}
           />
         ))}
       </AnimatePresence>
@@ -42,7 +47,7 @@ export function planSubtitle(p: Plan) {
       </span>
     );
   }
-  if (p.carryCount > 0)
-    return <span className={p.carryCount >= 3 ? 'text-miss' : 'text-gold'}>Moved {p.carryCount}×{p.carryCount >= 3 ? ' — still worth doing?' : ''}</span>;
-  return undefined;
+  if (p.carryCount >= 3) return <span className="text-miss">Moved {p.carryCount}× — still worth doing?</span>;
+  const meta = planMetaText(p);
+  return meta ? <span className={p.carryCount > 0 ? 'text-gold' : ''}>{meta}</span> : undefined;
 }

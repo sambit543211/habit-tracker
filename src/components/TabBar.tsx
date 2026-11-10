@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useUI } from '../store';
-import { ChartIcon, MoonIcon, RepeatIcon, SunIcon } from './icons';
+import { ChartIcon, MoonIcon, RepeatIcon, SunIcon, UserIcon } from './icons';
 import { haptic } from '../lib/feedback';
 
 const TABS = [
@@ -8,6 +8,7 @@ const TABS = [
   { id: 'plan', label: 'Plan', Icon: MoonIcon },
   { id: 'insights', label: 'Insights', Icon: ChartIcon },
   { id: 'habits', label: 'Habits', Icon: RepeatIcon },
+  { id: 'profile', label: 'Profile', Icon: UserIcon },
 ] as const;
 
 export function TabBar({ planBadge }: { planBadge?: boolean }) {
@@ -41,7 +42,7 @@ export function TabBar({ planBadge }: { planBadge?: boolean }) {
                   <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-plan ring-2 ring-surface" />
                 )}
               </span>
-              <span className={`relative text-[11px] font-medium ${active ? 'text-text' : 'text-muted'}`}>
+              <span className={`relative text-[10.5px] font-medium ${active ? 'text-text' : 'text-muted'}`}>
                 {label}
               </span>
             </button>

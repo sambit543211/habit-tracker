@@ -2,8 +2,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { habitRate, habitStreak, habitsOn } from '../lib/score';
 import { FlameIcon, PlusIcon } from '../components/icons';
-import { AccountCard } from '../components/AccountCard';
-import { RemindersCard } from '../components/RemindersCard';
 
 export function Habits({ today }: { today: string }) {
   const habits = useStore((s) => s.habits);
@@ -55,7 +53,11 @@ export function Habits({ today }: { today: string }) {
                     <span className="block truncate text-[13px] text-muted">
                       {h.cue ? `After I ${h.cue}` : <span className="text-gold">Add a trigger → "After I…"</span>}
                     </span>
-                    {h.tiny && <span className="block truncate text-[12.5px] text-faint">Tiny: {h.tiny}</span>}
+                    {(h.tiny || h.pairWith) && (
+                      <span className="block truncate text-[12.5px] text-faint">
+                        {[h.tiny && `Tiny: ${h.tiny}`, h.pairWith && `🎧 ${h.pairWith}`].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
                   </span>
                   <span className="text-right">
                     <span className="flex items-center justify-end gap-1 text-[15px] font-semibold">
@@ -83,8 +85,6 @@ export function Habits({ today }: { today: string }) {
           moving some to Plans.
         </p>
       )}
-      <RemindersCard />
-      <AccountCard />
     </div>
   );
 }

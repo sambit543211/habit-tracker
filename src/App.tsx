@@ -11,6 +11,11 @@ import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
 import { ReviewSheet } from './components/ReviewSheet';
 import { HabitEditor } from './components/HabitEditor';
+import { PlanEditor } from './components/PlanEditor';
+import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
+import { Celebrations } from './components/Celebrations';
+import { Profile } from './screens/Profile';
+import { NamePrompt } from './screens/NamePrompt';
 import { Login } from './screens/Login';
 import { Ring } from './components/Ring';
 import { useSync } from './sync';
@@ -22,11 +27,13 @@ export default function App() {
   const { today, hour } = useToday();
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
+  const hasName = useStore((s) => !!s.profile.name);
   const ready = useSync((s) => s.ready);
   const session = useSync((s) => s.session);
 
   if (CLOUD_ENABLED && !ready) return <Splash />;
   if (CLOUD_ENABLED && !session) return <Login />;
+  if (CLOUD_ENABLED && !hasName) return <NamePrompt />;
   if (!onboarded) return <Onboarding />;
 
   return (
@@ -41,15 +48,19 @@ export default function App() {
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
             {tab === 'today' && <Today today={today} hour={hour} />}
-            {tab === 'plan' && <PlanTomorrow today={today} />}
+            {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
             {tab === 'insights' && <Insights today={today} />}
             {tab === 'habits' && <Habits today={today} />}
+            {tab === 'profile' && <Profile today={today} />}
           </motion.div>
         </AnimatePresence>
       </main>
       <TabBar planBadge={isEvening(hour) && tomorrowEmpty} />
       <ReviewSheet today={today} />
       <HabitEditor />
+      <PlanEditor />
+      <WeeklyReviewSheet today={today} />
+      <Celebrations today={today} />
       <ReasonSheet />
     </>
   );

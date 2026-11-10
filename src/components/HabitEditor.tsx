@@ -14,6 +14,7 @@ export function HabitEditor() {
   const [cue, setCue] = useState('');
   const [tiny, setTiny] = useState('');
   const [remindAt, setRemindAt] = useState('');
+  const [pairWith, setPairWith] = useState('');
   const [confirm, setConfirm] = useState(false);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export function HabitEditor() {
     setCue(habit?.cue ?? '');
     setTiny(habit?.tiny ?? '');
     setRemindAt(habit?.remindAt ?? '');
+    setPairWith(habit?.pairWith ?? '');
     setConfirm(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
@@ -30,7 +32,7 @@ export function HabitEditor() {
   const save = () => {
     const n = name.trim();
     if (!n) return;
-    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined };
+    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined, pairWith: pairWith.trim() || undefined };
     if (habit) updateHabit(habit.id, data);
     else addHabit(data);
     close();
@@ -54,6 +56,12 @@ export function HabitEditor() {
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Tiny version for hard days</label>
       <input value={tiny} onChange={(e) => setTiny(e.target.value)} placeholder="Read 1 page" className={field} />
+
+      <label className="mt-4 block text-[13px] font-medium text-muted">Pair it with… <span className="text-faint">(optional)</span></label>
+      <input value={pairWith} onChange={(e) => setPairWith(e.target.value)} placeholder="my favourite podcast — only while doing this" className={field} />
+      <p className="mt-1.5 text-[12.5px] text-faint">
+        Temptation bundling: allow a treat only during the habit. Gym visits rose ~50% this way (Milkman et al., 2014).
+      </p>
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">
