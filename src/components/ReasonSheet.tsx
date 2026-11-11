@@ -44,11 +44,23 @@ export function ReasonSheet() {
   const submit = () => {
     if (!reason || !target) return;
     const miss = { reason, note: note.trim() || undefined, nextTime: nextTime.trim() || undefined };
+    const { clearHabit, clearPlan } = useStore.getState();
+    const showToast = useUI.getState().showToast;
     if (target.kind === 'habit') {
       missHabit(target.day, target.id, miss);
       if (makeCue && miss.nextTime) updateHabit(target.id, { cue: miss.nextTime });
-    } else if (action === 'carry' && canCarry) carryPlan(target.id, miss);
-    else missPlan(target.id, miss);
+      const t = target;
+      showToast('Logged as not done', { tone: 'miss', undo: () => clearHabit(t.day, t.id) });
+    } else {
+      const id = target.id;
+      if (action === 'carry' && canCarry) {
+        carryPlan(id, miss);
+        showToast('Moved forward', { tone: 'plan', undo: () => clearPlan(id) });
+      } else {
+        missPlan(id, miss);
+        showToast('Logged as not done', { tone: 'miss', undo: () => clearPlan(id) });
+      }
+    }
     close();
   };
 
@@ -144,8 +156,10 @@ export function ReasonSheet() {
       {plan && (
         <button
           onClick={() => {
+            const copy = plan;
             deletePlan(plan.id);
             close();
+            useUI.getState().showToast('Plan deleted', { tone: 'miss', undo: () => useStore.getState().restorePlan(copy) });
           }}
           className="mt-2 w-full py-2 text-[13px] text-faint"
         >

@@ -59,6 +59,10 @@ interface Store extends Data {
   addPlan: (day: string, title: string, must: boolean, details?: PlanDetails) => string;
   updatePlan: (id: string, details: PlanDetails) => void;
   deletePlan: (id: string) => void;
+  /** Put a deleted plan back (undo) */
+  restorePlan: (plan: Plan) => void;
+  swipeHintSeen?: boolean;
+  markSwipeHintSeen: () => void;
   toggleMust: (id: string) => void;
   markPlan: (id: string) => void;
   missPlan: (id: string, miss: Miss) => void;
@@ -175,6 +179,8 @@ export const useStore = create<Store>()(
       updatePlan: (id, details) => set((s) => ({ plans: updatePlan(s.plans, id, details) })),
 
       deletePlan: (id) => set((s) => ({ plans: s.plans.filter((p) => p.id !== id) })),
+      restorePlan: (plan) => set((s) => ({ plans: s.plans.some((p) => p.id === plan.id) ? s.plans : [...s.plans, plan] })),
+      markSwipeHintSeen: () => set({ swipeHintSeen: true }),
 
       toggleMust: (id) =>
         set((s) => ({ plans: s.plans.map((p) => (p.id === id ? { ...p, must: !p.must } : p)) })),
@@ -260,12 +266,22 @@ export const useStore = create<Store>()(
 /** Ephemeral UI state (not persisted). */
 export type PlanEditTarget = { id: string } | { day: string; start?: string };
 
+export interface Toast {
+  id: number;
+  message: string;
+  tone?: 'habit' | 'plan' | 'miss';
+  undo?: () => void;
+}
+
 interface UI {
   tab: 'today' | 'plan' | 'insights' | 'habits' | 'profile';
   editingPlan: PlanEditTarget | null;
   editPlan: (t: PlanEditTarget | null) => void;
   reviewWeekOpen: boolean;
   setReviewWeek: (o: boolean) => void;
+  toast: Toast | null;
+  showToast: (message: string, opts?: { undo?: () => void; tone?: Toast['tone'] }) => void;
+  hideToast: () => void;
   missTarget: MissTarget | null;
   reviewOpen: boolean;
   editingHabit: string | 'new' | null;
@@ -281,6 +297,9 @@ export const useUI = create<UI>()((set) => ({
   editPlan: (editingPlan) => set({ editingPlan }),
   reviewWeekOpen: false,
   setReviewWeek: (reviewWeekOpen) => set({ reviewWeekOpen }),
+  toast: null,
+  showToast: (message, opts) => set({ toast: { id: Date.now(), message, ...opts } }),
+  hideToast: () => set({ toast: null }),
   missTarget: null,
   reviewOpen: false,
   editingHabit: null,

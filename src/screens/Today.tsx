@@ -21,7 +21,8 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const freshStartSeen = useStore((s) => s.freshStartSeen);
   const profile = useStore((s) => s.profile);
   const weeklyReviews = useStore((s) => s.weeklyReviews);
-  const { dismissFreshStart } = useStore();
+  const { dismissFreshStart, markSwipeHintSeen } = useStore();
+  const swipeHintSeen = useStore((s) => s.swipeHintSeen);
   const { setTab, setReview, setReviewWeek, editPlan } = useUI();
 
   const data = { habits, plans, logs, startDay };
@@ -44,6 +45,8 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const nearBed = nowSince >= windowLength(profile) - 120;
   const wd = weekday(today);
   const reviewDue = (wd === 0 || wd === 1) && !weeklyReviews[reviewWeekFor(today)] && !!startDay && startDay < today;
+  // One-time swipe tutorial on the first open habit.
+  const hintHabit = !swipeHintSeen ? todayHabits.find((h) => !logs[today]?.[h.id]) : undefined;
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -132,12 +135,34 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </button>
       )}
 
+      <AnimatePresence>
+        {hintHabit && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted"
+          >
+            <span className="font-semibold text-habit">Swipe →</span> done
+            <span className="text-faint">·</span>
+            <span className="font-semibold text-miss">← Swipe</span> didn't
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Habits | Plans side by side */}
       <div className="grid grid-cols-2 gap-2.5">
         <section className="min-w-0">
           <ColumnHeader title="Habits" color="var(--habit)" done={stats.habitsDone} total={stats.habitsTotal} />
           {todayHabits.length ? (
-            <HabitRows habits={todayHabits} day={today} showTiny={hour >= 18 || hour < 2} compact />
+            <HabitRows
+              habits={todayHabits}
+              day={today}
+              showTiny={hour >= 18 || hour < 2}
+              compact
+              hintId={hintHabit?.id}
+              onHintDone={() => setTimeout(markSwipeHintSeen, 2500)}
+            />
           ) : (
             <EmptyColumn text="No habits yet" cta="Add habits" onClick={() => setTab('habits')} />
           )}
@@ -162,7 +187,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           {todayPlans.length ? (
             <PlanRows plans={todayPlans} compact />
           ) : (
-            <EmptyColumn text="Nothing planned" cta="Plan something" onClick={addPlan} />
+            <SmartEmptyPlans today={today} onAdd={addPlan} onReview={() => setReview(true)} />
           )}
         </section>
       </div>
@@ -211,6 +236,57 @@ function ColumnHeader({ title, color, done, total, action }: { title: string; co
         </span>
       </h2>
       {action}
+    </div>
+  );
+}
+
+/**
+ * Empty Plans column: instead of a blank, offer yesterday's unfinished plans.
+ * Open ones go through "Close the loop" (they still need a ✓ or a reason);
+ * dropped ones can be re-added with one tap.
+ */
+function SmartEmptyPlans({ today, onAdd, onReview }: { today: string; onAdd: () => void; onReview: () => void }) {
+  const plans = useStore((s) => s.plans);
+  const addPlan = useStore((s) => s.addPlan);
+  const showToast = useUI((s) => s.showToast);
+  const yesterday = addDays(today, -1);
+  const open = plans.filter((p) => p.day === yesterday && p.status === 'pending');
+  const dropped = plans.filter((p) => p.day === yesterday && p.status === 'missed').slice(0, 3);
+  if (!open.length && !dropped.length) return <EmptyColumn text="Nothing planned" cta="Plan something" onClick={onAdd} />;
+  return (
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-dashed border-line-strong/60 p-2.5">
+      <div className="text-[12px] font-medium text-muted">From yesterday</div>
+      {open.length > 0 && (
+        <button onClick={onReview} className="rounded-xl bg-plan/12 px-2.5 py-2 text-left text-[12.5px] font-semibold text-plan" style={{ background: 'color-mix(in srgb, var(--plan) 12%, transparent)' }}>
+          {open.length} unfinished → carry over
+        </button>
+      )}
+      {dropped.map((p) => (
+        <motion.button
+          key={p.id}
+          whileTap={{ scale: 0.96 }}
+          onClick={() => {
+            haptic(8);
+            const id = addPlan(today, p.title, p.must, {
+              note: p.note,
+              start: p.start,
+              duration: p.duration,
+              remindOffset: p.remindOffset,
+              remindAt: p.remindAt,
+              obstacle: p.obstacle,
+              ifThen: p.ifThen,
+            });
+            showToast(`Added “${p.title}” for today`, { tone: 'plan', undo: () => useStore.getState().deletePlan(id) });
+          }}
+          className="flex items-center gap-1.5 rounded-xl bg-surface px-2.5 py-2 text-left text-[12.5px] font-medium"
+        >
+          <span className="text-plan">＋</span>
+          <span className="truncate">Retry: {p.title}</span>
+        </motion.button>
+      ))}
+      <button onClick={onAdd} className="mt-0.5 text-[12.5px] font-semibold text-muted">
+        or plan something new →
+      </button>
     </div>
   );
 }
