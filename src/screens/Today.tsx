@@ -77,9 +77,15 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       {/* Header */}
       <header className="flex items-center justify-between gap-3 pt-1">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
-            {formatDay(today, { weekday: 'long', day: 'numeric', month: 'short' })}
-          </div>
+          <button
+            onClick={() => setTab('profile')}
+            aria-label={`${formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}. Level ${level.level}, ${level.name}. Open profile`}
+            className="relative block truncate text-left text-[12px] font-semibold tracking-[0.08em] text-muted uppercase before:absolute before:-inset-y-3 before:inset-x-0 before:content-['']"
+          >
+            {formatDay(today, { weekday: 'short', day: 'numeric', month: 'short' })}
+            <span className="text-faint"> · </span>
+            <span className="text-plan">Lv {level.level} {level.name}</span>
+          </button>
           <h1 className="truncate text-[22px] leading-tight font-bold tracking-[-0.03em] min-[380px]:text-[24px]">
             {greeting(hour)}
             {firstName && (
@@ -95,13 +101,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             )}
           </h1>
         </div>
-        <button
-          onClick={() => setTab('profile')}
-          aria-label={`Level ${level.level}, ${level.name}. Open profile`}
-          className="relative flex min-h-9 shrink-0 items-center rounded-full border border-plan/40 bg-plan/10 px-2.5 text-[13px] font-semibold text-plan before:absolute before:-inset-1 before:content-['']"
-        >
-          Lv {level.level}
-        </button>
         <motion.div
           animate={atRisk ? { scale: [1, 1.06, 1] } : { scale: 1 }}
           transition={atRisk ? { repeat: Infinity, duration: 1.6 } : undefined}
@@ -159,24 +158,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           </div>
         </div>
       </motion.section>
-
-      {showCloseDay && (
-        <motion.button
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            haptic(8);
-            setCloseDay(true);
-          }}
-          className="flex min-h-12 items-center justify-between rounded-2xl bg-text px-4 text-left text-bg"
-        >
-          <span className="text-[15px] font-semibold">🌙 Close my day</span>
-          <span className="text-[13px] font-medium opacity-70">
-            {stats.pending > 0 ? `${stats.pending} to resolve →` : 'See your day →'}
-          </span>
-        </motion.button>
-      )}
 
       {open.length > 0 && (
         <button
@@ -248,6 +229,24 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       </div>
 
       {/* Contextual cards (below the fold on purpose: today's promises come first) */}
+      {showCloseDay && (
+        <motion.button
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            haptic(8);
+            setCloseDay(true);
+          }}
+          className="flex min-h-12 items-center justify-between rounded-2xl bg-text px-4 text-left text-bg"
+        >
+          <span className="text-[15px] font-semibold">🌙 Close my day</span>
+          <span className="text-[13px] font-medium opacity-70">
+            {stats.pending > 0 ? `${stats.pending} to resolve →` : 'See your day →'}
+          </span>
+        </motion.button>
+      )}
+
       {quest && (
         <section
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3"

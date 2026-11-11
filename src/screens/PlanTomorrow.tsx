@@ -54,7 +54,7 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
         <h1 className="text-[30px] leading-tight font-bold tracking-[-0.03em]">Plan</h1>
         <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1">
           {(['today', 'tomorrow'] as const).map((w) => (
-            <button key={w} onClick={() => setWhich(w)} className={`relative rounded-xl py-2 text-[14px] font-medium ${which === w ? 'text-text' : 'text-muted'}`}>
+            <button key={w} onClick={() => setWhich(w)} className={`relative min-h-11 rounded-xl text-[14px] font-medium ${which === w ? 'text-text' : 'text-muted'}`}>
               {which === w && <motion.span layoutId="plan-day" className="absolute inset-0 rounded-xl bg-surface shadow-sm" />}
               <span className="relative">
                 {w === 'today' ? 'Today' : 'Tomorrow'}
