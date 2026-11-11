@@ -1,10 +1,13 @@
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import { PlusIcon, StarIcon } from './icons';
 import { haptic } from '../lib/feedback';
+import { parsePlan } from '../lib/parsePlan';
+import { useStore, type PlanDetails } from '../store';
+import { fmtDuration, fmtTime, fromMin, toMin } from '../lib/time';
 
 interface Props {
-  onAdd: (title: string, must: boolean) => void;
+  onAdd: (title: string, must: boolean, details?: PlanDetails) => void;
   /** Called when + is tapped with nothing typed — opens the full editor */
   onDetails?: () => void;
   placeholder: string;
@@ -18,14 +21,18 @@ interface Props {
 export function PlanInput({ onAdd, onDetails, placeholder, defaultMust = false }: Props) {
   const [title, setTitle] = useState('');
   const [must, setMust] = useState(defaultMust);
+  const wakeHour = useStore((s) => Math.floor(toMin(s.profile.wake) / 60));
+  const parsed = title.trim() ? parsePlan(title, wakeHour) : null;
   const submit = () => {
     const t = title.trim();
     haptic(8);
     if (!t) return onDetails?.();
-    onAdd(t, must);
+    const p = parsePlan(t, wakeHour);
+    onAdd(p.title, must, p.start ? { start: p.start, duration: p.duration } : undefined);
     setTitle('');
   };
   return (
+    <div>
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -61,5 +68,22 @@ export function PlanInput({ onAdd, onDetails, placeholder, defaultMust = false }
         <PlusIcon size={20} strokeWidth={2.6} />
       </motion.button>
     </form>
+      <AnimatePresence>
+        {parsed?.start && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="mt-1.5 flex items-center gap-1.5 px-1 text-[12px] font-medium text-plan"
+          >
+            <span>⏰</span>
+            <span className="truncate">
+              “{parsed.title}” · {fmtTime(parsed.start)}–{fmtTime(fromMin(toMin(parsed.start) + (parsed.duration ?? 30)))} ·{' '}
+              {fmtDuration(parsed.duration ?? 30)} on your calendar
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

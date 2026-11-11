@@ -11,6 +11,7 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
   const { markPlan, clearPlan } = useStore();
   const openMiss = useUI((s) => s.openMiss);
   const editPlan = useUI((s) => s.editPlan);
+  const showToast = useUI((s) => s.showToast);
   const sorted = [...plans].sort(
     (a, b) => Number(b.must) - Number(a.must) || (a.start ?? '99').localeCompare(b.start ?? '99') || a.createdAt - b.createdAt,
   );
@@ -25,7 +26,10 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
             status={p.status}
             leading={p.must ? <StarIcon size={14} filled className="shrink-0 text-gold" /> : undefined}
             subtitle={planSubtitle(p)}
-            onDone={() => markPlan(p.id)}
+            onDone={() => {
+              markPlan(p.id);
+              showToast(`${p.title} — done`, { tone: 'plan', undo: () => clearPlan(p.id) });
+            }}
             onMiss={() => openMiss({ kind: 'plan', id: p.id })}
             onUndo={() => clearPlan(p.id)}
             onOpen={() => editPlan({ id: p.id })}

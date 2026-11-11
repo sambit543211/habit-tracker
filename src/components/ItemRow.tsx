@@ -1,5 +1,5 @@
-import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { animate, motion, useAnimationControls, useMotionValue, useTransform } from 'framer-motion';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { CheckIcon, XIcon } from './icons';
 import { haptic } from '../lib/feedback';
 
@@ -19,6 +19,9 @@ interface ItemRowProps {
   onOpen?: () => void;
   /** Dense layout for the two-column Today view */
   compact?: boolean;
+  /** Play the one-time swipe tutorial on this row */
+  hint?: boolean;
+  onHintDone?: () => void;
 }
 
 const SWIPE = 84;
@@ -27,9 +30,41 @@ const SWIPE = 84;
  * A trackable item. Tap the circle to complete, swipe right to complete,
  * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone }: ItemRowProps) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
+
+  // Visual "haptic": iPhone web apps can't vibrate, so resolved rows flash + pop.
+  const [flash, setFlash] = useState(0);
+  const pop = useAnimationControls();
+  const prevStatus = useRef(status);
+  useEffect(() => {
+    if (prevStatus.current === 'pending' && status !== 'pending') {
+      setFlash((f) => f + 1);
+      void pop.start({ scale: [1, 1.03, 1], transition: { duration: 0.35, ease: 'easeOut' } });
+    }
+    prevStatus.current = status;
+  }, [status, pop]);
+
+  // One-time swipe tutorial: nudge right (done), then left (didn't).
+  useEffect(() => {
+    if (!hint || status !== 'pending') return;
+    let cancelled = false;
+    const run = async () => {
+      await new Promise((r) => setTimeout(r, 900));
+      for (const to of [56, 0, -56, 0]) {
+        if (cancelled) return;
+        await animate(x, to, { type: 'spring', stiffness: 260, damping: 22 });
+        await new Promise((r) => setTimeout(r, to === 0 ? 150 : 450));
+      }
+      if (!cancelled) onHintDone?.();
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hint]);
   const doneOpacity = useTransform(x, [12, SWIPE], [0, 1]);
   const missOpacity = useTransform(x, [-SWIPE, -12], [1, 0]);
   const pending = status === 'pending';
@@ -73,6 +108,7 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.55}
         dragSnapToOrigin
+        animate={pop}
         style={{ x, touchAction: 'pan-y' }}
         onDragStart={() => {
           dragged.current = true;
@@ -89,6 +125,17 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
           compact ? 'min-h-[54px] items-start gap-2 rounded-2xl py-2.5 pr-6 pl-2.5' : 'min-h-[64px] items-center gap-3.5 rounded-[20px] px-4 py-3'
         }`}
       >
+        {flash > 0 && (
+          <motion.span
+            key={flash}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-[inherit]"
+            style={{ background: status === 'missed' ? 'var(--miss)' : accentVar }}
+            initial={{ opacity: 0.32 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+        )}
         <StatusButton status={status} onClick={pending ? done : onUndo} compact={compact} />
         <div
           className={`min-w-0 flex-1 ${onOpen ? 'cursor-pointer' : ''}`}

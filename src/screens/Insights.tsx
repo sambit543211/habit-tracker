@@ -5,6 +5,8 @@ import { dayStats, habitRate, habitStreak, habitsOn, reasonCounts, streak, weekd
 import { addDays, formatDay, fromKey, range, toKey, WEEKDAYS } from '../lib/date';
 import { REASONS } from '../lib/reasons';
 import { FlameIcon } from '../components/icons';
+import { weekStart } from '../lib/time';
+import { AnimatedNumber } from '../components/Ring';
 
 const WEEKS = 15;
 
@@ -21,6 +23,16 @@ export function Insights({ today }: { today: string }) {
   const past7 = range(addDays(today, -7), addDays(today, -1)).map((d) => dayStats(data, d).score).filter((s): s is number => s !== null);
   const avg7 = past7.length ? past7.reduce((a, b) => a + b, 0) / past7.length : null;
 
+  // This week's finished days (Mon → yesterday) vs last week (Mon → Sun): comparing to your past self.
+  // Today is excluded while it's still in progress — otherwise mornings always look like a dip.
+  const avgOf = (from: string, to: string) => {
+    const xs = range(from, to).map((d) => dayStats(data, d).score).filter((s): s is number => s !== null);
+    return xs.length ? { avg: xs.reduce((a, b) => a + b, 0) / xs.length, days: xs.length } : null;
+  };
+  const thisMon = weekStart(today);
+  const thisWeek = today > thisMon ? avgOf(thisMon, addDays(today, -1)) : null;
+  const lastWeek = avgOf(addDays(thisMon, -7), addDays(thisMon, -1));
+
   const from30 = addDays(today, -30);
   const reasons = reasonCounts(data, from30, today);
   const reasonTotal = Object.values(reasons).reduce((a, b) => a + b, 0);
@@ -35,6 +47,8 @@ export function Insights({ today }: { today: string }) {
         <div className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">Your patterns</div>
         <h1 className="text-[30px] leading-tight font-bold tracking-[-0.03em]">Insights</h1>
       </header>
+
+      <WeekCompare thisWeek={thisWeek} lastWeek={lastWeek} />
 
       <div className="grid grid-cols-3 gap-2.5">
         <Stat label="Streak" value={st.current} icon={<FlameIcon size={15} className="text-gold" />} />
@@ -216,4 +230,52 @@ function buildInsight(
       parts.push(`${WEEKDAYS[worst[1]]}s are your hardest day (${Math.round(worst[0] * 100)}%) — plan lighter.`);
   }
   return parts.length ? parts.join(' ') : null;
+}
+
+function WeekCompare({ thisWeek, lastWeek }: { thisWeek: { avg: number; days: number } | null; lastWeek: { avg: number; days: number } | null }) {
+  if (!thisWeek && !lastWeek) return null;
+  const now = thisWeek ? Math.round(thisWeek.avg * 100) : null;
+  const prev = lastWeek ? Math.round(lastWeek.avg * 100) : null;
+  const delta = now !== null && prev !== null ? now - prev : null;
+  const up = delta !== null && delta > 0;
+  const flat = delta !== null && Math.abs(delta) < 1;
+  const color = delta === null || flat ? 'var(--muted)' : up ? 'var(--habit)' : 'var(--miss)';
+  return (
+    <section className="card hero px-4 py-4">
+      <div className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">You vs. last week</div>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <div>
+          <div className="flex items-start">
+            {now === null ? (
+              <span className="text-[40px] leading-none font-bold">–</span>
+            ) : (
+              <AnimatedNumber value={now} className="tabular text-[40px] leading-none font-bold tracking-[-0.04em]" />
+            )}
+            {now !== null && <span className="mt-1 ml-0.5 text-[16px] font-semibold text-muted">%</span>}
+          </div>
+          <div className="mt-1 text-[12.5px] text-muted">
+            {thisWeek ? `this week · ${thisWeek.days} finished day${thisWeek.days === 1 ? '' : 's'}` : 'this week starts counting tomorrow'}
+          </div>
+        </div>
+        <div className="text-right">
+          {delta !== null && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="tabular text-[22px] font-bold"
+              style={{ color }}
+            >
+              {flat ? '=' : up ? '↑' : '↓'} {Math.abs(delta)}
+            </motion.div>
+          )}
+          <div className="text-[12.5px] text-muted">last week {prev === null ? '–' : `${prev}%`}</div>
+        </div>
+      </div>
+      {delta !== null && !flat && (
+        <p className="mt-2.5 text-[13px] text-muted">
+          {up ? 'Better than last week. Keep the trend going.' : 'A dip — check "Why you miss" below for the pattern.'}
+        </p>
+      )}
+    </section>
+  );
 }

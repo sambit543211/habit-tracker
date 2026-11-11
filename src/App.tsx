@@ -16,6 +16,7 @@ import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
 import { Celebrations } from './components/Celebrations';
 import { Profile } from './screens/Profile';
 import { NamePrompt } from './screens/NamePrompt';
+import { Toast } from './components/Toast';
 import { Login } from './screens/Login';
 import { Ring } from './components/Ring';
 import { useSync } from './sync';
@@ -62,6 +63,7 @@ export default function App() {
       <WeeklyReviewSheet today={today} />
       <Celebrations today={today} />
       <ReasonSheet />
+      <Toast />
     </>
   );
 }
