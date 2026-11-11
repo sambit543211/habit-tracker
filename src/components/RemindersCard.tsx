@@ -3,13 +3,21 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { useSync } from '../sync';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
-import type { Reminders } from '../types';
 import { Switch } from './PlanEditor';
 
-const ROWS: { key: keyof Omit<Reminders, 'enabled'>; title: string; text: string; fallback: string }[] = [
-  { key: 'morning', title: 'Close the loop', text: "Only if yesterday has open items", fallback: '08:30' },
-  { key: 'evening', title: 'Plan tomorrow', text: 'Only if tomorrow is still empty', fallback: '21:00' },
-  { key: 'streak', title: 'Streak at risk', text: 'Only if habits are still open', fallback: '22:30' },
+type TimeKey = 'morning' | 'evening' | 'streak';
+type FlagKey = 'brief' | 'lastCall';
+type Row =
+  | { key: TimeKey; kind: string; title: string; text: string; fallback: string }
+  | { key: FlagKey; kind: string; title: string; text: string; fallback?: undefined };
+
+/** `kind` is the server's name for the reminder (used for pausing). */
+const ROWS: Row[] = [
+  { key: 'brief', kind: 'brief', title: 'Morning brief', text: 'At wake-up: your must-dos and first time block' },
+  { key: 'morning', kind: 'morning', title: 'Close the loop', text: 'Only if yesterday has open items', fallback: '08:30' },
+  { key: 'evening', kind: 'evening', title: 'Plan tomorrow', text: 'Only if tomorrow is still empty', fallback: '21:00' },
+  { key: 'streak', kind: 'streak', title: 'Streak at risk', text: 'Only if habits are still open', fallback: '22:30' },
+  { key: 'lastCall', kind: 'lastcall', title: 'Last call', text: '1 hour before bed, only if habits are open' },
 ];
 
 /** Notification permission + nudge settings (Habits tab). */
@@ -76,27 +84,45 @@ export function RemindersCard() {
       {state === 'on' && (
         <div className="mt-3 divide-y divide-line">
           {ROWS.map((r) => {
-            const value = reminders[r.key];
+            const paused = (reminders.paused ?? []).includes(r.kind);
+            const unpause = () => ({ paused: (reminders.paused ?? []).filter((k) => k !== r.kind) });
+            const isTime = r.fallback !== undefined;
+            const value = isTime ? reminders[r.key as TimeKey] : null;
+            const on = isTime ? !!value : reminders[r.key as FlagKey] !== false;
             return (
-              <div key={r.key} className="flex items-center gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className={`text-[15px] font-medium ${value ? '' : 'text-muted'}`}>{r.title}</div>
-                  <div className="text-[12.5px] text-faint">{r.text}</div>
-                </div>
-                {value && (
-                  <input
-                    type="time"
-                    value={value}
-                    onChange={(e) => e.target.value && setReminders({ [r.key]: e.target.value })}
-                    className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] outline-none"
-                    aria-label={`${r.title} time`}
+              <div key={r.key} className="py-3">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[15px] font-medium ${on ? '' : 'text-muted'}`}>{r.title}</div>
+                    <div className="text-[12.5px] text-faint">{r.text}</div>
+                  </div>
+                  {isTime && value && (
+                    <input
+                      type="time"
+                      value={value}
+                      onChange={(e) => e.target.value && setReminders({ [r.key]: e.target.value, ...unpause() })}
+                      className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] outline-none"
+                      aria-label={`${r.title} time`}
+                    />
+                  )}
+                  <Switch
+                    on={on}
+                    onChange={(v) => setReminders({ [r.key]: isTime ? (v ? r.fallback : null) : v, ...unpause() })}
+                    label={r.title}
                   />
+                </div>
+                {paused && on && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-gold/10 px-3 py-2 text-[12.5px]">
+                    <span className="text-gold">Paused — ignored 3 days in a row.{isTime ? ' Try a different time?' : ''}</span>
+                    <button onClick={() => setReminders(unpause())} className="shrink-0 font-semibold text-text underline underline-offset-2">
+                      Resume
+                    </button>
+                  </div>
                 )}
-                <Switch on={!!value} onChange={(on) => setReminders({ [r.key]: on ? r.fallback : null })} label={r.title} />
               </div>
             );
           })}
-          <p className="pt-3 text-[12.5px] text-faint">Set a time on any habit to get a nudge for it too. Nudges are skipped when you're on track.</p>
+          <p className="pt-3 text-[12.5px] text-faint">Wording rotates so it stays fresh. Nudges are skipped when you're on track, and pause themselves if you keep ignoring them.</p>
         </div>
       )}
     </section>

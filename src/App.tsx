@@ -17,6 +17,8 @@ import { Celebrations } from './components/Celebrations';
 import { Profile } from './screens/Profile';
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
+import { CloseDaySheet } from './components/CloseDaySheet';
+import { useAppBadge } from './lib/useAppBadge';
 import { Login } from './screens/Login';
 import { Ring } from './components/Ring';
 import { useSync } from './sync';
@@ -28,6 +30,7 @@ export default function App() {
   const { today, hour } = useToday();
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
+  useAppBadge(today);
   const hasName = useStore((s) => !!s.profile.name);
   const ready = useSync((s) => s.ready);
   const session = useSync((s) => s.session);
@@ -61,6 +64,7 @@ export default function App() {
       <HabitEditor />
       <PlanEditor />
       <WeeklyReviewSheet today={today} />
+      <CloseDaySheet today={today} />
       <Celebrations today={today} />
       <ReasonSheet />
       <Toast />

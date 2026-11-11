@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore } from '../store';
+import { useStore, useUI } from '../store';
+import { achievements, levelFor, weeklyQuest } from '../lib/game';
 import { dayStats, streak } from '../lib/score';
 import { celebrateBig } from '../lib/feedback';
 import { Sheet } from './Sheet';
@@ -31,7 +32,44 @@ export function Celebrations({ today }: { today: string }) {
 
   const data = { habits, plans, logs, startDay };
   const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const st = useMemo(() => streak(data, today), [habits, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shieldsOn = useStore((s) => s.profile.shields !== false);
+  const st = useMemo(() => streak(data, today, shieldsOn), [habits, logs, startDay, today, shieldsOn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Level-ups, new badges and quest completion ----
+  const reviewCount = useStore((s) => Object.keys(s.weeklyReviews).length);
+  const levelSeen = useStore((s) => s.levelSeen ?? 0);
+  const badgesSeen = useStore((s) => s.badgesSeen ?? []);
+  const questsSeen = useStore((s) => s.questsSeen ?? []);
+  const markSeen = useStore((s) => s.markSeen);
+  const showToast = useUI((s) => s.showToast);
+  const game = useMemo(() => {
+    const a = achievements(data, today, reviewCount);
+    return { level: levelFor(a.kept), earned: a.badges.filter((b) => b.earned), quest: weeklyQuest(data, today) };
+  }, [habits, plans, logs, startDay, today, reviewCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  const levelUp = levelSeen > 0 && game.level.level > levelSeen ? game.level : null;
+  useEffect(() => {
+    // First run on this device: adopt the current state silently (no retroactive fanfare).
+    if (levelSeen === 0) {
+      markSeen({
+        levelSeen: game.level.level,
+        badgesSeen: game.earned.map((b) => b.id),
+        questsSeen: game.quest?.done ? [game.quest.id] : [],
+      });
+      return;
+    }
+    const fresh = game.earned.filter((b) => !badgesSeen.includes(b.id));
+    if (fresh.length) {
+      markSeen({ badgesSeen: [...badgesSeen, ...fresh.map((b) => b.id)] });
+      const b = fresh[fresh.length - 1];
+      setTimeout(() => showToast(`New badge: ${b.emoji} ${b.title}`, { tone: 'plan' }), 1200);
+    } else if (game.quest?.done && !questsSeen.includes(game.quest.id)) {
+      markSeen({ questsSeen: [...questsSeen.slice(-8), game.quest.id] });
+      setTimeout(() => showToast('🏅 Weekly quest complete', { tone: 'habit' }), 1200);
+    }
+  }, [game, levelSeen, badgesSeen, questsSeen, markSeen, showToast]);
+  useEffect(() => {
+    if (levelUp) setTimeout(() => celebrateBig(), 300);
+  }, [levelUp]);
   const closed = stats.habitsTotal + stats.plansTotal > 0 && stats.pending === 0;
 
   // Day closed: only when it happens now (not on reload).
@@ -39,7 +77,8 @@ export function Celebrations({ today }: { today: string }) {
   const [showClosed, setShowClosed] = useState(false);
   useEffect(() => {
     if (closed && !prevClosed.current && dayClosedSeen !== today) {
-      setTimeout(() => setShowClosed(true), 900); // let the confetti play first
+      // The "Close my day" flow shows its own summary.
+      if (!useUI.getState().closeDayOpen) setTimeout(() => setShowClosed(true), 900); // let the confetti play first
       markDayClosed(today);
     }
     prevClosed.current = closed;
@@ -78,6 +117,42 @@ export function Celebrations({ today }: { today: string }) {
       </Sheet>
 
       <AnimatePresence>
+        {levelUp && !milestone && (
+          <motion.div
+            className="fixed inset-0 z-[80] grid place-items-center bg-black/70 px-8 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => markSeen({ levelSeen: levelUp.level })}
+            role="dialog"
+            aria-label={`Level up: level ${levelUp.level}, ${levelUp.name}`}
+          >
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 240, damping: 16 }}
+              className="flex flex-col items-center text-center text-white"
+            >
+              <div
+                className="grid size-36 place-items-center rounded-full"
+                style={{ background: 'linear-gradient(135deg, #3ddc97, #8b7cff)', boxShadow: '0 0 80px rgba(139,124,255,0.55)' }}
+              >
+                <div className="flex flex-col items-center">
+                  <span className="text-[12px] font-bold tracking-[0.2em] uppercase opacity-85">Level</span>
+                  <span className="tabular text-[52px] leading-none font-black">{levelUp.level}</span>
+                </div>
+              </div>
+              <h2 className="mt-7 text-[30px] font-bold tracking-[-0.03em]">{levelUp.name}</h2>
+              <p className="mt-2 max-w-xs text-[15px] leading-relaxed text-white/75">
+                {levelUp.xp} promises kept. Your word is getting more reliable.
+              </p>
+              <button className="mt-8 min-h-12 rounded-full bg-white px-8 text-[15px] font-semibold text-black">Keep going</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {milestone && (
           <motion.div
             className="fixed inset-0 z-[80] grid place-items-center bg-black/70 px-8 backdrop-blur-md"
@@ -101,7 +176,7 @@ export function Celebrations({ today }: { today: string }) {
                 <div className="flex flex-col items-center">
                   <FlameIcon size={34} className="text-white/90" />
                   <span className="text-[44px] leading-none font-black tabular">{milestone.n}</span>
-                  <span className="text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">days</span>
+                  <span className="text-[12px] font-bold tracking-[0.2em] uppercase opacity-80">days</span>
                 </div>
               </motion.div>
               <h2 className="mt-8 text-[30px] font-bold tracking-[-0.03em]">{milestone.title}</h2>
@@ -119,7 +194,7 @@ function Mini({ label, value, color }: { label: string; value: string; color: st
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-3">
       <div className="tabular text-[18px] font-bold" style={{ color }}>{value}</div>
-      <div className="text-[11.5px] text-muted">{label}</div>
+      <div className="text-[12px] text-muted">{label}</div>
     </div>
   );
 }

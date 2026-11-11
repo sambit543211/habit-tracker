@@ -126,7 +126,7 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
             onAdd={(t, m, d) => addPlan(day, t, m, d)}
             onDetails={() => editPlan({ day })}
           />
-          <p className="mt-1.5 px-1 text-[11.5px] text-faint">Try “Gym 7pm 1h” — times go straight to your calendar. Tap + empty for more options.</p>
+          <p className="mt-1.5 px-1 text-[12px] text-faint">Try “Gym 7pm 1h” — times go straight to your calendar. Tap + empty for more options.</p>
         </div>
       </section>
 

@@ -6,6 +6,8 @@ import { addDays, formatDay, range, weekday } from '../lib/date';
 import { dayStats, reasonCounts } from '../lib/score';
 import { reasonLabel } from '../lib/reasons';
 import { weekStart } from '../lib/time';
+import { weekSummary } from '../lib/game';
+import { shareText } from '../screens/Profile';
 import type { ReasonCode } from '../types';
 
 /** The week being reviewed: Sunday reviews this week, Monday still reviews last week. */
@@ -96,6 +98,18 @@ export function WeeklyReviewSheet({ today }: { today: string }) {
       >
         Save review
       </motion.button>
+      <button
+        onClick={async () => {
+          const st = useStore.getState();
+          const text = weekSummary({ habits, plans, logs, startDay }, today, st.profile.name, experiment.trim() || undefined);
+          const partner = st.profile.partner?.trim();
+          const r = await shareText(partner ? `Hi ${partner},\n${text}` : text);
+          if (r === 'copied') useUI.getState().showToast('Summary copied — paste it in a message', { tone: 'plan' });
+        }}
+        className="mt-2 min-h-11 w-full text-[14px] font-semibold text-plan"
+      >
+        Share this week with your partner
+      </button>
     </Sheet>
   );
 }

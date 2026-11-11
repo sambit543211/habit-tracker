@@ -17,6 +17,8 @@ interface ItemRowProps {
   onUndo: () => void;
   /** Tap on the text opens details */
   onOpen?: () => void;
+  /** Small chip under the subtitle that must never be truncated (e.g. "Moved 2×") */
+  badge?: ReactNode;
   /** Dense layout for the two-column Today view */
   compact?: boolean;
   /** Play the one-time swipe tutorial on this row */
@@ -30,7 +32,7 @@ const SWIPE = 84;
  * A trackable item. Tap the circle to complete, swipe right to complete,
  * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone, badge }: ItemRowProps) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
 
@@ -147,14 +149,15 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
             {leading && <span className={compact ? 'mt-[3px]' : ''}>{leading}</span>}
             <motion.span
               animate={{ opacity: pending ? 1 : 0.55 }}
-              className={`font-medium tracking-[-0.01em] ${compact ? 'line-clamp-2 text-[13.5px] leading-[1.25]' : 'truncate text-[15.5px]'} ${
+              className={`font-medium tracking-[-0.01em] ${compact ? 'line-clamp-3 text-[13.5px] leading-[1.25]' : 'truncate text-[15.5px]'} ${
                 status === 'done' ? 'line-through decoration-[1.5px] decoration-(--accent)/60' : ''
               }`}
             >
               {title}
             </motion.span>
           </div>
-          {subtitle && <div className={`truncate text-muted ${compact ? 'mt-1 text-[11.5px]' : 'mt-0.5 text-[13px]'}`}>{subtitle}</div>}
+          {subtitle && <div className={`truncate text-muted ${compact ? 'mt-1 text-[12px]' : 'mt-0.5 text-[13px]'}`}>{subtitle}</div>}
+          {badge && <div className="mt-1">{badge}</div>}
         </div>
         {trailing}
         {pending && (
@@ -166,7 +169,7 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
             }}
             aria-label={`I didn't do ${title}`}
             className={`grid shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-2 hover:text-miss ${
-              compact ? 'absolute top-1 right-0.5 size-7' : 'size-9'
+              compact ? "absolute top-1 right-0.5 size-7 before:absolute before:content-[''] before:-inset-2" : "relative size-9 before:absolute before:content-[''] before:-inset-1"
             }`}
           >
             <XIcon size={compact ? 13 : 18} />
@@ -191,7 +194,7 @@ function StatusButton({ status, onClick, compact }: { status: RowStatus; onClick
       whileTap={{ scale: 0.8 }}
       onClick={onClick}
       aria-label={status === 'pending' ? 'Mark done' : 'Undo'}
-      className={`relative grid shrink-0 place-items-center ${compact ? 'size-7' : 'size-8'}`}
+      className={`relative grid shrink-0 place-items-center before:absolute before:content-[''] ${compact ? 'size-7 before:-inset-2' : 'size-8 before:-inset-1.5'}`}
     >
       <motion.span
         className="absolute inset-0 rounded-full border-2"

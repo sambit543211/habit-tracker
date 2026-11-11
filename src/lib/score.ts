@@ -60,20 +60,45 @@ export function dayStats(data: Data, day: string): DayStats {
  * Strict streak: consecutive days on which EVERY habit was done.
  * Today only extends the streak once complete, and an unfinished today
  * doesn't break it yet (you still have until the 2 am cutoff).
+ *
+ * Streak shields (optional): every 7 perfect days in a row earns a shield
+ * (max 2 held). A missed day spends one instead of resetting the streak —
+ * the day doesn't count, but the chain survives.
  */
-export function streak(data: Data, today: string) {
-  if (!data.startDay) return { current: 0, best: 0, todayDone: false };
+export const SHIELD_EVERY = 7;
+export const SHIELD_MAX = 2;
+
+export function streak(data: Data, today: string, useShields = false) {
+  const out = { current: 0, best: 0, todayDone: false, shields: 0, shieldedDays: [] as string[], toNextShield: SHIELD_EVERY };
+  if (!data.startDay) return out;
   let run = 0;
   let best = 0;
+  let shields = 0;
+  let sinceEarn = 0;
   for (const d of range(data.startDay, today)) {
     if (dayStats(data, d).perfectHabits) {
       run++;
       best = Math.max(best, run);
+      if (useShields && shields < SHIELD_MAX && ++sinceEarn >= SHIELD_EVERY) {
+        shields++;
+        sinceEarn = 0;
+      }
     } else if (d !== today) {
-      run = 0;
+      if (useShields && shields > 0 && run > 0) {
+        shields--;
+        out.shieldedDays.push(d);
+      } else {
+        run = 0;
+        sinceEarn = 0;
+      }
     }
   }
-  return { current: run, best, todayDone: dayStats(data, today).perfectHabits };
+  out.current = run;
+  out.best = best;
+  out.shields = shields;
+  out.toNextShield = shields >= SHIELD_MAX ? 0 : SHIELD_EVERY - sinceEarn;
+  out.todayDone = dayStats(data, today).perfectHabits;
+  return out;
 }
 
 /** Per-habit strict streak, same rules as `streak`. */

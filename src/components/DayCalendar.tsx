@@ -50,7 +50,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
         {/* Hour grid */}
         {hours.map((i) => (
           <div key={i} className="pointer-events-none absolute inset-x-0" style={{ top: 8 + px(i * 60) }}>
-            <div className="absolute left-0 w-[42px] -translate-y-1/2 pr-1 text-right text-[10px] font-medium text-faint tabular">
+            <div className="absolute left-0 w-[42px] -translate-y-1/2 pr-1 text-right text-[12px] font-medium text-faint tabular">
               {i * 60 <= total ? fmtTime(fromMin(wake + i * 60)).replace(':00', '') : ''}
             </div>
             <div className="absolute right-0 border-t border-line" style={{ left: GUTTER }} />
@@ -64,7 +64,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
         {markers.map(({ h, at }) => (
           <div
             key={h.id}
-            className="pointer-events-none absolute right-1.5 flex max-w-[86px] -translate-y-1/2 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium"
+            className="pointer-events-none absolute right-1.5 flex max-w-[86px] -translate-y-1/2 items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium"
             style={{
               top: 8 + px(at),
               background: 'color-mix(in srgb, var(--habit) 16%, var(--surface))',
@@ -102,15 +102,15 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
               }}
             >
               <div
-                className={`flex items-center gap-1 font-semibold ${compact ? 'h-full text-[11px] leading-none' : 'text-[12px] leading-tight'} ${done ? 'text-muted line-through' : ''}`}
+                className={`flex items-center gap-1 font-semibold ${compact ? 'h-full text-[12px] leading-none' : 'text-[12px] leading-tight'} ${done ? 'text-muted line-through' : ''}`}
               >
                 {it.must && !done && <StarIcon size={10} filled className="shrink-0 text-gold" />}
                 {done && <CheckIcon size={11} strokeWidth={3} className="shrink-0 text-habit" />}
                 <span className="truncate">{it.title}</span>
-                {compact && <span className="ml-auto shrink-0 text-[10px] font-medium text-muted">{fmtTime(it.start)}</span>}
+                {compact && <span className="ml-auto shrink-0 text-[12px] font-medium text-muted">{fmtTime(it.start)}</span>}
               </div>
               {!compact && (
-                <div className="mt-0.5 truncate text-[11px] text-muted tabular">
+                <div className="mt-0.5 truncate text-[12px] text-muted tabular">
                   {fmtTime(it.start)} – {fmtTime(fromMin(toMin(it.start) + (e - s)))}
                 </div>
               )}

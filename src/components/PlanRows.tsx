@@ -26,6 +26,7 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
             status={p.status}
             leading={p.must ? <StarIcon size={14} filled className="shrink-0 text-gold" /> : undefined}
             subtitle={planSubtitle(p)}
+            badge={carryBadge(p)}
             onDone={() => {
               markPlan(p.id);
               showToast(`${p.title} — done`, { tone: 'plan', undo: () => clearPlan(p.id) });
@@ -52,7 +53,18 @@ export function planSubtitle(p: Plan) {
       </span>
     );
   }
-  if (p.carryCount >= 3) return <span className="text-miss">Moved {p.carryCount}× — still worth doing?</span>;
-  const meta = planMetaText(p);
-  return meta ? <span className={p.carryCount > 0 ? 'text-gold' : ''}>{meta}</span> : undefined;
+  return planMetaText(p, false) ?? undefined;
+}
+
+/** "Moved 2×" as its own chip, so the procrastination signal is never cut off. */
+export function carryBadge(p: Plan) {
+  if (p.status !== 'pending' || p.carryCount < 1) return undefined;
+  const hot = p.carryCount >= 3;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-semibold ${hot ? 'bg-miss/15 text-miss' : 'bg-gold/15 text-gold'}`}
+    >
+      Moved {p.carryCount}×{hot ? ' · still worth it?' : ''}
+    </span>
+  );
 }

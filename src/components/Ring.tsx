@@ -7,9 +7,11 @@ interface RingProps {
   size?: number;
   stroke?: number;
   children?: ReactNode;
+  /** Spoken description for VoiceOver, e.g. "Habits: 2 of 5 done" */
+  label?: string;
 }
 
-export function Ring({ value, color, size = 96, stroke = 9, children }: RingProps) {
+export function Ring({ value, color, size = 96, stroke = 9, children, label }: RingProps) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const v = Math.max(0, Math.min(1, value ?? 0));
@@ -17,6 +19,8 @@ export function Ring({ value, color, size = 96, stroke = 9, children }: RingProp
   return (
     <motion.div
       className="relative shrink-0"
+      role={label ? 'img' : undefined}
+      aria-label={label}
       style={{ width: size, height: size }}
       animate={full ? { scale: [1, 1.08, 1] } : { scale: 1 }}
       transition={{ duration: 0.6, delay: 0.5, ease: 'easeOut' }}
