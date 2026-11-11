@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
 import { useUI } from '../store';
-import { ChartIcon, MoonIcon, RepeatIcon, SunIcon, UserIcon } from './icons';
+import { CalendarIcon, ChartIcon, RepeatIcon, SunIcon, UserIcon } from './icons';
 import { haptic } from '../lib/feedback';
 
 const TABS = [
   { id: 'today', label: 'Today', Icon: SunIcon },
-  { id: 'plan', label: 'Plan', Icon: MoonIcon },
+  { id: 'plan', label: 'Plan', Icon: CalendarIcon },
   { id: 'insights', label: 'Insights', Icon: ChartIcon },
   { id: 'habits', label: 'Habits', Icon: RepeatIcon },
   { id: 'profile', label: 'Profile', Icon: UserIcon },

@@ -7,8 +7,7 @@ import { isEvening } from '../lib/useToday';
 import { AnimatedNumber, Ring } from '../components/Ring';
 import { HabitRows } from '../components/HabitRows';
 import { PlanRows } from '../components/PlanRows';
-import { PlanInput } from '../components/PlanInput';
-import { ArrowRightIcon, FlameIcon, MoonIcon, XIcon } from '../components/icons';
+import { ArrowRightIcon, FlameIcon, MoonIcon, PlusIcon, XIcon } from '../components/icons';
 import { celebrateBig, celebrateSmall, haptic } from '../lib/feedback';
 import { BedtimeNote } from '../components/BedtimeNote';
 import { reviewWeekFor } from '../components/WeeklyReviewSheet';
@@ -22,8 +21,8 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const freshStartSeen = useStore((s) => s.freshStartSeen);
   const profile = useStore((s) => s.profile);
   const weeklyReviews = useStore((s) => s.weeklyReviews);
-  const { addPlan, dismissFreshStart } = useStore();
-  const { setTab, setReview, setReviewWeek } = useUI();
+  const { dismissFreshStart } = useStore();
+  const { setTab, setReview, setReviewWeek, editPlan } = useUI();
 
   const data = { habits, plans, logs, startDay };
   const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -45,169 +44,203 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const nearBed = nowSince >= windowLength(profile) - 120;
   const wd = weekday(today);
   const reviewDue = (wd === 0 || wd === 1) && !weeklyReviews[reviewWeekFor(today)] && !!startDay && startDay < today;
+  const addPlan = () => {
+    haptic(8);
+    editPlan({ day: today });
+  };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {/* Header */}
-      <header className="flex items-end justify-between pt-2">
-        <div>
-          <div className="text-[13px] font-semibold tracking-[0.08em] text-muted uppercase">
-            {formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}
+      <header className="flex items-center justify-between gap-3 pt-1">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
+            {formatDay(today, { weekday: 'long', day: 'numeric', month: 'short' })}
           </div>
-          <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em]">
+          <h1 className="truncate text-[24px] leading-tight font-bold tracking-[-0.03em]">
             {greeting(hour)}
-            {firstName ? <span className="text-muted">, </span> : null}
             {firstName && (
-              <motion.span
-                initial={{ backgroundPosition: '200% 0' }}
-                animate={{ backgroundPosition: '0% 0' }}
-                transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-                className="bg-clip-text text-transparent"
-                style={{ backgroundImage: 'linear-gradient(90deg, var(--habit), var(--plan), var(--habit))', backgroundSize: '200% 100%' }}
-              >
-                {firstName}
-              </motion.span>
+              <>
+                <span className="text-muted">, </span>
+                <span
+                  className="bg-clip-text text-transparent"
+                  style={{ backgroundImage: 'linear-gradient(90deg, var(--habit), var(--plan))' }}
+                >
+                  {firstName}
+                </span>
+              </>
             )}
           </h1>
         </div>
         <motion.div
           animate={atRisk ? { scale: [1, 1.06, 1] } : { scale: 1 }}
           transition={atRisk ? { repeat: Infinity, duration: 1.6 } : undefined}
-          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 ${
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 ${
             st.todayDone ? 'border-gold/40 bg-gold/15 text-gold' : atRisk ? 'border-miss/40 bg-miss/10 text-miss' : 'border-line bg-surface text-muted'
           }`}
           title={atRisk ? 'Streak at risk — finish your habits before 2 am' : 'Strict streak: days with every habit done'}
         >
-          <FlameIcon size={16} />
+          <FlameIcon size={15} />
           <span className="tabular text-[15px] font-semibold">{st.current}</span>
         </motion.div>
       </header>
 
-      {/* Hero: Habits ring · Efficacy · Plans ring */}
+      {/* Score card: efficacy + concentric rings */}
       <motion.section
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="card relative overflow-hidden px-4 pt-5 pb-4"
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="card hero relative flex items-center gap-4 overflow-hidden px-4 py-3.5"
       >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full opacity-30 blur-3xl"
-          style={{ background: 'radial-gradient(closest-side, var(--habit), transparent), radial-gradient(closest-side, var(--plan), transparent)' }}
-        />
-        {firstName && (
-          <div className="relative mb-3 text-center text-[11.5px] font-semibold tracking-[0.12em] text-muted uppercase">
-            {firstName}'s promises today
+        <div className="min-w-0 flex-1">
+          <div className="text-[10.5px] font-semibold tracking-[0.12em] text-muted uppercase">
+            {firstName ? `${firstName}'s promises today` : 'Efficacy today'}
           </div>
-        )}
-        <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <RingStat label="Habits" color="var(--habit)" done={stats.habitsDone} total={stats.habitsTotal} pct={stats.habitPct} />
-          <div className="flex flex-col items-center px-1">
-            <div className="flex items-start">
-              <AnimatedNumber value={score} className="tabular text-[52px] leading-none font-bold tracking-[-0.04em]" />
-              <span className="mt-1.5 text-[18px] font-semibold text-muted">%</span>
-            </div>
-            <div className="mt-1.5 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">Efficacy</div>
+          <div className="mt-0.5 flex items-start">
+            <AnimatedNumber value={score} className="tabular text-[46px] leading-none font-bold tracking-[-0.045em]" />
+            <span className="mt-1 ml-0.5 text-[17px] font-semibold text-muted">%</span>
           </div>
-          <RingStat label="Plans" color="var(--plan)" done={stats.plansDone} total={stats.plansTotal} pct={stats.planPct} />
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={nudge(stats)}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              className="mt-1 truncate text-[13px] text-muted"
+            >
+              {nudge(stats)}
+            </motion.p>
+          </AnimatePresence>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={nudge(stats)}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="relative mt-4 text-center text-[14px] text-muted"
-          >
-            {nudge(stats)}
-          </motion.p>
-        </AnimatePresence>
+        <div className="relative shrink-0">
+          <Ring value={stats.habitPct} color="var(--habit)" size={92} stroke={10} />
+          <div className="absolute inset-[13px]">
+            <Ring value={stats.planPct} color="var(--plan)" size={66} stroke={10} />
+          </div>
+        </div>
       </motion.section>
 
-      {/* Contextual cards */}
+      {open.length > 0 && (
+        <button
+          onClick={() => setReview(true)}
+          className="flex items-center justify-between rounded-2xl border border-miss/30 bg-miss/10 px-3.5 py-2.5 text-left"
+        >
+          <span className="text-[13.5px] font-medium">
+            <span className="text-miss">●</span> {open.length} item{open.length > 1 ? 's' : ''} from earlier still open
+          </span>
+          <span className="text-[13px] font-semibold text-miss">Close the loop →</span>
+        </button>
+      )}
+
+      {/* Habits | Plans side by side */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <section className="min-w-0">
+          <ColumnHeader title="Habits" color="var(--habit)" done={stats.habitsDone} total={stats.habitsTotal} />
+          {todayHabits.length ? (
+            <HabitRows habits={todayHabits} day={today} showTiny={hour >= 18 || hour < 2} compact />
+          ) : (
+            <EmptyColumn text="No habits yet" cta="Add habits" onClick={() => setTab('habits')} />
+          )}
+        </section>
+        <section className="min-w-0">
+          <ColumnHeader
+            title="Plans"
+            color="var(--plan)"
+            done={stats.plansDone}
+            total={stats.plansTotal}
+            action={
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                onClick={addPlan}
+                aria-label="Add a plan for today"
+                className="grid size-8 place-items-center rounded-full bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)]"
+              >
+                <PlusIcon size={18} strokeWidth={2.6} />
+              </motion.button>
+            }
+          />
+          {todayPlans.length ? (
+            <PlanRows plans={todayPlans} compact />
+          ) : (
+            <EmptyColumn text="Nothing planned" cta="Plan something" onClick={addPlan} />
+          )}
+        </section>
+      </div>
+
+      {/* Contextual cards (below the fold on purpose: today's promises come first) */}
       <AnimatePresence>
-        {open.length > 0 && (
-          <Banner key="review" tone="miss" onClick={() => setReview(true)}
-            title="Close the loop"
-            text={`${open.length} item${open.length > 1 ? 's' : ''} from earlier still open`} />
+        {reviewDue && (
+          <Banner key="weekly" tone="plan" onClick={() => setReviewWeek(true)} title="Weekly review" text="3 questions · 2 minutes · pick one experiment" />
         )}
         {isFreshStart && (
-          <Banner key="fresh" tone="habit"
+          <Banner
+            key="fresh"
+            tone="habit"
             title={today.endsWith('-01') ? 'New month. Fresh start.' : 'New week. Fresh start.'}
             text="Whatever happened last week is history. Today counts."
-            onDismiss={() => dismissFreshStart(today)} />
-        )}
-        {reviewDue && (
-          <Banner key="weekly" tone="plan" onClick={() => setReviewWeek(true)}
-            title="Weekly review"
-            text="3 questions · 2 minutes · pick one experiment" />
+            onDismiss={() => dismissFreshStart(today)}
+          />
         )}
         {evening && (
-          <Banner key="evening" tone="plan" icon={<MoonIcon size={18} />} onClick={() => setTab('plan')}
+          <Banner
+            key="evening"
+            tone="plan"
+            icon={<MoonIcon size={18} />}
+            onClick={() => setTab('plan')}
             title="Plan tomorrow"
-            text={tomorrowCount ? `${tomorrowCount} planned · tap to review` : 'Write it down tonight, sleep easier.'} />
+            text={tomorrowCount ? `${tomorrowCount} planned · tap to review` : 'Write it down tonight, sleep easier.'}
+          />
         )}
       </AnimatePresence>
 
-      {/* Habits */}
-      <section>
-        <SectionHeader title="Habits" color="var(--habit)" count={`${stats.habitsDone}/${stats.habitsTotal}`} />
-        {todayHabits.length ? (
-          <HabitRows habits={todayHabits} day={today} showTiny={hour >= 18 || hour < 2} />
-        ) : (
-          <button onClick={() => setTab('habits')} className="w-full rounded-[20px] border border-dashed border-line-strong/60 py-5 text-[14px] text-muted">
-            Add your daily habits →
-          </button>
-        )}
-      </section>
-
-      {/* Plans */}
-      <section>
-        <SectionHeader title="Plans" color="var(--plan)" count={`${stats.plansDone}/${stats.plansTotal}`} />
-        <div className="flex flex-col gap-2">
-          <PlanRows plans={todayPlans} />
-          <PlanInput placeholder="Add a plan for today" onAdd={(t, m) => addPlan(today, t, m)} />
-        </div>
-      </section>
-
       {nearBed && <BedtimeNote day={today} />}
 
-      <p className="pb-2 text-center text-[12px] text-faint">Swipe right to complete · swipe left if you didn't · tap a plan for details</p>
+      <p className="pb-2 text-center text-[11.5px] text-faint">Tap ○ to complete · swipe left or tap × if you didn't · tap a plan for details</p>
     </div>
   );
 }
 
-function RingStat({ label, color, done, total, pct }: { label: string; color: string; done: number; total: number; pct: number | null }) {
+function ColumnHeader({ title, color, done, total, action }: { title: string; color: string; done: number; total: number; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <Ring value={pct} color={color} size={84} stroke={8}>
-        <div className="tabular text-[17px] font-semibold tracking-[-0.02em]">
-          {done}
-          <span className="text-muted">/{total}</span>
-        </div>
-      </Ring>
-      <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted">
-        <span className="size-2 rounded-full" style={{ background: color }} />
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function SectionHeader({ title, color, count }: { title: string; color: string; count: string }) {
-  return (
-    <div className="mb-2.5 flex items-center justify-between px-1">
-      <h2 className="flex items-center gap-2 text-[17px] font-semibold tracking-[-0.01em]">
-        <span className="h-4 w-1 rounded-full" style={{ background: color }} />
+    <div className="mb-2 flex h-8 items-center justify-between gap-1 px-0.5">
+      <h2 className="flex items-center gap-1.5 text-[15px] font-semibold tracking-[-0.01em]">
+        <span className="h-3.5 w-1 rounded-full" style={{ background: color }} />
         {title}
+        <span className="tabular text-[12.5px] font-medium text-muted">
+          {done}/{total}
+        </span>
       </h2>
-      <span className="tabular text-[13px] font-medium text-muted">{count}</span>
+      {action}
     </div>
   );
 }
 
-function Banner({ title, text, tone, icon, onClick, onDismiss }: {
-  title: string; text: string; tone: 'habit' | 'plan' | 'miss'; icon?: React.ReactNode; onClick?: () => void; onDismiss?: () => void;
+function EmptyColumn({ text, cta, onClick }: { text: string; cta: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full flex-col items-center gap-1 rounded-2xl border border-dashed border-line-strong/60 px-2 py-6 text-center"
+    >
+      <span className="text-[13px] text-muted">{text}</span>
+      <span className="text-[13px] font-semibold text-plan">{cta} →</span>
+    </button>
+  );
+}
+
+function Banner({
+  title,
+  text,
+  tone,
+  icon,
+  onClick,
+  onDismiss,
+}: {
+  title: string;
+  text: string;
+  tone: 'habit' | 'plan' | 'miss';
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  onDismiss?: () => void;
 }) {
   return (
     <motion.div
@@ -215,14 +248,24 @@ function Banner({ title, text, tone, icon, onClick, onDismiss }: {
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      className="relative flex items-center gap-3 overflow-hidden rounded-[20px] border px-4 py-3.5"
+      className="relative flex items-center gap-3 overflow-hidden rounded-[20px] border px-4 py-3"
       style={{
         borderColor: `color-mix(in srgb, var(--${tone}) 30%, transparent)`,
         background: `color-mix(in srgb, var(--${tone}) 10%, var(--surface))`,
       }}
     >
-      <button onClick={() => { haptic(6); onClick?.(); }} className="flex min-w-0 flex-1 items-center gap-3 text-left" disabled={!onClick}>
-        <span className="grid size-9 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in srgb, var(--${tone}) 20%, transparent)`, color: `var(--${tone})` }}>
+      <button
+        onClick={() => {
+          haptic(6);
+          onClick?.();
+        }}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        disabled={!onClick}
+      >
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-full"
+          style={{ background: `color-mix(in srgb, var(--${tone}) 20%, transparent)`, color: `var(--${tone})` }}
+        >
           {icon ?? <span className="size-2 rounded-full" style={{ background: `var(--${tone})` }} />}
         </span>
         <span className="min-w-0">
@@ -243,14 +286,11 @@ function Banner({ title, text, tone, icon, onClick, onDismiss }: {
 /** Goal-gradient copy: the closer you are, the more it pulls. */
 function nudge(s: ReturnType<typeof dayStats>) {
   const total = s.habitsTotal + s.plansTotal;
-  if (!total) return 'Add a habit or a plan to start your day.';
-  if (s.pending === 0) {
-    if (s.score === 1) return 'Perfect day. Every promise kept. ✨';
-    return 'Day closed. Every item accounted for.';
-  }
+  if (!total) return 'Add a habit or a plan to start.';
+  if (s.pending === 0) return s.score === 1 ? 'Perfect day. Every promise kept ✨' : 'Day closed. All accounted for.';
   if (s.pending === 1) return 'One left. Finish strong.';
   if (s.pending <= 3) return `${s.pending} left — you're close.`;
-  if (s.habitsDone + s.plansDone === 0) return `${s.pending} promises today. Start with the easiest.`;
+  if (s.habitsDone + s.plansDone === 0) return `${s.pending} promises. Start with the easiest.`;
   return `${s.pending} to go. Keep the momentum.`;
 }
 

@@ -89,7 +89,7 @@ export function PlanEditor() {
       <div className="text-[13px] font-medium tracking-wide text-plan uppercase">
         {day ? formatDay(day, { weekday: 'long', day: 'numeric', month: 'short' }) : 'Plan'}
       </div>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex items-center gap-2 pr-1">
         <input
           autoFocus={!existing}
           value={title}
@@ -98,13 +98,15 @@ export function PlanEditor() {
           className="min-w-0 flex-1 bg-transparent text-[22px] font-semibold tracking-[-0.02em] outline-none placeholder:text-faint"
         />
         <motion.button
-          whileTap={{ scale: 0.85 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => setMust((m) => !m)}
           aria-pressed={must}
-          aria-label="Must-do"
-          className={`grid size-10 shrink-0 place-items-center rounded-full ${must ? 'bg-gold/15 text-gold' : 'text-faint'}`}
+          className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-[13px] font-semibold transition-colors ${
+            must ? 'border-gold/50 bg-gold/15 text-gold' : 'border-line bg-surface-2 text-muted'
+          }`}
         >
-          <StarIcon size={20} filled={must} />
+          <StarIcon size={14} filled={must} />
+          Must-do
         </motion.button>
       </div>
 

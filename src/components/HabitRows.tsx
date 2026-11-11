@@ -6,13 +6,13 @@ import { ItemRow } from './ItemRow';
 import { reasonLabel } from '../lib/reasons';
 
 /** Trackable habit rows for a given day. */
-export function HabitRows({ habits, day, showTiny }: { habits: Habit[]; day: string; showTiny?: boolean }) {
+export function HabitRows({ habits, day, showTiny, compact }: { habits: Habit[]; day: string; showTiny?: boolean; compact?: boolean }) {
   const logs = useStore((s) => s.logs[day]);
   const { markHabit, clearHabit } = useStore();
   const openMiss = useUI((s) => s.openMiss);
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className={`flex flex-col ${compact ? 'gap-1.5' : 'gap-2'}`}>
       <AnimatePresence initial={false}>
         {habits.map((h) => {
           const log = logs?.[h.id] as HabitLog | undefined;
@@ -27,7 +27,7 @@ export function HabitRows({ habits, day, showTiny }: { habits: Habit[]; day: str
               </span>
             );
           else if (status === 'pending' && showTiny && h.tiny)
-            subtitle = <span className="text-gold">Short on time? Just: {h.tiny}</span>;
+            subtitle = <span className="text-gold">{compact ? `Or just: ${h.tiny}` : `Short on time? Just: ${h.tiny}`}</span>;
           return (
             <ItemRow
               key={h.id}
@@ -38,6 +38,7 @@ export function HabitRows({ habits, day, showTiny }: { habits: Habit[]; day: str
               onDone={() => markHabit(day, h.id)}
               onMiss={() => openMiss({ kind: 'habit', id: h.id, day })}
               onUndo={() => clearHabit(day, h.id)}
+              compact={compact}
             />
           );
         })}
