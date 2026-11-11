@@ -5,6 +5,7 @@ import { Sheet } from './Sheet';
 import { StarIcon } from './icons';
 import { fmtDuration, fmtTime, fromMin, toMin } from '../lib/time';
 import { formatDay } from '../lib/date';
+import { parsePlan } from '../lib/parsePlan';
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
 const OFFSETS: { v: number | undefined; label: string }[] = [
@@ -37,7 +38,6 @@ export function PlanEditor() {
   const [remindAt, setRemindAt] = useState('');
   const [obstacle, setObstacle] = useState('');
   const [ifThen, setIfThen] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!target) return;
@@ -54,22 +54,33 @@ export function PlanEditor() {
     setRemindAt(p?.remindAt ?? '');
     setObstacle(p?.obstacle ?? '');
     setIfThen(p?.ifThen ?? '');
-    setConfirmDelete(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
   const close = () => editPlan(null);
+  const wakeHour = useStore((s) => Math.floor(toMin(s.profile.wake) / 60));
+  // "Gym 7pm 1h" typed in the title fills in the time block (unless one is already set).
+  const parsed = !timed && title.trim() ? parsePlan(title, wakeHour) : null;
   const save = () => {
-    const t = title.trim();
+    let t = title.trim();
     if (!t) return;
+    let useTimed = timed;
+    let s = start;
+    let d = duration;
+    if (parsed?.start) {
+      t = parsed.title;
+      useTimed = true;
+      s = parsed.start;
+      d = parsed.duration ?? 30;
+    }
     const details: PlanDetails = {
       title: t,
       must,
       note: note.trim() || undefined,
-      start: timed ? start : undefined,
-      duration: timed ? Math.max(15, duration) : undefined,
-      remindOffset: timed ? offset : undefined,
-      remindAt: !timed && remindAt ? remindAt : undefined,
+      start: useTimed ? s : undefined,
+      duration: useTimed ? Math.max(15, d) : undefined,
+      remindOffset: useTimed ? offset : undefined,
+      remindAt: !useTimed && remindAt ? remindAt : undefined,
       obstacle: obstacle.trim() || undefined,
       ifThen: ifThen.trim() || undefined,
     };
@@ -96,6 +107,7 @@ export function PlanEditor() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What do you plan to do?"
           className="min-w-0 flex-1 bg-transparent text-[22px] font-semibold tracking-[-0.02em] outline-none placeholder:text-faint"
+          enterKeyHint="done"
         />
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -109,6 +121,14 @@ export function PlanEditor() {
           Must-do
         </motion.button>
       </div>
+
+      {parsed?.start ? (
+        <p className="mt-1 text-[12.5px] font-medium text-plan">
+          ⏰ “{parsed.title}” will be blocked {fmtTime(parsed.start)}–{fmtTime(fromMin(toMin(parsed.start) + (parsed.duration ?? 30)))}
+        </p>
+      ) : (
+        !existing && <p className="mt-1 text-[12.5px] text-faint">Tip: type “Gym 7pm 1h” to set the time too.</p>
+      )}
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Note</label>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Optional details…" className={`${field} resize-none`} />
@@ -196,13 +216,14 @@ export function PlanEditor() {
       {existing && (
         <button
           onClick={() => {
-            if (!confirmDelete) return setConfirmDelete(true);
+            const copy = existing;
             deletePlan(existing.id);
             close();
+            useUI.getState().showToast('Plan deleted', { tone: 'miss', undo: () => useStore.getState().restorePlan(copy) });
           }}
-          className={`mt-2 w-full py-3 text-[14px] font-medium ${confirmDelete ? 'text-miss' : 'text-faint'}`}
+          className="mt-2 w-full py-3 text-[14px] font-medium text-miss/80"
         >
-          {confirmDelete ? 'Tap again to delete' : 'Delete plan'}
+          Delete plan
         </button>
       )}
     </Sheet>

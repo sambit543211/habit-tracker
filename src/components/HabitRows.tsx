@@ -6,10 +6,25 @@ import { ItemRow } from './ItemRow';
 import { reasonLabel } from '../lib/reasons';
 
 /** Trackable habit rows for a given day. */
-export function HabitRows({ habits, day, showTiny, compact }: { habits: Habit[]; day: string; showTiny?: boolean; compact?: boolean }) {
+export function HabitRows({
+  habits,
+  day,
+  showTiny,
+  compact,
+  hintId,
+  onHintDone,
+}: {
+  habits: Habit[];
+  day: string;
+  showTiny?: boolean;
+  compact?: boolean;
+  hintId?: string;
+  onHintDone?: () => void;
+}) {
   const logs = useStore((s) => s.logs[day]);
   const { markHabit, clearHabit } = useStore();
   const openMiss = useUI((s) => s.openMiss);
+  const showToast = useUI((s) => s.showToast);
 
   return (
     <ul className={`flex flex-col ${compact ? 'gap-1.5' : 'gap-2'}`}>
@@ -35,10 +50,15 @@ export function HabitRows({ habits, day, showTiny, compact }: { habits: Habit[];
               title={h.name}
               subtitle={subtitle}
               status={status}
-              onDone={() => markHabit(day, h.id)}
+              onDone={() => {
+                markHabit(day, h.id);
+                showToast(`${h.name} — done`, { tone: 'habit', undo: () => clearHabit(day, h.id) });
+              }}
               onMiss={() => openMiss({ kind: 'habit', id: h.id, day })}
               onUndo={() => clearHabit(day, h.id)}
               compact={compact}
+              hint={h.id === hintId}
+              onHintDone={onHintDone}
             />
           );
         })}

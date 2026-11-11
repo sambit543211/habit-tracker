@@ -123,10 +123,10 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
             key={`${day}-${musts.length < MUST_LIMIT}`}
             defaultMust={musts.length < MUST_LIMIT}
             placeholder={musts.length < MUST_LIMIT ? 'Add a must-do…' : 'Add a plan…'}
-            onAdd={(t, m) => addPlan(day, t, m)}
+            onAdd={(t, m, d) => addPlan(day, t, m, d)}
             onDetails={() => editPlan({ day })}
           />
-          <p className="mt-1.5 px-1 text-[11.5px] text-faint">Tap + with nothing typed to add a time, note or reminder.</p>
+          <p className="mt-1.5 px-1 text-[11.5px] text-faint">Try “Gym 7pm 1h” — times go straight to your calendar. Tap + empty for more options.</p>
         </div>
       </section>
 

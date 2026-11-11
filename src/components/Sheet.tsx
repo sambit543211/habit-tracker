@@ -49,7 +49,7 @@ export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
             }}
           >
             <div
-              className="sticky -top-3 z-10 -mx-5 -mt-3 mb-1 flex h-12 cursor-grab touch-none justify-center bg-surface/90 pt-3 backdrop-blur"
+              className="sticky -top-3 z-10 -mx-5 -mt-3 mb-1 flex h-12 cursor-grab touch-none justify-center bg-surface pt-3"
               onPointerDown={(e) => controls.start(e)}
             >
               <div className="h-1.5 w-10 rounded-full bg-surface-3" />
