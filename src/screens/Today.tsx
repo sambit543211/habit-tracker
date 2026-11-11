@@ -11,7 +11,8 @@ import { ArrowRightIcon, FlameIcon, MoonIcon, PlusIcon, XIcon } from '../compone
 import { celebrateBig, celebrateSmall, haptic } from '../lib/feedback';
 import { BedtimeNote } from '../components/BedtimeNote';
 import { reviewWeekFor } from '../components/WeeklyReviewSheet';
-import { greeting, sinceWake, windowLength } from '../lib/time';
+import { greeting, sinceWake, toMin, windowLength } from '../lib/time';
+import { levelFor, pace, promisesKept, weeklyQuest } from '../lib/game';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
   const habits = useStore((s) => s.habits);
@@ -21,13 +22,19 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const freshStartSeen = useStore((s) => s.freshStartSeen);
   const profile = useStore((s) => s.profile);
   const weeklyReviews = useStore((s) => s.weeklyReviews);
-  const { dismissFreshStart, markSwipeHintSeen } = useStore();
+  const { dismissFreshStart, markSwipeHintSeen, markSeen } = useStore();
+  const shieldSeen = useStore((s) => s.shieldSeen);
+  const dayClosedSeen = useStore((s) => s.dayClosedSeen);
+  const setCloseDay = useUI((s) => s.setCloseDay);
   const swipeHintSeen = useStore((s) => s.swipeHintSeen);
   const { setTab, setReview, setReviewWeek, editPlan } = useUI();
 
   const data = { habits, plans, logs, startDay };
   const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const st = useMemo(() => streak(data, today), [habits, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shieldsOn = profile.shields !== false;
+  const st = useMemo(() => streak(data, today, shieldsOn), [habits, logs, startDay, today, shieldsOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const level = useMemo(() => levelFor(promisesKept(data, today)), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const quest = useMemo(() => weeklyQuest(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = useMemo(() => openPastItems(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const todayHabits = habitsOn(data, today);
   const todayPlans = plansOn(data, today);
@@ -47,6 +54,19 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const reviewDue = (wd === 0 || wd === 1) && !weeklyReviews[reviewWeekFor(today)] && !!startDay && startDay < today;
   // One-time swipe tutorial on the first open habit.
   const hintHabit = !swipeHintSeen ? todayHabits.find((h) => !logs[today]?.[h.id]) : undefined;
+  const pc = stats.pending > 0 ? pace(data, today, nowSince, toMin(profile.wake)) : null;
+  const paceText =
+    pc && (pc.usual > 0 || pc.diff !== 0)
+      ? pc.diff > 0
+        ? { text: `Ahead of your usual by ${pc.diff}`, color: 'var(--habit)' }
+        : pc.diff === 0
+          ? { text: `On pace · usually ${pc.usual} habit${pc.usual === 1 ? '' : 's'} by now`, color: 'var(--muted)' }
+          : { text: `Behind your usual by ${-pc.diff}`, color: 'var(--gold)' }
+      : null;
+  const yesterday = addDays(today, -1);
+  const shieldUsed = st.shieldedDays.includes(yesterday) && shieldSeen !== yesterday;
+  const lateEvening = hour >= 21 || hour < 2;
+  const showCloseDay = lateEvening && stats.habitsTotal + stats.plansTotal > 0 && (stats.pending > 0 || dayClosedSeen !== today);
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -57,10 +77,16 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       {/* Header */}
       <header className="flex items-center justify-between gap-3 pt-1">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">
-            {formatDay(today, { weekday: 'long', day: 'numeric', month: 'short' })}
-          </div>
-          <h1 className="truncate text-[24px] leading-tight font-bold tracking-[-0.03em]">
+          <button
+            onClick={() => setTab('profile')}
+            aria-label={`${formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}. Level ${level.level}, ${level.name}. Open profile`}
+            className="relative block truncate text-left text-[12px] font-semibold tracking-[0.08em] text-muted uppercase before:absolute before:-inset-y-3 before:inset-x-0 before:content-['']"
+          >
+            {formatDay(today, { weekday: 'short', day: 'numeric', month: 'short' })}
+            <span className="text-faint"> · </span>
+            <span className="text-plan">Lv {level.level} {level.name}</span>
+          </button>
+          <h1 className="truncate text-[22px] leading-tight font-bold tracking-[-0.03em] min-[380px]:text-[24px]">
             {greeting(hour)}
             {firstName && (
               <>
@@ -85,6 +111,11 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         >
           <FlameIcon size={15} />
           <span className="tabular text-[15px] font-semibold">{st.current}</span>
+          {st.shields > 0 && (
+            <span className="tabular ml-0.5 text-[12px] font-semibold opacity-90" aria-label={`${st.shields} streak shield${st.shields > 1 ? 's' : ''}`}>
+              🛡{st.shields}
+            </span>
+          )}
         </motion.div>
       </header>
 
@@ -96,7 +127,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         className="card hero relative flex items-center gap-4 overflow-hidden px-4 py-3.5"
       >
         <div className="min-w-0 flex-1">
-          <div className="text-[10.5px] font-semibold tracking-[0.12em] text-muted uppercase">
+          <div className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">
             {firstName ? `${firstName}'s promises today` : 'Efficacy today'}
           </div>
           <div className="mt-0.5 flex items-start">
@@ -114,11 +145,16 @@ export function Today({ today, hour }: { today: string; hour: number }) {
               {nudge(stats)}
             </motion.p>
           </AnimatePresence>
+          {paceText && (
+            <p className="mt-0.5 truncate text-[12px] font-medium" style={{ color: paceText.color }}>
+              {paceText.text}
+            </p>
+          )}
         </div>
         <div className="relative shrink-0">
-          <Ring value={stats.habitPct} color="var(--habit)" size={92} stroke={10} />
+          <Ring value={stats.habitPct} color="var(--habit)" size={92} stroke={10} label={`Habits: ${stats.habitsDone} of ${stats.habitsTotal} done`} />
           <div className="absolute inset-[13px]">
-            <Ring value={stats.planPct} color="var(--plan)" size={66} stroke={10} />
+            <Ring value={stats.planPct} color="var(--plan)" size={66} stroke={10} label={`Plans: ${stats.plansDone} of ${stats.plansTotal} done`} />
           </div>
         </div>
       </motion.section>
@@ -178,7 +214,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
                 whileTap={{ scale: 0.88 }}
                 onClick={addPlan}
                 aria-label="Add a plan for today"
-                className="grid size-8 place-items-center rounded-full bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)]"
+                className="relative grid size-9 place-items-center rounded-full bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)] before:absolute before:-inset-1 before:content-['']"
               >
                 <PlusIcon size={18} strokeWidth={2.6} />
               </motion.button>
@@ -193,7 +229,61 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       </div>
 
       {/* Contextual cards (below the fold on purpose: today's promises come first) */}
+      {showCloseDay && (
+        <motion.button
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            haptic(8);
+            setCloseDay(true);
+          }}
+          className="flex min-h-12 items-center justify-between rounded-2xl bg-text px-4 text-left text-bg"
+        >
+          <span className="text-[15px] font-semibold">🌙 Close my day</span>
+          <span className="text-[13px] font-medium opacity-70">
+            {stats.pending > 0 ? `${stats.pending} to resolve →` : 'See your day →'}
+          </span>
+        </motion.button>
+      )}
+
+      {quest && (
+        <section
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3"
+          aria-label={`Weekly quest: ${quest.title}. ${quest.progress} of ${quest.target}`}
+        >
+          <span className="text-[20px]" aria-hidden>
+            {quest.done ? '🏅' : '🎯'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Weekly quest{quest.done ? ' · complete' : ''}</div>
+            <div className="text-[14px] leading-snug font-medium">{quest.title}</div>
+          </div>
+          <div className="flex shrink-0 gap-1" aria-hidden>
+            {Array.from({ length: quest.target }, (_, i) => (
+              <motion.span
+                key={i}
+                initial={false}
+                animate={{ scale: i < quest.progress ? 1 : 0.85 }}
+                className="size-3 rounded-full"
+                style={{ background: i < quest.progress ? 'var(--habit)' : 'var(--surface-3)' }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <AnimatePresence>
+        {shieldUsed && (
+          <Banner
+            key="shield"
+            tone="habit"
+            icon={<span className="text-[16px]">🛡</span>}
+            title="Shield used — streak saved"
+            text={`Yesterday's miss didn't break your ${st.current}-day streak. ${st.shields} left.`}
+            onDismiss={() => markSeen({ shieldSeen: yesterday })}
+          />
+        )}
         {reviewDue && (
           <Banner key="weekly" tone="plan" onClick={() => setReviewWeek(true)} title="Weekly review" text="3 questions · 2 minutes · pick one experiment" />
         )}
@@ -220,7 +310,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
 
       {nearBed && <BedtimeNote day={today} />}
 
-      <p className="pb-2 text-center text-[11.5px] text-faint">Tap ○ to complete · swipe left or tap × if you didn't · tap a plan for details</p>
+      <p className="pb-2 text-center text-[12px] text-faint">Tap ○ to complete · swipe left or tap × if you didn't · tap a plan for details</p>
     </div>
   );
 }

@@ -38,9 +38,13 @@ export interface Profile {
   wake: string;
   /** "HH:MM" — when you go to sleep (may be after midnight) */
   sleep: string;
+  /** Streak shields on (earned every 7 perfect days) */
+  shields?: boolean;
+  /** Accountability partner's name */
+  partner?: string;
 }
 
-export const DEFAULT_PROFILE: Profile = { wake: '08:00', sleep: '02:00' };
+export const DEFAULT_PROFILE: Profile = { wake: '08:00', sleep: '02:00', shields: true };
 
 export interface WeeklyReview {
   wentWell?: string;
@@ -54,6 +58,12 @@ export interface Reminders {
   morning: string | null;
   evening: string | null;
   streak: string | null;
+  /** Morning brief at wake-up time */
+  brief: boolean;
+  /** Last call one hour before bed */
+  lastCall: boolean;
+  /** Reminder kinds the server paused after being ignored 3 days running */
+  paused: string[];
 }
 
 export const DEFAULT_REMINDERS: Reminders = {
@@ -61,6 +71,9 @@ export const DEFAULT_REMINDERS: Reminders = {
   morning: '08:30',
   evening: '21:00',
   streak: '22:30',
+  brief: true,
+  lastCall: true,
+  paused: [],
 };
 
 export interface HabitLog {

@@ -40,7 +40,14 @@ interface Store extends Data {
   weeklyReviews: Record<string, WeeklyReview>;
   setReflection: (day: string, text: string) => void;
   setWeeklyReview: (weekStart: string, review: WeeklyReview) => void;
-  /** Local-only UI memory */
+  /** Local-only (per device) */
+  theme: 'system' | 'light' | 'dark';
+  setTheme: (t: 'system' | 'light' | 'dark') => void;
+  levelSeen: number;
+  badgesSeen: string[];
+  questsSeen: string[];
+  shieldSeen?: string;
+  markSeen: (patch: { levelSeen?: number; badgesSeen?: string[]; questsSeen?: string[]; shieldSeen?: string }) => void;
   milestonesSeen: number[];
   markMilestone: (n: number) => void;
   dayClosedSeen?: string;
@@ -92,6 +99,12 @@ export const useStore = create<Store>()(
       reflections: {},
       weeklyReviews: {},
       milestonesSeen: [],
+      theme: 'system',
+      levelSeen: 0,
+      badgesSeen: [],
+      questsSeen: [],
+      setTheme: (theme) => set({ theme }),
+      markSeen: (patch) => set(patch),
 
       setReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch } })),
       setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
@@ -279,6 +292,8 @@ interface UI {
   editPlan: (t: PlanEditTarget | null) => void;
   reviewWeekOpen: boolean;
   setReviewWeek: (o: boolean) => void;
+  closeDayOpen: boolean;
+  setCloseDay: (o: boolean) => void;
   toast: Toast | null;
   showToast: (message: string, opts?: { undo?: () => void; tone?: Toast['tone'] }) => void;
   hideToast: () => void;
@@ -297,6 +312,8 @@ export const useUI = create<UI>()((set) => ({
   editPlan: (editingPlan) => set({ editingPlan }),
   reviewWeekOpen: false,
   setReviewWeek: (reviewWeekOpen) => set({ reviewWeekOpen }),
+  closeDayOpen: false,
+  setCloseDay: (closeDayOpen) => set({ closeDayOpen }),
   toast: null,
   showToast: (message, opts) => set({ toast: { id: Date.now(), message, ...opts } }),
   hideToast: () => set({ toast: null }),

@@ -15,7 +15,7 @@ export function Toast() {
   }, [toast, hide]);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),12px)+84px)] z-[65] flex justify-center px-4">
+    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),12px)+84px)] z-[65] flex justify-center px-4">
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -38,7 +38,7 @@ export function Toast() {
                   toast.undo?.();
                   hide();
                 }}
-                className="shrink-0 rounded-xl bg-plan px-3.5 py-1.5 text-[14px] font-bold text-white"
+                className="min-h-11 shrink-0 rounded-xl bg-plan px-4 text-[14px] font-bold text-white"
               >
                 Undo
               </button>

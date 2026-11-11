@@ -39,6 +39,20 @@
 
 Note: the user chose **strict streaks**. Research (Lally et al., 2010) suggests single misses don't harm long-term habit formation, so the app keeps the tone supportive and offers tiny versions to protect the streak.
 
+## Round 1 additions (audit)
+
+| Feature | Principle | Source |
+|---|---|---|
+| Rotating reminder wording, auto-pause when ignored | Repeated identical notifications lose effect; rotating/resting templates keeps response up | Yancey & Settles (2020), "A Sleeping, Recovering Bandit Algorithm for Optimizing Recurring Notifications", KDD |
+| Reliability level, badges, personal bests, pace line | Monitoring progress improves goal attainment, more so when recorded and reported | Harkin et al. (2016), *Psychological Bulletin* |
+| Accountability partner (share your week) | Same: progress reported to others | Harkin et al. (2016) |
+| Close-my-day summary | Experiences are remembered by their peak and end | Kahneman et al. (1993) |
+| Streak shields (optional; off = strict) | Avoids abandoning a goal after one lapse ("what-the-hell effect") | Polivy & Herman (1985); Lally et al. (2010) |
+| Weekly quest from your own top miss reason | Specific, moderately hard goals outperform vague ones | Locke & Latham (2002) |
+
+Accessibility baseline: 44 px tap targets, 12 px minimum text, ≥ 4.5:1 text contrast in both themes,
+VoiceOver labels on rings and toasts, sheets lift above the iOS keyboard, Auto/Light/Dark switch.
+
 ## Visual language
 
 - Minimal, premium: near-black (#0A0A0C) dark theme, warm off-white light theme.

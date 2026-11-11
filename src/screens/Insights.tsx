@@ -17,7 +17,8 @@ export function Insights({ today }: { today: string }) {
   const startDay = useStore((s) => s.startDay);
   const data = useMemo(() => ({ habits, plans, logs, startDay }), [habits, plans, logs, startDay]);
 
-  const st = useMemo(() => streak(data, today), [data, today]);
+  const shieldsOn = useStore((s) => s.profile.shields !== false);
+  const st = useMemo(() => streak(data, today, shieldsOn), [data, today, shieldsOn]);
   const last14 = range(addDays(today, -13), today);
   const scores14 = last14.map((d) => (startDay && d >= startDay ? dayStats(data, d).score : null));
   const past7 = range(addDays(today, -7), addDays(today, -1)).map((d) => dayStats(data, d).score).filter((s): s is number => s !== null);
@@ -74,7 +75,7 @@ export function Insights({ today }: { today: string }) {
                 animate={{ height: s === null ? 4 : `${Math.max(4, s * 100)}%` }}
                 transition={{ delay: i * 0.03, type: 'spring', stiffness: 120, damping: 18 }}
               />
-              <span className={`text-[10px] ${last14[i] === today ? 'font-bold text-text' : 'text-faint'}`}>
+              <span className={`text-[12px] ${last14[i] === today ? 'font-bold text-text' : 'text-faint'}`}>
                 {WEEKDAYS[fromKey(last14[i]).getDay()][0]}
               </span>
             </div>
@@ -125,7 +126,7 @@ export function Insights({ today }: { today: string }) {
                 </div>
                 <div className="w-12 text-right">
                   <div className="tabular text-[15px] font-semibold">{rate === null ? '–' : `${Math.round(rate * 100)}%`}</div>
-                  <div className="flex items-center justify-end gap-0.5 text-[11.5px] text-muted">
+                  <div className="flex items-center justify-end gap-0.5 text-[12px] text-muted">
                     <FlameIcon size={11} className="text-gold" />{hs}
                   </div>
                 </div>
@@ -145,7 +146,7 @@ function Stat({ label, value, icon }: { label: string; value: number | string; i
         {icon}
         {value}
       </div>
-      <div className="mt-0.5 text-[11.5px] font-medium tracking-wide text-muted uppercase">{label}</div>
+      <div className="mt-0.5 text-[12px] font-medium tracking-wide text-muted uppercase">{label}</div>
     </div>
   );
 }
@@ -242,7 +243,7 @@ function WeekCompare({ thisWeek, lastWeek }: { thisWeek: { avg: number; days: nu
   const color = delta === null || flat ? 'var(--muted)' : up ? 'var(--habit)' : 'var(--miss)';
   return (
     <section className="card hero px-4 py-4">
-      <div className="text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">You vs. last week</div>
+      <div className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">You vs. last week</div>
       <div className="mt-2 flex items-end justify-between gap-3">
         <div>
           <div className="flex items-start">

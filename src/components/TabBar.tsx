@@ -53,7 +53,7 @@ export function TabBar({ planBadge }: { planBadge?: boolean }) {
                   />
                 )}
               </span>
-              <span className={`relative text-[10.5px] font-medium ${active ? 'text-text' : 'text-muted'}`}>
+              <span className={`relative text-[12px] font-medium ${active ? 'text-text' : 'text-muted'}`}>
                 {label}
               </span>
             </button>

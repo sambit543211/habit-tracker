@@ -1,5 +1,5 @@
 // Minimal offline cache: network-first for pages, cache-first for hashed assets.
-const CACHE = 'keep-v2';
+const CACHE = 'keep-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
@@ -45,6 +45,9 @@ self.addEventListener('push', (e) => {
     data = e.data ? e.data.json() : {};
   } catch {
     data = { title: 'Keep', body: e.data ? e.data.text() : '' };
+  }
+  if (typeof data.badge === 'number' && self.navigator && self.navigator.setAppBadge) {
+    (data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge()).catch(() => {});
   }
   e.waitUntil(
     self.registration.showNotification(data.title || 'Keep', {

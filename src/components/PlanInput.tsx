@@ -45,7 +45,7 @@ export function PlanInput({ onAdd, onDetails, placeholder, defaultMust = false }
         whileTap={{ scale: 0.9 }}
         onClick={() => setMust((m) => !m)}
         aria-pressed={must}
-        className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-semibold transition-colors ${
+        className={`relative flex h-9 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-semibold transition-colors before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] ${
           must ? 'border-gold/50 bg-gold/15 text-gold' : 'border-line bg-surface-2 text-muted'
         }`}
       >
@@ -63,7 +63,7 @@ export function PlanInput({ onAdd, onDetails, placeholder, defaultMust = false }
         type="submit"
         whileTap={{ scale: 0.88 }}
         aria-label={title.trim() ? 'Add plan' : 'Add plan with details'}
-        className="grid size-10 shrink-0 place-items-center rounded-2xl bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)]"
+        className="grid size-11 shrink-0 place-items-center rounded-2xl bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)]"
       >
         <PlusIcon size={20} strokeWidth={2.6} />
       </motion.button>

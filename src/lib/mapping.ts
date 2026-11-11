@@ -72,6 +72,11 @@ export interface ProfileRow {
   display_name?: string | null;
   wake_time?: string;
   sleep_time?: string;
+  brief_reminder?: boolean;
+  lastcall_reminder?: boolean;
+  paused_reminders?: string[];
+  streak_shields?: boolean;
+  partner_name?: string | null;
 }
 
 /** Postgres returns "HH:MM:SS"; the app uses "HH:MM". */
@@ -84,11 +89,16 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.morning_reminder = s.reminders.morning;
     row.evening_reminder = s.reminders.evening;
     row.streak_reminder = s.reminders.streak;
+    row.brief_reminder = s.reminders.brief !== false;
+    row.lastcall_reminder = s.reminders.lastCall !== false;
+    row.paused_reminders = s.reminders.paused ?? [];
   }
   if (s.profile) {
     row.display_name = s.profile.name?.trim() || null;
     row.wake_time = s.profile.wake;
     row.sleep_time = s.profile.sleep;
+    row.streak_shields = s.profile.shields !== false;
+    row.partner_name = s.profile.partner?.trim() || null;
   }
   return row;
 };
@@ -97,6 +107,8 @@ export const rowToProfile = (r: ProfileRow): Profile => ({
   name: r.display_name ?? undefined,
   wake: hhmm(r.wake_time) ?? DEFAULT_PROFILE.wake,
   sleep: hhmm(r.sleep_time) ?? DEFAULT_PROFILE.sleep,
+  shields: r.streak_shields ?? true,
+  partner: r.partner_name ?? undefined,
 });
 
 export const rowToReminders = (r: ProfileRow): Reminders => ({
@@ -104,6 +116,9 @@ export const rowToReminders = (r: ProfileRow): Reminders => ({
   morning: hhmm(r.morning_reminder),
   evening: hhmm(r.evening_reminder),
   streak: hhmm(r.streak_reminder),
+  brief: r.brief_reminder ?? true,
+  lastCall: r.lastcall_reminder ?? true,
+  paused: r.paused_reminders ?? [],
 });
 
 export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
