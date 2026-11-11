@@ -7,7 +7,7 @@ import { isEvening } from '../lib/useToday';
 import { PlanInput } from '../components/PlanInput';
 import { PlanRows } from '../components/PlanRows';
 import { DayCalendar } from '../components/DayCalendar';
-import { PlusIcon, StarIcon } from '../components/icons';
+import { StarIcon } from '../components/icons';
 import { fmtDuration, fmtTime, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
 import type { Plan } from '../types';
 import { planMetaText } from '../lib/planMeta';
@@ -93,13 +93,6 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
         )}
       </motion.section>
 
-      <section>
-        <div className="mb-2.5 flex items-center justify-between px-1">
-          <h2 className="text-[17px] font-semibold">Calendar</h2>
-          <span className="text-[12.5px] text-faint">Tap an empty slot to add</span>
-        </div>
-        <DayCalendar day={day} plans={list} habits={dayHabits} profile={profile} now={nowSince} doneHabits={doneHabits} />
-      </section>
 
       {/* All plans for the day */}
       <section>
@@ -125,24 +118,24 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
           </ul>
         )}
         {musts.length > MUST_LIMIT && <p className="mt-2 px-1 text-[13px] text-miss">More than 3 must-dos dilutes focus. Demote one?</p>}
-        <div className="mt-2 flex gap-2">
-          <div className="min-w-0 flex-1">
-            <PlanInput
-              key={`${day}-${musts.length < MUST_LIMIT}`}
-              defaultMust={musts.length < MUST_LIMIT}
-              placeholder={musts.length < MUST_LIMIT ? 'A must-do' : 'Something nice to get done'}
-              onAdd={(t, m) => addPlan(day, t, m)}
-            />
-          </div>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => editPlan({ day })}
-            aria-label="Add plan with time and details"
-            className="flex shrink-0 items-center gap-1 rounded-[20px] border border-line bg-surface px-3 text-[13px] font-medium text-muted"
-          >
-            <PlusIcon size={16} /> Details
-          </motion.button>
+        <div className="mt-2.5">
+          <PlanInput
+            key={`${day}-${musts.length < MUST_LIMIT}`}
+            defaultMust={musts.length < MUST_LIMIT}
+            placeholder={musts.length < MUST_LIMIT ? 'Add a must-do…' : 'Add a plan…'}
+            onAdd={(t, m) => addPlan(day, t, m)}
+            onDetails={() => editPlan({ day })}
+          />
+          <p className="mt-1.5 px-1 text-[11.5px] text-faint">Tap + with nothing typed to add a time, note or reminder.</p>
         </div>
+      </section>
+
+      <section>
+        <div className="mb-2.5 flex items-center justify-between px-1">
+          <h2 className="text-[17px] font-semibold">Calendar</h2>
+          <span className="text-[12.5px] text-faint">Tap a free slot to add</span>
+        </div>
+        <DayCalendar day={day} plans={list} habits={dayHabits} profile={profile} now={nowSince} doneHabits={doneHabits} />
       </section>
 
       <AnimatePresence>

@@ -5,17 +5,23 @@ import { haptic } from '../lib/feedback';
 
 interface Props {
   onAdd: (title: string, must: boolean) => void;
+  /** Called when + is tapped with nothing typed — opens the full editor */
+  onDetails?: () => void;
   placeholder: string;
   defaultMust?: boolean;
 }
 
-export function PlanInput({ onAdd, placeholder, defaultMust = false }: Props) {
+/**
+ * Quick-add bar. Type and press + to add instantly; tap + with an empty field
+ * to open the full editor (time, note, reminder, if-then).
+ */
+export function PlanInput({ onAdd, onDetails, placeholder, defaultMust = false }: Props) {
   const [title, setTitle] = useState('');
   const [must, setMust] = useState(defaultMust);
   const submit = () => {
     const t = title.trim();
-    if (!t) return;
-    haptic(6);
+    haptic(8);
+    if (!t) return onDetails?.();
     onAdd(t, must);
     setTitle('');
   };
@@ -25,18 +31,19 @@ export function PlanInput({ onAdd, placeholder, defaultMust = false }: Props) {
         e.preventDefault();
         submit();
       }}
-      className="flex items-center gap-2 rounded-[20px] border border-dashed border-line-strong/60 bg-surface/40 py-1.5 pr-1.5 pl-2"
+      className="flex items-center gap-2 rounded-[20px] border border-line-strong/50 bg-surface py-1.5 pr-1.5 pl-1.5 shadow-[0_6px_24px_rgba(0,0,0,0.12)]"
     >
       <motion.button
         type="button"
-        whileTap={{ scale: 0.85 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => setMust((m) => !m)}
         aria-pressed={must}
-        aria-label="Must-do"
-        title="Must-do"
-        className={`grid size-9 shrink-0 place-items-center rounded-full transition-colors ${must ? 'text-gold' : 'text-faint'}`}
+        className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[12.5px] font-semibold transition-colors ${
+          must ? 'border-gold/50 bg-gold/15 text-gold' : 'border-line bg-surface-2 text-muted'
+        }`}
       >
-        <StarIcon size={18} filled={must} />
+        <StarIcon size={14} filled={must} />
+        Must-do
       </motion.button>
       <input
         value={title}
@@ -47,12 +54,11 @@ export function PlanInput({ onAdd, placeholder, defaultMust = false }: Props) {
       />
       <motion.button
         type="submit"
-        whileTap={{ scale: 0.9 }}
-        disabled={!title.trim()}
-        aria-label="Add plan"
-        className="grid size-10 shrink-0 place-items-center rounded-2xl bg-plan text-white transition-opacity disabled:opacity-25"
+        whileTap={{ scale: 0.88 }}
+        aria-label={title.trim() ? 'Add plan' : 'Add plan with details'}
+        className="grid size-10 shrink-0 place-items-center rounded-2xl bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)]"
       >
-        <PlusIcon size={20} strokeWidth={2.4} />
+        <PlusIcon size={20} strokeWidth={2.6} />
       </motion.button>
     </form>
   );

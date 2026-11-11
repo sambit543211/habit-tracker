@@ -7,7 +7,7 @@ import { reasonLabel } from '../lib/reasons';
 import { planMetaText } from '../lib/planMeta';
 
 /** Trackable plan rows (today / past days). Must-dos first. */
-export function PlanRows({ plans }: { plans: Plan[] }) {
+export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean }) {
   const { markPlan, clearPlan } = useStore();
   const openMiss = useUI((s) => s.openMiss);
   const editPlan = useUI((s) => s.editPlan);
@@ -15,7 +15,7 @@ export function PlanRows({ plans }: { plans: Plan[] }) {
     (a, b) => Number(b.must) - Number(a.must) || (a.start ?? '99').localeCompare(b.start ?? '99') || a.createdAt - b.createdAt,
   );
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className={`flex flex-col ${compact ? 'gap-1.5' : 'gap-2'}`}>
       <AnimatePresence initial={false}>
         {sorted.map((p) => (
           <ItemRow
@@ -29,6 +29,7 @@ export function PlanRows({ plans }: { plans: Plan[] }) {
             onMiss={() => openMiss({ kind: 'plan', id: p.id })}
             onUndo={() => clearPlan(p.id)}
             onOpen={() => editPlan({ id: p.id })}
+            compact={compact}
           />
         ))}
       </AnimatePresence>

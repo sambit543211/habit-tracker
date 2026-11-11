@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { useEffect, type ReactNode } from 'react';
+import { XIcon } from './icons';
 
 interface SheetProps {
   open: boolean;
@@ -48,10 +49,18 @@ export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
             }}
           >
             <div
-              className="-mx-5 -mt-3 mb-2 flex cursor-grab touch-none justify-center pt-3 pb-2"
+              className="sticky -top-3 z-10 -mx-5 -mt-3 mb-1 flex h-12 cursor-grab touch-none justify-center bg-surface/90 pt-3 backdrop-blur"
               onPointerDown={(e) => controls.start(e)}
             >
               <div className="h-1.5 w-10 rounded-full bg-surface-3" />
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={onClose}
+                aria-label="Close"
+                className="absolute top-2.5 right-3 grid size-9 place-items-center rounded-full bg-surface-2 text-muted transition-colors active:bg-surface-3"
+              >
+                <XIcon size={17} strokeWidth={2.2} />
+              </button>
             </div>
             {children}
           </motion.div>

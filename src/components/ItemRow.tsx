@@ -17,6 +17,8 @@ interface ItemRowProps {
   onUndo: () => void;
   /** Tap on the text opens details */
   onOpen?: () => void;
+  /** Dense layout for the two-column Today view */
+  compact?: boolean;
 }
 
 const SWIPE = 84;
@@ -25,7 +27,7 @@ const SWIPE = 84;
  * A trackable item. Tap the circle to complete, swipe right to complete,
  * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact }: ItemRowProps) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
   const doneOpacity = useTransform(x, [12, SWIPE], [0, 1]);
@@ -52,15 +54,15 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         <>
           <motion.div
             style={{ opacity: doneOpacity, background: accentVar }}
-            className="absolute inset-0 flex items-center rounded-[20px] pl-5 text-black/80"
+            className={`absolute inset-0 flex items-center text-black/80 ${compact ? 'rounded-2xl pl-3' : 'rounded-[20px] pl-5'}`}
           >
-            <CheckIcon size={22} strokeWidth={2.6} />
+            <CheckIcon size={compact ? 18 : 22} strokeWidth={2.6} />
           </motion.div>
           <motion.div
             style={{ opacity: missOpacity }}
-            className="absolute inset-0 flex items-center justify-end rounded-[20px] bg-miss pr-5 text-white"
+            className={`absolute inset-0 flex items-center justify-end bg-miss text-white ${compact ? 'rounded-2xl pr-3' : 'rounded-[20px] pr-5'}`}
           >
-            <XIcon size={22} strokeWidth={2.6} />
+            <XIcon size={compact ? 18 : 22} strokeWidth={2.6} />
           </motion.div>
         </>
       )}
@@ -83,27 +85,29 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
             onMiss();
           }
         }}
-        className="relative flex min-h-[64px] items-center gap-3.5 rounded-[20px] border border-line bg-surface px-4 py-3"
+        className={`relative flex border border-line bg-surface ${
+          compact ? 'min-h-[54px] items-start gap-2 rounded-2xl py-2.5 pr-6 pl-2.5' : 'min-h-[64px] items-center gap-3.5 rounded-[20px] px-4 py-3'
+        }`}
       >
-        <StatusButton status={status} onClick={pending ? done : onUndo} />
+        <StatusButton status={status} onClick={pending ? done : onUndo} compact={compact} />
         <div
           className={`min-w-0 flex-1 ${onOpen ? 'cursor-pointer' : ''}`}
           onClick={() => {
             if (!dragged.current) onOpen?.();
           }}
         >
-          <div className="flex items-center gap-2">
-            {leading}
+          <div className={`flex gap-1.5 ${compact ? 'items-start' : 'items-center gap-2'}`}>
+            {leading && <span className={compact ? 'mt-[3px]' : ''}>{leading}</span>}
             <motion.span
               animate={{ opacity: pending ? 1 : 0.55 }}
-              className={`truncate text-[15.5px] font-medium tracking-[-0.01em] ${
+              className={`font-medium tracking-[-0.01em] ${compact ? 'line-clamp-2 text-[13.5px] leading-[1.25]' : 'truncate text-[15.5px]'} ${
                 status === 'done' ? 'line-through decoration-[1.5px] decoration-(--accent)/60' : ''
               }`}
             >
               {title}
             </motion.span>
           </div>
-          {subtitle && <div className="mt-0.5 truncate text-[13px] text-muted">{subtitle}</div>}
+          {subtitle && <div className={`truncate text-muted ${compact ? 'mt-1 text-[11.5px]' : 'mt-0.5 text-[13px]'}`}>{subtitle}</div>}
         </div>
         {trailing}
         {pending && (
@@ -114,9 +118,11 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
               onMiss();
             }}
             aria-label={`I didn't do ${title}`}
-            className="grid size-9 shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-2 hover:text-miss"
+            className={`grid shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-2 hover:text-miss ${
+              compact ? 'absolute top-1 right-0.5 size-7' : 'size-9'
+            }`}
           >
-            <XIcon size={18} />
+            <XIcon size={compact ? 13 : 18} />
           </motion.button>
         )}
       </motion.div>
@@ -124,7 +130,7 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
   );
 }
 
-function StatusButton({ status, onClick }: { status: RowStatus; onClick: () => void }) {
+function StatusButton({ status, onClick, compact }: { status: RowStatus; onClick: () => void; compact?: boolean }) {
   const fill =
     status === 'done'
       ? 'var(--accent)'
@@ -138,7 +144,7 @@ function StatusButton({ status, onClick }: { status: RowStatus; onClick: () => v
       whileTap={{ scale: 0.8 }}
       onClick={onClick}
       aria-label={status === 'pending' ? 'Mark done' : 'Undo'}
-      className="relative grid size-8 shrink-0 place-items-center"
+      className={`relative grid shrink-0 place-items-center ${compact ? 'size-7' : 'size-8'}`}
     >
       <motion.span
         className="absolute inset-0 rounded-full border-2"
