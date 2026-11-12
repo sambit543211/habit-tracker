@@ -50,18 +50,13 @@ export function HabitEditor() {
 
       <label className="mt-4 block text-[13px] font-medium text-muted">After I… <span className="text-faint">(your trigger)</span></label>
       <input value={cue} onChange={(e) => setCue(e.target.value)} placeholder="pour my morning coffee" className={field} />
-      <p className="mt-1.5 text-[12.5px] text-faint">
-        "After X, I will Y" plans roughly double follow-through (Gollwitzer & Sheeran, 2006).
-      </p>
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Tiny version for hard days</label>
       <input value={tiny} onChange={(e) => setTiny(e.target.value)} placeholder="Read 1 page" className={field} />
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Pair it with… <span className="text-faint">(optional)</span></label>
       <input value={pairWith} onChange={(e) => setPairWith(e.target.value)} placeholder="my favourite podcast — only while doing this" className={field} />
-      <p className="mt-1.5 text-[12.5px] text-faint">
-        Temptation bundling: allow a treat only during the habit. Gym visits rose ~50% this way (Milkman et al., 2014).
-      </p>
+      <p className="mt-1.5 text-[12.5px] text-faint">A treat you only allow while doing the habit.</p>
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">

@@ -35,6 +35,7 @@ export interface PlanRow {
   remind_at: string | null;
   obstacle: string | null;
   if_then: string | null;
+  origin_day: string | null;
 }
 
 export interface ReflectionRow {
@@ -194,6 +195,7 @@ export const planToRow = (p: Plan, user_id: string): PlanRow => ({
   remind_at: p.remindAt ?? null,
   obstacle: p.obstacle || null,
   if_then: p.ifThen || null,
+  origin_day: p.originDay ?? null,
 });
 
 export const rowToPlan = (r: PlanRow): Plan => ({
@@ -213,6 +215,7 @@ export const rowToPlan = (r: PlanRow): Plan => ({
   remindAt: hhmm(r.remind_at) ?? undefined,
   obstacle: r.obstacle ?? undefined,
   ifThen: r.if_then ?? undefined,
+  originDay: r.origin_day ?? undefined,
 });
 
 export const rowsToReflections = (rows: ReflectionRow[]) =>

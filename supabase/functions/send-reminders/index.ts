@@ -132,7 +132,6 @@ Deno.serve(async (req) => {
     for (const l of logs ?? []) logSet.set(`${l.day}:${l.habit_id}`, l.status);
     const hs = habits ?? [];
     const ps = plans ?? [];
-    const started = (d: string) => !p.start_day || d >= p.start_day;
     const perfect = (d: string) => {
       const active = hs.filter((h) => activeOn(h, d));
       return active.length > 0 && active.every((h) => logSet.get(`${d}:${h.id}`) === 'done');
@@ -188,16 +187,14 @@ Deno.serve(async (req) => {
         });
     }
 
-    // Morning: close the loop on yesterday.
-    if (isDue(p.morning_reminder, now.minutes) && started(yesterday)) {
-      const open =
-        hs.filter((h) => activeOn(h, yesterday) && !logSet.has(`${yesterday}:${h.id}`)).length +
-        ps.filter((x) => x.day === yesterday && x.status === 'pending').length;
-      if (open > 0)
+    // Morning: unfinished plans from earlier days roll onto today.
+    if (isDue(p.morning_reminder, now.minutes)) {
+      const late = ps.filter((x) => x.day === yesterday && x.status === 'pending').length + pendingPlans.filter((x) => x.origin_day && x.origin_day < today).length;
+      if (late > 0)
         candidates.push({
           kind: 'morning',
-          title: withName(pick(['Close the loop', 'Yesterday needs an ending', '{N}, tie up yesterday'], seed('morning'))),
-          body: `${plural(open, 'thing')} from yesterday need${open > 1 ? '' : 's'} a ✓ or ✗.`,
+          title: withName(pick(['Carried over', 'Unfinished business', '{N}, finish these first'], seed('morning'))),
+          body: `${plural(late, 'plan')} from earlier ${late > 1 ? 'are' : 'is'} on today's list. Clear ${late > 1 ? 'them' : 'it'} first.`,
         });
     }
 
@@ -254,13 +251,13 @@ Deno.serve(async (req) => {
         candidates.push({
           kind: `plan:${pl.id}`,
           title: pl.remind_offset === 0 ? `Starting now: ${pl.title}` : `In ${pl.remind_offset} min: ${pl.title}`,
-          body: pl.if_then ? `If ${pl.obstacle ?? 'something comes up'} → ${pl.if_then}` : pl.note || `${fmt(pl.start_time)} · ${pl.duration_min ?? 15} min`,
+          body: pl.note || `${fmt(pl.start_time)} · ${pl.duration_min ?? 15} min`,
         });
       } else if (!pl.start_time && pl.remind_at && isDue(pl.remind_at, now.minutes)) {
         candidates.push({
           kind: `plan:${pl.id}`,
           title: `${pl.must ? '⭐ ' : ''}${pl.title}`,
-          body: pl.note || (pl.if_then ? `If ${pl.obstacle ?? 'something comes up'} → ${pl.if_then}` : 'You planned this for today.'),
+          body: pl.note || 'You planned this for today.',
         });
       }
     }

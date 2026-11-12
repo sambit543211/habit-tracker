@@ -7,7 +7,6 @@ export function planMetaText(plan: Plan, withCarry = true): string | null {
   if (plan.start) bits.push(`${fmtTime(plan.start)} · ${fmtDuration(Math.max(15, plan.duration ?? 15))}`);
   else if (plan.remindAt) bits.push(`⏰ ${fmtTime(plan.remindAt)}`);
   if (plan.note) bits.push(plan.note);
-  if (plan.ifThen) bits.push('If-then ✓');
   if (withCarry && plan.carryCount > 0) bits.push(`Moved ${plan.carryCount}×`);
   return bits.length ? bits.join(' · ') : null;
 }

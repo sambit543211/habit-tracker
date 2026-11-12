@@ -17,6 +17,8 @@ interface ItemRowProps {
   onUndo: () => void;
   /** Tap on the text opens details */
   onOpen?: () => void;
+  /** Border/background tint (e.g. how late a rolled-over plan is) */
+  tint?: string;
   /** Small chip under the subtitle that must never be truncated (e.g. "Moved 2×") */
   badge?: ReactNode;
   /** Dense layout for the two-column Today view */
@@ -32,7 +34,7 @@ const SWIPE = 84;
  * A trackable item. Tap the circle to complete, swipe right to complete,
  * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone, badge }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone, badge, tint }: ItemRowProps) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
 
@@ -111,7 +113,6 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         dragElastic={0.55}
         dragSnapToOrigin
         animate={pop}
-        style={{ x, touchAction: 'pan-y' }}
         onDragStart={() => {
           dragged.current = true;
         }}
@@ -122,6 +123,13 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
             haptic(8);
             onMiss();
           }
+        }}
+        style={{
+          x,
+          touchAction: 'pan-y',
+          ...(tint && pending
+            ? { borderColor: `color-mix(in srgb, ${tint} 55%, transparent)`, background: `color-mix(in srgb, ${tint} 9%, var(--surface))`, boxShadow: `inset 3px 0 0 ${tint}` }
+            : {}),
         }}
         className={`relative flex border border-line bg-surface ${
           compact ? 'min-h-[54px] items-start gap-2 rounded-2xl py-2.5 pr-6 pl-2.5' : 'min-h-[64px] items-center gap-3.5 rounded-[20px] px-4 py-3'

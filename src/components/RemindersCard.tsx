@@ -14,7 +14,7 @@ type Row =
 /** `kind` is the server's name for the reminder (used for pausing). */
 const ROWS: Row[] = [
   { key: 'brief', kind: 'brief', title: 'Morning brief', text: 'At wake-up: your must-dos and first time block' },
-  { key: 'morning', kind: 'morning', title: 'Close the loop', text: 'Only if yesterday has open items', fallback: '08:30' },
+  { key: 'morning', kind: 'morning', title: 'Carried-over plans', text: 'Only if unfinished plans rolled onto today', fallback: '08:30' },
   { key: 'evening', kind: 'evening', title: 'Plan tomorrow', text: 'Only if tomorrow is still empty', fallback: '21:00' },
   { key: 'streak', kind: 'streak', title: 'Streak at risk', text: 'Only if habits are still open', fallback: '22:30' },
   { key: 'lastCall', kind: 'lastcall', title: 'Last call', text: '1 hour before bed, only if habits are open' },

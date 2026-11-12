@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from './store';
 import { useToday, isEvening } from './lib/useToday';
@@ -9,7 +10,6 @@ import { Habits } from './screens/Habits';
 import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
-import { ReviewSheet } from './components/ReviewSheet';
 import { HabitEditor } from './components/HabitEditor';
 import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
@@ -33,6 +33,14 @@ export default function App() {
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
   useAppBadge(today);
+  // New day (or app opened after one): unfinished plans roll onto today.
+  const syncReady = useSync((s) => s.ready);
+  const planCount = useStore((s) => s.plans.length);
+  useEffect(() => {
+    if (!syncReady) return;
+    const n = useStore.getState().rollOverPlans(today);
+    if (n) useUI.getState().showToast(`${n} unfinished plan${n > 1 ? 's' : ''} moved to today`, { tone: 'plan' });
+  }, [today, syncReady, planCount]);
   const hasName = useStore((s) => !!s.profile.name);
   const ready = useSync((s) => s.ready);
   const session = useSync((s) => s.session);
@@ -64,7 +72,6 @@ export default function App() {
         </AnimatePresence>
       </main>
       <TabBar planBadge={isEvening(hour) && tomorrowEmpty} />
-      <ReviewSheet today={today} />
       <HabitEditor />
       <PlanEditor />
       <WeeklyReviewSheet today={today} />
