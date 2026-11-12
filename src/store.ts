@@ -80,6 +80,8 @@ interface Store extends Data {
   missPlan: (id: string, miss: Miss) => void;
   carryPlan: (id: string, miss: Miss) => void;
   clearPlan: (id: string) => void;
+  /** Move every unfinished plan from earlier days onto `today` (runs when a new day starts). */
+  rollOverPlans: (today: string) => number;
 
   dismissFreshStart: (day: string) => void;
 
@@ -229,6 +231,7 @@ export const useStore = create<Store>()(
           status: 'pending',
           carryCount: plan.carryCount + 1,
           createdAt: Date.now(),
+          originDay: plan.originDay ?? plan.day,
           note: plan.note,
           start: plan.start,
           duration: plan.duration,
@@ -252,6 +255,27 @@ export const useStore = create<Store>()(
             plans: updatePlan(plans, id, { status: 'pending', miss: undefined, carriedTo: undefined }),
           };
         }),
+
+      rollOverPlans: (today) => {
+        const past = get().plans.filter((p) => p.day < today && p.status === 'pending');
+        if (!past.length) return 0;
+        // Deterministic id per (plan, day) so two devices rolling over the same plan don't duplicate it.
+        const rollId = (id: string) => id.slice(0, 24) + `0000${today.replace(/-/g, '')}`;
+        set((s) => {
+          const ids = new Set(s.plans.map((p) => p.id));
+          const stale = new Set(past.map((p) => p.id));
+          const copies: Plan[] = [];
+          for (const p of past) {
+            const id = rollId(p.id);
+            if (ids.has(id)) continue;
+            copies.push({ ...p, id, day: today, status: 'pending', miss: undefined, carriedTo: undefined, carryCount: p.carryCount + 1, originDay: p.originDay ?? p.day });
+          }
+          return {
+            plans: [...s.plans.map((p) => (stale.has(p.id) ? { ...p, status: 'carried' as const, carriedTo: rollId(p.id) } : p)), ...copies],
+          };
+        });
+        return past.length;
+      },
 
       dismissFreshStart: (day) => set({ freshStartSeen: day }),
 

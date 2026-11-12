@@ -5,6 +5,8 @@ import { dayStats, habitRate, habitStreak, habitsOn, reasonCounts, streak, weekd
 import { addDays, formatDay, fromKey, range, toKey, WEEKDAYS } from '../lib/date';
 import { REASONS } from '../lib/reasons';
 import { FlameIcon } from '../components/icons';
+import { HabitHistorySheet } from '../components/HabitHistorySheet';
+import type { Habit } from '../types';
 import { weekStart } from '../lib/time';
 import { AnimatedNumber } from '../components/Ring';
 
@@ -18,6 +20,7 @@ export function Insights({ today }: { today: string }) {
   const data = useMemo(() => ({ habits, plans, logs, startDay }), [habits, plans, logs, startDay]);
 
   const shieldsOn = useStore((s) => s.profile.shields !== false);
+  const [history, setHistory] = useState<Habit | null>(null);
   const st = useMemo(() => streak(data, today, shieldsOn), [data, today, shieldsOn]);
   const last14 = range(addDays(today, -13), today);
   const scores14 = last14.map((d) => (startDay && d >= startDay ? dayStats(data, d).score : null));
@@ -110,14 +113,16 @@ export function Insights({ today }: { today: string }) {
         )}
       </Card>
 
+      <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
       <Card title="Habits · last 30 days">
+        <p className="-mt-2 mb-1 text-[12.5px] text-faint">Tap a habit to see each day and fix a missed check-in.</p>
         {activeHabits.length === 0 && <p className="text-[14px] text-muted">No habits yet.</p>}
         <div className="flex flex-col divide-y divide-line">
           {activeHabits.map((h) => {
             const rate = habitRate(data, h, today);
             const hs = habitStreak(data, h, today);
             return (
-              <div key={h.id} className="flex items-center gap-3 py-2.5">
+              <button key={h.id} onClick={() => setHistory(h)} className="flex min-h-12 w-full items-center gap-3 py-2.5 text-left">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15px] font-medium">{h.name}</div>
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -130,7 +135,8 @@ export function Insights({ today }: { today: string }) {
                     <FlameIcon size={11} className="text-gold" />{hs}
                   </div>
                 </div>
-              </div>
+                <span className="text-muted" aria-hidden>›</span>
+              </button>
             );
           })}
         </div>

@@ -154,12 +154,6 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
         )}
       </AnimatePresence>
 
-      {which === 'tomorrow' && evening && (
-        <div className="card px-4 py-3.5 text-[13.5px] leading-relaxed text-muted">
-          <span className="font-semibold text-text">Why tonight?</span> Writing tomorrow's to-dos before bed helped people fall asleep faster
-          (Scullin et al., 2018).
-        </div>
-      )}
     </div>
   );
 }

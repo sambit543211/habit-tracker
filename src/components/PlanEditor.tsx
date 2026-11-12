@@ -137,7 +137,7 @@ export function PlanEditor() {
       <div className="mt-5 flex items-center justify-between">
         <div>
           <div className="text-[15px] font-medium">Block a time</div>
-          <div className="text-[12.5px] text-faint">Puts it on your calendar. Deciding when boosts follow-through.</div>
+          <div className="text-[12.5px] text-faint">Puts it on your calendar.</div>
         </div>
         <Switch on={timed} onChange={setTimed} label="Block a time" />
       </div>
@@ -194,16 +194,6 @@ export function PlanEditor() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* WOOP */}
-      <div className="mt-6 rounded-2xl border border-line bg-surface-2/60 p-4">
-        <div className="text-[15px] font-medium">Obstacle check <span className="text-[12.5px] font-normal text-faint">· optional</span></div>
-        <p className="mt-0.5 text-[12.5px] leading-relaxed text-faint">
-          Naming what could stop you, then planning for it, makes follow-through more likely (Oettingen's WOOP).
-        </p>
-        <input value={obstacle} onChange={(e) => setObstacle(e.target.value)} placeholder="What might get in the way?" className={`${field} bg-surface`} />
-        <input value={ifThen} onChange={(e) => setIfThen(e.target.value)} placeholder="If that happens, I will…" className={`${field} bg-surface`} />
-      </div>
 
       <motion.button
         whileTap={{ scale: 0.98 }}

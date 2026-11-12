@@ -13,7 +13,7 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
   const editPlan = useUI((s) => s.editPlan);
   const showToast = useUI((s) => s.showToast);
   const sorted = [...plans].sort(
-    (a, b) => Number(b.must) - Number(a.must) || (a.start ?? '99').localeCompare(b.start ?? '99') || a.createdAt - b.createdAt,
+    (a, b) => lateDays(b) - lateDays(a) || Number(b.must) - Number(a.must) || (a.start ?? '99').localeCompare(b.start ?? '99') || a.createdAt - b.createdAt,
   );
   return (
     <ul className={`flex flex-col ${compact ? 'gap-1.5' : 'gap-2'}`}>
@@ -27,6 +27,7 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
             leading={p.must ? <StarIcon size={14} filled className="shrink-0 text-gold" /> : undefined}
             subtitle={planSubtitle(p)}
             badge={carryBadge(p)}
+            tint={lateColor(p)}
             onDone={() => {
               markPlan(p.id);
               showToast(`${p.title} — done`, { tone: 'plan', undo: () => clearPlan(p.id) });
@@ -56,15 +57,28 @@ export function planSubtitle(p: Plan) {
   return planMetaText(p, false) ?? undefined;
 }
 
-/** "Moved 2×" as its own chip, so the procrastination signal is never cut off. */
+/** Whole days a plan is overdue (0 = planned for this day). */
+export const lateDays = (p: Plan) =>
+  p.originDay ? Math.max(0, Math.round((new Date(`${p.day}T12:00:00`).getTime() - new Date(`${p.originDay}T12:00:00`).getTime()) / 86400_000)) : 0;
+
+/** Severity colour for an overdue plan: 1 day amber, 2 days orange, 3+ red. */
+export const lateColor = (p: Plan) => {
+  const n = lateDays(p);
+  return n >= 3 ? 'var(--miss)' : n === 2 ? '#f97316' : n === 1 ? 'var(--gold)' : undefined;
+};
+
+/** "2 days late" as its own chip, so the signal is never cut off. */
 export function carryBadge(p: Plan) {
-  if (p.status !== 'pending' || p.carryCount < 1) return undefined;
-  const hot = p.carryCount >= 3;
+  const n = lateDays(p);
+  if (p.status !== 'pending' || n < 1) return undefined;
+  const color = lateColor(p)!;
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-semibold ${hot ? 'bg-miss/15 text-miss' : 'bg-gold/15 text-gold'}`}
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-semibold"
+      style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}
     >
-      Moved {p.carryCount}×{hot ? ' · still worth it?' : ''}
+      {n === 1 ? 'From yesterday' : `${n} days late`}
+      {n >= 3 ? ' · still worth it?' : ''}
     </span>
   );
 }

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useRef } from 'react';
 import { useStore, useUI } from '../store';
-import { dayStats, habitsOn, openPastItems, plansOn, streak } from '../lib/score';
+import { dayStats, habitsOn, plansOn, streak } from '../lib/score';
 import { addDays, formatDay, weekday } from '../lib/date';
 import { isEvening } from '../lib/useToday';
 import { AnimatedNumber, Ring } from '../components/Ring';
@@ -29,7 +29,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const dayClosedSeen = useStore((s) => s.dayClosedSeen);
   const setCloseDay = useUI((s) => s.setCloseDay);
   const swipeHintSeen = useStore((s) => s.swipeHintSeen);
-  const { setTab, setReview, setReviewWeek, editPlan } = useUI();
+  const { setTab, setReviewWeek, editPlan } = useUI();
 
   const data = { habits, plans, logs, startDay };
   const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -37,7 +37,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const st = useMemo(() => streak(data, today, shieldsOn), [habits, logs, startDay, today, shieldsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const level = useMemo(() => levelFor(promisesKept(data, today)), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const quest = useMemo(() => weeklyQuest(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const open = useMemo(() => openPastItems(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const todayHabits = habitsOn(data, today);
   const todayPlans = plansOn(data, today);
   const tomorrowCount = plansOn(data, addDays(today, 1)).length;
@@ -225,18 +224,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         );
       })()}
 
-      {open.length > 0 && (
-        <button
-          onClick={() => setReview(true)}
-          className="flex items-center justify-between rounded-2xl border border-miss/30 bg-miss/10 px-3.5 py-2.5 text-left"
-        >
-          <span className="text-[13.5px] font-medium">
-            <span className="text-miss">●</span> {open.length} item{open.length > 1 ? 's' : ''} from earlier still open
-          </span>
-          <span className="text-[13px] font-semibold text-miss">Close the loop →</span>
-        </button>
-      )}
-
       <AnimatePresence>
         {hintHabit && (
           <motion.div
@@ -289,7 +276,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           {todayPlans.length ? (
             <PlanRows plans={todayPlans} compact />
           ) : (
-            <SmartEmptyPlans today={today} onAdd={addPlan} onReview={() => setReview(true)} />
+            <SmartEmptyPlans today={today} onAdd={addPlan} />
           )}
         </section>
       </div>
@@ -376,7 +363,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
 
       {nearBed && <BedtimeNote day={today} />}
 
-      <p className="pb-2 text-center text-[12px] text-faint">Tap ○ to complete · swipe left or tap × if you didn't · tap a plan for details</p>
+      <p className="pb-2 text-center text-[12px] text-faint">Tap ○ when done · unfinished plans move to tomorrow · tap a plan to edit</p>
     </div>
   );
 }
@@ -401,22 +388,16 @@ function ColumnHeader({ title, color, done, total, action }: { title: string; co
  * Open ones go through "Close the loop" (they still need a ✓ or a reason);
  * dropped ones can be re-added with one tap.
  */
-function SmartEmptyPlans({ today, onAdd, onReview }: { today: string; onAdd: () => void; onReview: () => void }) {
+function SmartEmptyPlans({ today, onAdd }: { today: string; onAdd: () => void }) {
   const plans = useStore((s) => s.plans);
   const addPlan = useStore((s) => s.addPlan);
   const showToast = useUI((s) => s.showToast);
   const yesterday = addDays(today, -1);
-  const open = plans.filter((p) => p.day === yesterday && p.status === 'pending');
   const dropped = plans.filter((p) => p.day === yesterday && p.status === 'missed').slice(0, 3);
-  if (!open.length && !dropped.length) return <EmptyColumn text="Nothing planned" cta="Plan something" onClick={onAdd} />;
+  if (!dropped.length) return <EmptyColumn text="Nothing planned" cta="Plan something" onClick={onAdd} />;
   return (
     <div className="flex flex-col gap-1.5 rounded-2xl border border-dashed border-line-strong/60 p-2.5">
       <div className="text-[12px] font-medium text-muted">From yesterday</div>
-      {open.length > 0 && (
-        <button onClick={onReview} className="rounded-xl bg-plan/12 px-2.5 py-2 text-left text-[12.5px] font-semibold text-plan" style={{ background: 'color-mix(in srgb, var(--plan) 12%, transparent)' }}>
-          {open.length} unfinished → carry over
-        </button>
-      )}
       {dropped.map((p) => (
         <motion.button
           key={p.id}

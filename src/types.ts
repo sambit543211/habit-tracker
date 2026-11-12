@@ -136,6 +136,8 @@ export interface Plan {
   remindOffset?: number;
   /** Remind at a fixed time (for plans without a start time) */
   remindAt?: string;
+  /** First day this plan was meant for (set when it rolls over) */
+  originDay?: string;
   /** WOOP: what might get in the way */
   obstacle?: string;
   /** WOOP: "If that happens, I will…" */

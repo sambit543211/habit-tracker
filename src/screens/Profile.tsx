@@ -253,7 +253,7 @@ export function Profile({ today }: { today: string }) {
       {/* Accountability partner */}
       <section className="card px-4 py-4">
         <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Accountability partner</h2>
-        <p className="mt-1 text-[12.5px] text-faint">Reporting progress to someone makes follow-through more likely (Harkin et al., 2016).</p>
+        <p className="mt-1 text-[12.5px] text-faint">Send a friend your weekly summary.</p>
         <input
           value={profile.partner ?? ''}
           onChange={(e) => setProfile({ partner: e.target.value })}

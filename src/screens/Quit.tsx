@@ -183,7 +183,7 @@ function QuitDashboard({ today, q, onEdit }: { today: string; q: QuitSettings; o
             );
           })}
         </ul>
-        <p className="mt-2 text-[12px] text-faint">Typical timings from public-health sources (CDC, American Cancer Society). The clock restarts after a cigarette.</p>
+        <p className="mt-2 text-[12px] text-faint">Typical timings. The clock restarts after a cigarette.</p>
       </section>
 
       <p className="px-1 pb-2 text-[12.5px] leading-relaxed text-faint">
@@ -344,9 +344,6 @@ function QuitSetup({ today, existing, onDone }: { today: string; existing?: Quit
             </button>
           ))}
         </div>
-        <p className="mt-2.5 text-[12.5px] text-faint">
-          In a trial, stopping abruptly worked more often than cutting down (Lindson-Hawley et al., 2016) — so cutting down here always ends on a firm quit date.
-        </p>
       </section>
 
       <section className="card px-4 py-4">

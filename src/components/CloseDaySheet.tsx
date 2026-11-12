@@ -49,7 +49,7 @@ export function CloseDaySheet({ today }: { today: string }) {
           <div className="text-[13px] font-medium tracking-wide text-plan uppercase">Step 1 of 2</div>
           <h2 className="mt-1 text-[24px] font-bold tracking-[-0.02em]">Close the day honestly</h2>
           <p className="mt-1 text-[14px] text-muted">
-            {stats.pending} left. Tick what you did, cross what you didn't — every cross gets a reason.
+            {stats.pending} left. Tick what you did. Habits you leave count as not done; unfinished plans move to tomorrow.
           </p>
           <div className="mt-4 flex flex-col gap-2">
             {openHabits.length > 0 && <HabitRows habits={openHabits} day={today} showTiny />}
