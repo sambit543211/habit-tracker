@@ -14,6 +14,7 @@ import { reviewWeekFor } from '../components/WeeklyReviewSheet';
 import { greeting, sinceWake, toMin, windowLength } from '../lib/time';
 import { levelFor, pace, promisesKept, weeklyQuest } from '../lib/game';
 import { fmtElapsed, quitStats } from '../lib/quit';
+import { circleScore, groupStreak, useCircle } from '../lib/circle';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
   const habits = useStore((s) => s.habits);
@@ -71,6 +72,19 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const smokes = useStore((s) => s.smokes);
   const q = profile.quit?.enabled ? profile.quit : null;
   const qs = q ? quitStats(q, smokes, today) : null;
+  const circleData = useCircle((s) => s.data);
+  const refreshCircle = useCircle((s) => s.refresh);
+  const circleOn = !!profile.circle;
+  useEffect(() => {
+    if (!circleOn) return;
+    const t = setTimeout(() => void refreshCircle(today), 1200); // after my ticks have synced
+    return () => clearTimeout(t);
+  }, [circleOn, today, logs, refreshCircle]);
+  const cs = circleOn ? circleScore(circleData) : null;
+  const activeMembers = circleData?.circle?.members.filter((m) => m.status === 'active').length ?? 0;
+  const bestGroup = Math.max(0, ...(circleData?.circle?.goals ?? []).map((g) => groupStreak(g, activeMembers)));
+  const pendingInvite = circleOn && !!circleData?.invite;
+  const nudges = circleData?.circle?.reactions.filter((r) => r.to === circleData.me && r.kind === 'nudge').length ?? 0;
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -162,6 +176,28 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           </div>
         </div>
       </motion.section>
+
+      {circleOn && (cs || pendingInvite) && (
+        <button
+          onClick={() => setTab('circle')}
+          aria-label={cs ? `Circle score ${Math.round(cs.score * 100)} percent. Open circle` : 'You have a circle request'}
+          className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2 text-left"
+        >
+          <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
+            <span aria-hidden>👥</span>
+            <span className="truncate">
+              {pendingInvite
+                ? 'Circle · you have a request'
+                : `Circle · ${cs!.done} of ${cs!.total} done${bestGroup > 0 ? ` · 🔥 ${bestGroup} together` : ''}${nudges ? ` · 👋 ${nudges}` : ''}`}
+            </span>
+          </span>
+          {cs && (
+            <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: cs.score === 1 ? 'var(--habit)' : cs.score >= 0.5 ? 'var(--gold)' : 'var(--muted)' }}>
+              {Math.round(cs.score * 100)}%
+            </span>
+          )}
+        </button>
+      )}
 
       {qs && (
         <button

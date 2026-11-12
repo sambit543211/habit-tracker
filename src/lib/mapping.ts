@@ -78,6 +78,7 @@ export interface ProfileRow {
   streak_shields?: boolean;
   partner_name?: string | null;
   quit?: QuitSettings | null;
+  circle_enabled?: boolean;
 }
 
 export interface SmokeRow {
@@ -127,6 +128,7 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.streak_shields = s.profile.shields !== false;
     row.partner_name = s.profile.partner?.trim() || null;
     row.quit = s.profile.quit ?? null;
+    row.circle_enabled = !!s.profile.circle;
   }
   return row;
 };
@@ -138,6 +140,7 @@ export const rowToProfile = (r: ProfileRow): Profile => ({
   shields: r.streak_shields ?? true,
   partner: r.partner_name ?? undefined,
   quit: r.quit ?? undefined,
+  circle: r.circle_enabled ?? false,
 });
 
 export const rowToReminders = (r: ProfileRow): Reminders => ({

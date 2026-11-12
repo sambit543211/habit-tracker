@@ -172,6 +172,20 @@ export function Profile({ today }: { today: string }) {
       {/* Optional modes */}
       <section className="card px-4 py-4">
         <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Optional modes</h2>
+        <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-3">
+          <div>
+            <div className="text-[15px] font-semibold">👥 Circle</div>
+            <p className="mt-0.5 text-[12.5px] text-faint">Share chosen habits with up to 5 friends: shared goals, group streaks, cheers and nudges. Scored separately.</p>
+          </div>
+          <Switch
+            on={!!profile.circle}
+            onChange={(v) => {
+              setProfile({ circle: v });
+              if (v) useUI.getState().setTab('circle');
+            }}
+            label="Circle mode"
+          />
+        </div>
         <div className="mt-3 flex items-center justify-between gap-3">
           <div>
             <div className="text-[15px] font-semibold">🚭 Quit smoking</div>
