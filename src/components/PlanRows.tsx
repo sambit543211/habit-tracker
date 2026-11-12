@@ -77,8 +77,7 @@ export function carryBadge(p: Plan) {
       className="inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-semibold"
       style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}
     >
-      {n === 1 ? 'From yesterday' : `${n} days late`}
-      {n >= 3 ? ' · still worth it?' : ''}
+      {n === 1 ? '1 day late' : `${n} days late`}
     </span>
   );
 }
