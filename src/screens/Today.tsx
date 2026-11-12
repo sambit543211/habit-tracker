@@ -177,45 +177,53 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </div>
       </motion.section>
 
-      {circleOn && (cs || pendingInvite) && (
-        <button
-          onClick={() => setTab('circle')}
-          aria-label={cs ? `Circle score ${Math.round(cs.score * 100)} percent. Open circle` : 'You have a circle request'}
-          className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2 text-left"
-        >
-          <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
-            <span aria-hidden>👥</span>
-            <span className="truncate">
-              {pendingInvite
-                ? 'Circle · you have a request'
-                : `Circle · ${cs!.done} of ${cs!.total} done${bestGroup > 0 ? ` · 🔥 ${bestGroup} together` : ''}${nudges ? ` · 👋 ${nudges}` : ''}`}
-            </span>
-          </span>
-          {cs && (
-            <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: cs.score === 1 ? 'var(--habit)' : cs.score >= 0.5 ? 'var(--gold)' : 'var(--muted)' }}>
-              {Math.round(cs.score * 100)}%
-            </span>
-          )}
-        </button>
-      )}
-
-      {qs && (
-        <button
-          onClick={() => setTab('quit')}
-          aria-label={`Quit smoking score ${Math.round(qs.score * 100)} percent. ${qs.today} smoked today. Open quit tab`}
-          className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2 text-left"
-        >
-          <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
-            <span aria-hidden>🚭</span>
-            <span className="truncate">
-              Quit · {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} smoke-free` : `${qs.today} of ${qs.limit} today`}
-            </span>
-          </span>
-          <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: qs.score === 1 ? 'var(--habit)' : qs.score >= 0.5 ? 'var(--gold)' : 'var(--miss)' }}>
-            {Math.round(qs.score * 100)}%
-          </span>
-        </button>
-      )}
+      {(() => {
+        const showCircle = circleOn && (!!cs || pendingInvite);
+        const both = showCircle && !!qs;
+        const tone = (v: number) => (v === 1 ? 'var(--habit)' : v >= 0.5 ? 'var(--gold)' : 'var(--muted)');
+        const cell = 'flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-3 py-2 text-left';
+        if (!showCircle && !qs) return null;
+        return (
+          <div className={`grid gap-2 ${both ? 'grid-cols-2' : ''}`}>
+            {showCircle && (
+              <button
+                onClick={() => setTab('circle')}
+                aria-label={cs ? `Circle score ${Math.round(cs.score * 100)} percent. Open circle` : 'You have a circle request'}
+                className={cell}
+              >
+                <span className="min-w-0 truncate text-[13px] font-medium">
+                  <span aria-hidden>👥 </span>
+                  {pendingInvite
+                    ? 'Circle request'
+                    : both
+                      ? `Circle ${cs!.done}/${cs!.total}${nudges ? ` · 👋${nudges}` : bestGroup > 0 ? ` · 🔥${bestGroup}` : ''}`
+                      : `Circle · ${cs!.done} of ${cs!.total} done${bestGroup > 0 ? ` · 🔥 ${bestGroup} together` : ''}${nudges ? ` · 👋 ${nudges}` : ''}`}
+                </span>
+                {cs && (
+                  <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: tone(cs.score) }}>
+                    {Math.round(cs.score * 100)}%
+                  </span>
+                )}
+              </button>
+            )}
+            {qs && (
+              <button
+                onClick={() => setTab('quit')}
+                aria-label={`Quit smoking score ${Math.round(qs.score * 100)} percent. ${qs.today} smoked today. Open quit tab`}
+                className={cell}
+              >
+                <span className="min-w-0 truncate text-[13px] font-medium">
+                  <span aria-hidden>🚭 </span>
+                  {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} free` : both ? `Quit ${qs.today}/${qs.limit}` : `Quit · ${qs.today} of ${qs.limit} today`}
+                </span>
+                <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: qs.score === 1 ? 'var(--habit)' : qs.score >= 0.5 ? 'var(--gold)' : 'var(--miss)' }}>
+                  {Math.round(qs.score * 100)}%
+                </span>
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {open.length > 0 && (
         <button
