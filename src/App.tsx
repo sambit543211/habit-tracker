@@ -16,6 +16,7 @@ import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
 import { Celebrations } from './components/Celebrations';
 import { Profile } from './screens/Profile';
 import { Quit } from './screens/Quit';
+import { Circle } from './screens/Circle';
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
 import { CloseDaySheet } from './components/CloseDaySheet';
@@ -58,6 +59,7 @@ export default function App() {
             {tab === 'habits' && <Habits today={today} />}
             {tab === 'profile' && <Profile today={today} />}
             {tab === 'quit' && <Quit today={today} />}
+            {tab === 'circle' && <Circle today={today} />}
           </motion.div>
         </AnimatePresence>
       </main>

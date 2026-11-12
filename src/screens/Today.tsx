@@ -14,6 +14,7 @@ import { reviewWeekFor } from '../components/WeeklyReviewSheet';
 import { greeting, sinceWake, toMin, windowLength } from '../lib/time';
 import { levelFor, pace, promisesKept, weeklyQuest } from '../lib/game';
 import { fmtElapsed, quitStats } from '../lib/quit';
+import { circleScore, groupStreak, useCircle } from '../lib/circle';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
   const habits = useStore((s) => s.habits);
@@ -71,6 +72,19 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const smokes = useStore((s) => s.smokes);
   const q = profile.quit?.enabled ? profile.quit : null;
   const qs = q ? quitStats(q, smokes, today) : null;
+  const circleData = useCircle((s) => s.data);
+  const refreshCircle = useCircle((s) => s.refresh);
+  const circleOn = !!profile.circle;
+  useEffect(() => {
+    if (!circleOn) return;
+    const t = setTimeout(() => void refreshCircle(today), 1200); // after my ticks have synced
+    return () => clearTimeout(t);
+  }, [circleOn, today, logs, refreshCircle]);
+  const cs = circleOn ? circleScore(circleData) : null;
+  const activeMembers = circleData?.circle?.members.filter((m) => m.status === 'active').length ?? 0;
+  const bestGroup = Math.max(0, ...(circleData?.circle?.goals ?? []).map((g) => groupStreak(g, activeMembers)));
+  const pendingInvite = circleOn && !!circleData?.invite;
+  const nudges = circleData?.circle?.reactions.filter((r) => r.to === circleData.me && r.kind === 'nudge').length ?? 0;
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -163,23 +177,53 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </div>
       </motion.section>
 
-      {qs && (
-        <button
-          onClick={() => setTab('quit')}
-          aria-label={`Quit smoking score ${Math.round(qs.score * 100)} percent. ${qs.today} smoked today. Open quit tab`}
-          className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2 text-left"
-        >
-          <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
-            <span aria-hidden>🚭</span>
-            <span className="truncate">
-              Quit · {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} smoke-free` : `${qs.today} of ${qs.limit} today`}
-            </span>
-          </span>
-          <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: qs.score === 1 ? 'var(--habit)' : qs.score >= 0.5 ? 'var(--gold)' : 'var(--miss)' }}>
-            {Math.round(qs.score * 100)}%
-          </span>
-        </button>
-      )}
+      {(() => {
+        const showCircle = circleOn && (!!cs || pendingInvite);
+        const both = showCircle && !!qs;
+        const tone = (v: number) => (v === 1 ? 'var(--habit)' : v >= 0.5 ? 'var(--gold)' : 'var(--muted)');
+        const cell = 'flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-3 py-2 text-left';
+        if (!showCircle && !qs) return null;
+        return (
+          <div className={`grid gap-2 ${both ? 'grid-cols-2' : ''}`}>
+            {showCircle && (
+              <button
+                onClick={() => setTab('circle')}
+                aria-label={cs ? `Circle score ${Math.round(cs.score * 100)} percent. Open circle` : 'You have a circle request'}
+                className={cell}
+              >
+                <span className="min-w-0 truncate text-[13px] font-medium">
+                  <span aria-hidden>👥 </span>
+                  {pendingInvite
+                    ? 'Circle request'
+                    : both
+                      ? `Circle ${cs!.done}/${cs!.total}${nudges ? ` · 👋${nudges}` : bestGroup > 0 ? ` · 🔥${bestGroup}` : ''}`
+                      : `Circle · ${cs!.done} of ${cs!.total} done${bestGroup > 0 ? ` · 🔥 ${bestGroup} together` : ''}${nudges ? ` · 👋 ${nudges}` : ''}`}
+                </span>
+                {cs && (
+                  <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: tone(cs.score) }}>
+                    {Math.round(cs.score * 100)}%
+                  </span>
+                )}
+              </button>
+            )}
+            {qs && (
+              <button
+                onClick={() => setTab('quit')}
+                aria-label={`Quit smoking score ${Math.round(qs.score * 100)} percent. ${qs.today} smoked today. Open quit tab`}
+                className={cell}
+              >
+                <span className="min-w-0 truncate text-[13px] font-medium">
+                  <span aria-hidden>🚭 </span>
+                  {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} free` : both ? `Quit ${qs.today}/${qs.limit}` : `Quit · ${qs.today} of ${qs.limit} today`}
+                </span>
+                <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: qs.score === 1 ? 'var(--habit)' : qs.score >= 0.5 ? 'var(--gold)' : 'var(--miss)' }}>
+                  {Math.round(qs.score * 100)}%
+                </span>
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {open.length > 0 && (
         <button
