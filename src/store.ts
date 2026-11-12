@@ -10,6 +10,8 @@ import {
   type Plan,
   type Profile,
   type Reminders,
+  type SmokeEvent,
+  type SmokeTrigger,
   type WeeklyReview,
 } from './types';
 import { addDays, dayKeyAt } from './lib/date';
@@ -40,6 +42,9 @@ interface Store extends Data {
   weeklyReviews: Record<string, WeeklyReview>;
   setReflection: (day: string, text: string) => void;
   setWeeklyReview: (weekStart: string, review: WeeklyReview) => void;
+  smokes: SmokeEvent[];
+  logSmoke: (kind: SmokeEvent['kind'], trigger?: SmokeTrigger) => string;
+  removeSmoke: (id: string) => void;
   /** Local-only (per device) */
   theme: 'system' | 'light' | 'dark';
   setTheme: (t: 'system' | 'light' | 'dark') => void;
@@ -98,6 +103,13 @@ export const useStore = create<Store>()(
       profile: DEFAULT_PROFILE,
       reflections: {},
       weeklyReviews: {},
+      smokes: [],
+      logSmoke: (kind, trigger) => {
+        const id = uid();
+        set((s) => ({ smokes: [...s.smokes, { id, day: dayKeyAt(), at: Date.now(), kind, trigger }] }));
+        return id;
+      },
+      removeSmoke: (id) => set((s) => ({ smokes: s.smokes.filter((e) => e.id !== id) })),
       milestonesSeen: [],
       theme: 'system',
       levelSeen: 0,
@@ -254,6 +266,7 @@ export const useStore = create<Store>()(
           profile: data.profile ?? DEFAULT_PROFILE,
           reflections: data.reflections ?? {},
           weeklyReviews: data.weeklyReviews ?? {},
+          smokes: data.smokes ?? [],
         }),
 
       reset: () =>
@@ -268,6 +281,7 @@ export const useStore = create<Store>()(
           profile: DEFAULT_PROFILE,
           reflections: {},
           weeklyReviews: {},
+          smokes: [],
           milestonesSeen: [],
           dayClosedSeen: undefined,
         }),
@@ -287,7 +301,7 @@ export interface Toast {
 }
 
 interface UI {
-  tab: 'today' | 'plan' | 'insights' | 'habits' | 'profile';
+  tab: 'today' | 'plan' | 'insights' | 'habits' | 'profile' | 'quit' | 'circle';
   editingPlan: PlanEditTarget | null;
   editPlan: (t: PlanEditTarget | null) => void;
   reviewWeekOpen: boolean;

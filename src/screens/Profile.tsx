@@ -157,6 +157,37 @@ export function Profile({ today }: { today: string }) {
         <Stat label="Promises kept" value={stats.kept} />
       </div>
 
+      <button onClick={() => useUI.getState().setTab('habits')} className="card flex min-h-14 items-center justify-between px-4 py-3.5 text-left">
+        <span>
+          <span className="block text-[15px] font-semibold">Your habits</span>
+          <span className="block text-[13px] text-muted">
+            {habits.filter((h) => !h.archivedDay).length} daily non-negotiables · add, edit, triggers, reminders
+          </span>
+        </span>
+        <span className="text-[18px] text-muted" aria-hidden>
+          →
+        </span>
+      </button>
+
+      {/* Optional modes */}
+      <section className="card px-4 py-4">
+        <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Optional modes</h2>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[15px] font-semibold">🚭 Quit smoking</div>
+            <p className="mt-0.5 text-[12.5px] text-faint">Adds a Quit tab: log cigarettes, ride out cravings, see money saved. Scored separately.</p>
+          </div>
+          <Switch
+            on={!!profile.quit?.enabled}
+            onChange={(v) => {
+              if (profile.quit) setProfile({ quit: { ...profile.quit, enabled: v } });
+              if (v) useUI.getState().setTab('quit');
+            }}
+            label="Quit smoking mode"
+          />
+        </div>
+      </section>
+
       {/* Badges + personal bests */}
       <section className="card px-4 py-4">
         <div className="flex items-baseline justify-between">

@@ -14,7 +14,10 @@ export function Habits({ today }: { today: string }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-end justify-between pt-2">
+      <button onClick={() => useUI.getState().setTab('profile')} className="-mb-2 flex min-h-11 items-center gap-1 self-start text-[14px] font-medium text-muted">
+        ← Me
+      </button>
+      <header className="flex items-end justify-between pt-0">
         <div>
           <div className="text-[13px] font-semibold tracking-[0.08em] text-habit uppercase">Non-negotiables</div>
           <h1 className="text-[30px] leading-tight font-bold tracking-[-0.03em]">Your habits</h1>

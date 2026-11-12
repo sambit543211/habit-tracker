@@ -15,6 +15,7 @@ import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
 import { Celebrations } from './components/Celebrations';
 import { Profile } from './screens/Profile';
+import { Quit } from './screens/Quit';
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
 import { CloseDaySheet } from './components/CloseDaySheet';
@@ -42,7 +43,7 @@ export default function App() {
 
   return (
     <>
-      <main className="safe-top mx-auto w-full max-w-md px-4 pb-32">
+      <main className="safe-top mx-auto min-h-dvh w-full max-w-md px-4 pb-28">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
@@ -56,6 +57,7 @@ export default function App() {
             {tab === 'insights' && <Insights today={today} />}
             {tab === 'habits' && <Habits today={today} />}
             {tab === 'profile' && <Profile today={today} />}
+            {tab === 'quit' && <Quit today={today} />}
           </motion.div>
         </AnimatePresence>
       </main>

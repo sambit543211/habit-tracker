@@ -2,7 +2,7 @@
  * Pure mapping + diffing between the local store shape and database rows.
  * Kept free of I/O so it can be unit-tested.
  */
-import { DEFAULT_PROFILE, type Data, type Habit, type HabitLog, type Plan, type Profile, type Reminders, type WeeklyReview } from '../types';
+import { DEFAULT_PROFILE, type Data, type Habit, type HabitLog, type Plan, type Profile, type QuitSettings, type Reminders, type SmokeEvent, type WeeklyReview } from '../types';
 import type { Snapshot } from './merge';
 
 export interface HabitRow {
@@ -77,7 +77,34 @@ export interface ProfileRow {
   paused_reminders?: string[];
   streak_shields?: boolean;
   partner_name?: string | null;
+  quit?: QuitSettings | null;
 }
+
+export interface SmokeRow {
+  id: string;
+  user_id: string;
+  day: string;
+  at: string;
+  kind: SmokeEvent['kind'];
+  trigger: string | null;
+}
+
+export const smokeToRow = (e: SmokeEvent, user_id: string): SmokeRow => ({
+  id: e.id,
+  user_id,
+  day: e.day,
+  at: new Date(e.at).toISOString(),
+  kind: e.kind,
+  trigger: e.trigger ?? null,
+});
+
+export const rowToSmoke = (r: SmokeRow): SmokeEvent => ({
+  id: r.id,
+  day: r.day,
+  at: new Date(r.at).getTime(),
+  kind: r.kind,
+  trigger: (r.trigger as SmokeEvent['trigger']) ?? undefined,
+});
 
 /** Postgres returns "HH:MM:SS"; the app uses "HH:MM". */
 export const hhmm = (t: string | null | undefined) => (t ? t.slice(0, 5) : null);
@@ -99,6 +126,7 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.sleep_time = s.profile.sleep;
     row.streak_shields = s.profile.shields !== false;
     row.partner_name = s.profile.partner?.trim() || null;
+    row.quit = s.profile.quit ?? null;
   }
   return row;
 };
@@ -109,6 +137,7 @@ export const rowToProfile = (r: ProfileRow): Profile => ({
   sleep: hhmm(r.sleep_time) ?? DEFAULT_PROFILE.sleep,
   shields: r.streak_shields ?? true,
   partner: r.partner_name ?? undefined,
+  quit: r.quit ?? undefined,
 });
 
 export const rowToReminders = (r: ProfileRow): Reminders => ({
@@ -227,7 +256,9 @@ export type Op =
   | { table: 'habit_logs'; kind: 'delete'; key: string; day: string; habit_id: string }
   | { table: 'reflections'; kind: 'upsert'; key: string; row: ReflectionRow }
   | { table: 'reflections'; kind: 'delete'; key: string; day: string }
-  | { table: 'weekly_reviews'; kind: 'upsert'; key: string; row: ReviewRow };
+  | { table: 'weekly_reviews'; kind: 'upsert'; key: string; row: ReviewRow }
+  | { table: 'smoke_events'; kind: 'upsert'; key: string; row: SmokeRow }
+  | { table: 'smoke_events'; kind: 'delete'; key: string; id: string };
 
 /** Compute the database operations needed to go from `prev` to `next`. */
 export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: string): Op[] {
@@ -283,6 +314,15 @@ export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: 
       if (!b[day]) ops.push({ table: 'reflections', kind: 'delete', key, day });
       else if (a[day] !== b[day]) ops.push({ table: 'reflections', kind: 'upsert', key, row: { user_id, day, text: b[day] } });
     }
+  }
+
+  if (prev.smokes !== next.smokes) {
+    const before = new Map((prev.smokes ?? []).map((e) => [e.id, e]));
+    for (const e of next.smokes ?? []) {
+      if (before.get(e.id) !== e) ops.push({ table: 'smoke_events', kind: 'upsert', key: `smoke_events:${e.id}`, row: smokeToRow(e, user_id) });
+      before.delete(e.id);
+    }
+    for (const id of before.keys()) ops.push({ table: 'smoke_events', kind: 'delete', key: `smoke_events:${id}`, id });
   }
 
   if (prev.weeklyReviews !== next.weeklyReviews) {

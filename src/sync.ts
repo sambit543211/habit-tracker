@@ -21,6 +21,8 @@ import {
   rowsToReviews,
   type ReflectionRow,
   type ReviewRow,
+  type SmokeRow,
+  rowToSmoke,
   rowsToLogs,
   type HabitRow,
   type LogRow,
@@ -110,6 +112,7 @@ const snap = (s: Snapshot): Snapshot => ({
   profile: s.profile,
   reflections: s.reflections,
   weeklyReviews: s.weeklyReviews,
+  smokes: s.smokes,
 });
 
 useStore.subscribe((next, prev) => {
@@ -135,6 +138,8 @@ const ORDER: [Op['table'], Op['kind']][] = [
   ['habit_logs', 'upsert'],
   ['reflections', 'upsert'],
   ['weekly_reviews', 'upsert'],
+  ['smoke_events', 'upsert'],
+  ['smoke_events', 'delete'],
   ['reflections', 'delete'],
   ['habit_logs', 'delete'],
   ['plans', 'delete'],
@@ -148,6 +153,7 @@ const CONFLICT: Record<Op['table'], string> = {
   habit_logs: 'user_id,day,habit_id',
   reflections: 'user_id,day',
   weekly_reviews: 'user_id,week_start',
+  smoke_events: 'id',
 };
 
 type Result = 'ok' | 'retry' | 'drop';
@@ -234,13 +240,14 @@ async function fetchAll<T>(table: string): Promise<T[]> {
 }
 
 async function fetchRemote(): Promise<Snapshot> {
-  const [profile, habits, plans, logs, reflections, reviews] = await Promise.all([
+  const [profile, habits, plans, logs, reflections, reviews, smokes] = await Promise.all([
     supabase!.from('profiles').select('*').eq('user_id', userId!).maybeSingle(),
     fetchAll<HabitRow>('habits'),
     fetchAll<PlanRow>('plans'),
     fetchAll<LogRow>('habit_logs'),
     fetchAll<ReflectionRow>('reflections'),
     fetchAll<ReviewRow>('weekly_reviews'),
+    fetchAll<SmokeRow>('smoke_events'),
   ]);
   if (profile.error) throw profile.error;
   const p = profile.data as ProfileRow | null;
@@ -254,6 +261,7 @@ async function fetchRemote(): Promise<Snapshot> {
     profile: p ? rowToProfile(p) : undefined,
     reflections: rowsToReflections(reflections),
     weeklyReviews: rowsToReviews(reviews),
+    smokes: smokes.map(rowToSmoke),
   };
 }
 
