@@ -50,6 +50,22 @@ export const CalendarIcon = (p: P) => (
   </svg>
 );
 
+export const NoSmokeIcon = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M5.3 5.3l13.4 13.4" />
+    <path d="M7 13.5h6.5M16 13.5h1" />
+  </svg>
+);
+
+export const UsersIcon = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 4.7a3.5 3.5 0 0 1 0 6.6M18 14.2a6.5 6.5 0 0 1 3.5 5.8" />
+  </svg>
+);
+
 export const UserIcon = (p: P) => (
   <svg {...base(p)}>
     <circle cx="12" cy="8" r="4" />

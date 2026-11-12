@@ -135,6 +135,22 @@ textarea {
   border-color: color-mix(in srgb, var(--text) 9%, transparent);
 }
 
+/* Bottom bar: lifted surface with a bright edge so it never melts into the page. */
+.tabbar {
+  background: color-mix(in srgb, var(--surface-2) 94%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent);
+}
+.tabbar-pill {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--habit) 20%, transparent), color-mix(in srgb, var(--plan) 26%, transparent));
+}
+.tabbar-icon {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--plan) 65%, transparent));
+}
+
 .glass {
   background: var(--glass);
   backdrop-filter: saturate(180%) blur(24px);

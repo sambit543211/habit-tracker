@@ -42,6 +42,37 @@ export interface Profile {
   shields?: boolean;
   /** Accountability partner's name */
   partner?: string;
+  /** Quit-smoking mode (optional) */
+  quit?: QuitSettings;
+  /** Circle (habit sharing) switched on */
+  circle?: boolean;
+}
+
+export interface QuitSettings {
+  enabled: boolean;
+  /** 'cold' = stop on the quit date; 'reduce' = daily limit steps down to zero by the quit date */
+  mode: 'cold' | 'reduce';
+  /** Cigarettes per day before starting */
+  baseline: number;
+  /** Price of one cigarette */
+  price: number;
+  /** Day tracking started */
+  startDay: string;
+  /** Day you stop completely */
+  quitDate: string;
+  /** Currency symbol for savings */
+  currency?: string;
+}
+
+export const SMOKE_TRIGGERS = ['stress', 'after_meal', 'coffee', 'alcohol', 'boredom', 'social', 'habit', 'other'] as const;
+export type SmokeTrigger = (typeof SMOKE_TRIGGERS)[number];
+
+export interface SmokeEvent {
+  id: string;
+  day: string;
+  at: number;
+  kind: 'smoked' | 'craving_passed';
+  trigger?: SmokeTrigger;
 }
 
 export const DEFAULT_PROFILE: Profile = { wake: '08:00', sleep: '02:00', shields: true };
@@ -122,6 +153,8 @@ export interface Data {
   reflections?: Record<string, string>;
   /** weeklyReviews[weekStart (Monday)] */
   weeklyReviews?: Record<string, WeeklyReview>;
+  /** Quit-smoking log */
+  smokes?: SmokeEvent[];
 }
 
 /** Anything a "missed" sheet can be opened for. */
