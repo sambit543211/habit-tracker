@@ -17,8 +17,8 @@ const SUGGESTIONS = [
 
 const STEPS = [
   { color: 'var(--habit)', title: 'Habits', text: 'Your daily non-negotiables. Every one, every day.' },
-  { color: 'var(--plan)', title: 'Plans', text: 'What you intend to do — set the night before, or that morning.' },
-  { color: 'var(--miss)', title: 'Close the loop', text: "Tick it or cross it. Every cross needs a reason. That's accountability." },
+  { color: 'var(--plan)', title: 'Plans', text: "What you intend to do. Unfinished ones carry over until they're done." },
+  { color: 'var(--miss)', title: 'Be honest', text: 'Missed a habit? Say why. Your score shows how well you keep your word.' },
 ];
 
 export function Onboarding() {

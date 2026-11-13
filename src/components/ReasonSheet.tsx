@@ -6,7 +6,7 @@ import type { ReasonCode } from '../types';
 import { Sheet } from './Sheet';
 import { dayKeyAt } from '../lib/date';
 
-/** "What got in the way?" — required reason for every miss. */
+/** Habits: "What got in the way?" (reason required). Plans: drop or move, reason optional. */
 export function ReasonSheet() {
   const liveTarget = useUI((s) => s.missTarget);
   // Keep the last target so content stays visible during the exit animation.
@@ -23,7 +23,6 @@ export function ReasonSheet() {
   const [note, setNote] = useState('');
   const [nextTime, setNextTime] = useState('');
   const [makeCue, setMakeCue] = useState(false);
-  const [action, setAction] = useState<'missed' | 'carry'>('missed');
 
   useEffect(() => {
     if (target) {
@@ -31,7 +30,6 @@ export function ReasonSheet() {
       setNote('');
       setNextTime('');
       setMakeCue(false);
-      setAction(target.kind === 'plan' ? 'carry' : 'missed');
     }
   }, [target]);
 
@@ -44,28 +42,80 @@ export function ReasonSheet() {
   const submit = () => {
     if (!reason || !target) return;
     const miss = { reason, note: note.trim() || undefined, nextTime: nextTime.trim() || undefined };
-    const { clearHabit, clearPlan } = useStore.getState();
+    const { clearHabit } = useStore.getState();
     const showToast = useUI.getState().showToast;
     if (target.kind === 'habit') {
       missHabit(target.day, target.id, miss);
       if (makeCue && miss.nextTime) updateHabit(target.id, { cue: miss.nextTime });
       const t = target;
       showToast('Logged as not done', { tone: 'miss', undo: () => clearHabit(t.day, t.id) });
-    } else {
-      const id = target.id;
-      if (action === 'carry' && canCarry) {
-        carryPlan(id, miss);
-        showToast('Moved forward', { tone: 'plan', undo: () => clearPlan(id) });
-      } else {
-        missPlan(id, miss);
-        showToast('Logged as not done', { tone: 'miss', undo: () => clearPlan(id) });
-      }
     }
     close();
   };
 
   return (
     <Sheet open={!!liveTarget} onClose={close} z={70}>
+      {plan && (
+        <>
+          <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h2>
+          <p className="mt-1.5 text-[14px] text-muted">
+            Not happening? Drop it, or keep it — unfinished plans move to the next day on their own.
+          </p>
+          <div className="mt-4 text-[13px] font-medium text-muted">Why? <span className="text-faint">(optional)</span></div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {REASONS.map((r) => (
+              <button
+                key={r.code}
+                onClick={() => setReason(reason === r.code ? null : r.code)}
+                aria-pressed={reason === r.code}
+                className={`min-h-10 rounded-full border px-3 text-[13.5px] font-medium ${
+                  reason === r.code ? 'border-miss bg-miss/10 text-text' : 'border-line bg-surface-2 text-muted'
+                }`}
+              >
+                {r.emoji} {r.label}
+              </button>
+            ))}
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              const id = plan.id;
+              missPlan(id, reason ? { reason } : undefined);
+              close();
+              useUI.getState().showToast('Plan dropped', { tone: 'miss', undo: () => useStore.getState().clearPlan(id) });
+            }}
+            className="mt-5 min-h-12 w-full rounded-2xl bg-text text-[16px] font-semibold text-bg"
+          >
+            Drop plan
+          </motion.button>
+          {canCarry && (
+            <button
+              onClick={() => {
+                const id = plan.id;
+                carryPlan(id, reason ? { reason } : undefined);
+                close();
+                useUI.getState().showToast('Moved forward', { tone: 'plan', undo: () => useStore.getState().clearPlan(id) });
+              }}
+              className="mt-2 min-h-12 w-full rounded-2xl bg-surface-2 text-[15px] font-semibold"
+            >
+              Move to {plan.day < dayKeyAt() ? 'today' : 'tomorrow'}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const copy = plan;
+              deletePlan(plan.id);
+              close();
+              useUI.getState().showToast('Plan deleted', { tone: 'miss', undo: () => useStore.getState().restorePlan(copy) });
+            }}
+            className="mt-1 min-h-11 w-full text-[13px] text-faint"
+          >
+            Added by mistake? Delete it
+          </button>
+        </>
+      )}
+      {!plan && (
+        <>
       <div className="mb-1 text-[13px] font-medium tracking-wide text-miss uppercase">Not done</div>
       <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h2>
       <p className="mt-1.5 text-[14px] text-muted">What got in the way? No judgment — it's data that helps you design a better tomorrow.</p>
@@ -115,7 +165,7 @@ export function ReasonSheet() {
             <input
               value={nextTime}
               onChange={(e) => setNextTime(e.target.value)}
-              placeholder={habit ? 'e.g. do it right after brushing my teeth' : 'e.g. do it first thing, before email'}
+              placeholder="e.g. do it right after brushing my teeth"
               className="mt-1.5 w-full rounded-2xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-line-strong"
             />
             {habit && nextTime.trim() && (
@@ -125,22 +175,6 @@ export function ReasonSheet() {
               </label>
             )}
 
-            {plan && canCarry && (
-              <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1">
-                {(['carry', 'missed'] as const).map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => setAction(a)}
-                    className={`relative rounded-xl py-2.5 text-[14px] font-medium ${action === a ? 'text-text' : 'text-muted'}`}
-                  >
-                    {action === a && (
-                      <motion.span layoutId="carry-pill" className="absolute inset-0 rounded-xl bg-surface shadow-sm" />
-                    )}
-                    <span className="relative">{a === 'carry' ? `Move to ${plan.day < dayKeyAt() ? 'today' : 'tomorrow'}` : 'Drop it'}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -153,18 +187,7 @@ export function ReasonSheet() {
       >
         Log it
       </motion.button>
-      {plan && (
-        <button
-          onClick={() => {
-            const copy = plan;
-            deletePlan(plan.id);
-            close();
-            useUI.getState().showToast('Plan deleted', { tone: 'miss', undo: () => useStore.getState().restorePlan(copy) });
-          }}
-          className="mt-2 w-full py-2 text-[13px] text-faint"
-        >
-          Added by mistake? Delete this plan
-        </button>
+        </>
       )}
     </Sheet>
   );

@@ -8,7 +8,7 @@ import { PlanInput } from '../components/PlanInput';
 import { PlanRows } from '../components/PlanRows';
 import { DayCalendar } from '../components/DayCalendar';
 import { StarIcon } from '../components/icons';
-import { fmtDuration, fmtTime, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
+import { fmtDuration, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
 import type { Plan } from '../types';
 import { planMetaText } from '../lib/planMeta';
 
@@ -65,33 +65,6 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
         </div>
       </header>
 
-      {/* Time budget */}
-      <motion.section key={day} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card px-4 py-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="tabular text-[28px] leading-none font-bold tracking-[-0.03em]">{fmtDuration(free)}</div>
-            <div className="mt-1 text-[12.5px] font-medium text-muted">free {which === 'today' ? 'until bed' : `between ${fmtTime(profile.wake)} and ${fmtTime(profile.sleep)}`}</div>
-          </div>
-          <div className="text-right">
-            <div className="tabular text-[17px] font-semibold text-plan">{fmtDuration(budget.planned)}</div>
-            <div className="text-[12px] text-muted">blocked</div>
-          </div>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
-          <motion.div
-            className="h-full rounded-full bg-plan"
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(100, (budget.planned / total) * 100)}%` }}
-            transition={{ type: 'spring', stiffness: 90, damping: 18 }}
-          />
-        </div>
-        {(budget.overlaps > 0 || overbooked) && (
-          <p className="mt-2.5 text-[12.5px] leading-relaxed text-gold">
-            {budget.overlaps > 0 && `${budget.overlaps} plan${budget.overlaps > 1 ? 's overlap' : ' overlaps'}. `}
-            {overbooked && "That's a packed day — things usually take longer than we think, so leave some buffer."}
-          </p>
-        )}
-      </motion.section>
 
 
       {/* All plans for the day */}
@@ -133,8 +106,17 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
       <section>
         <div className="mb-2.5 flex items-center justify-between px-1">
           <h2 className="text-[17px] font-semibold">Calendar</h2>
-          <span className="text-[12.5px] text-faint">Tap a free slot to add</span>
+          <span className="tabular text-[13px] text-muted">
+            <span className="font-semibold text-text">{fmtDuration(free)}</span> free · {fmtDuration(budget.planned)} blocked
+          </span>
         </div>
+        {(budget.overlaps > 0 || overbooked) && (
+          <p className="-mt-1 mb-2 px-1 text-[12.5px] text-gold">
+            {budget.overlaps > 0 && `${budget.overlaps} plan${budget.overlaps > 1 ? 's overlap' : ' overlaps'}. `}
+            {overbooked && 'Packed day — leave some buffer.'}
+          </p>
+        )}
+        <p className="-mt-1 mb-2 px-1 text-[12px] text-faint">Tap a free slot to add a plan there.</p>
         <DayCalendar day={day} plans={list} habits={dayHabits} profile={profile} now={nowSince} doneHabits={doneHabits} />
       </section>
 

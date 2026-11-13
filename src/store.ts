@@ -77,8 +77,8 @@ interface Store extends Data {
   markSwipeHintSeen: () => void;
   toggleMust: (id: string) => void;
   markPlan: (id: string) => void;
-  missPlan: (id: string, miss: Miss) => void;
-  carryPlan: (id: string, miss: Miss) => void;
+  missPlan: (id: string, miss?: Miss) => void;
+  carryPlan: (id: string, miss?: Miss) => void;
   clearPlan: (id: string) => void;
   /** Move every unfinished plan from earlier days onto `today` (runs when a new day starts). */
   rollOverPlans: (today: string) => number;
