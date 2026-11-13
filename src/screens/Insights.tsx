@@ -8,6 +8,7 @@ import { FlameIcon } from '../components/icons';
 import { HabitHistorySheet } from '../components/HabitHistorySheet';
 import type { Habit } from '../types';
 import { weekStart } from '../lib/time';
+import { weeklyQuest } from '../lib/game';
 import { AnimatedNumber } from '../components/Ring';
 
 const WEEKS = 15;
@@ -21,6 +22,8 @@ export function Insights({ today }: { today: string }) {
 
   const shieldsOn = useStore((s) => s.profile.shields !== false);
   const [history, setHistory] = useState<Habit | null>(null);
+  const [showMore, setShowMore] = useState(false);
+  const quest = useMemo(() => weeklyQuest(data, today), [data, today]);
   const st = useMemo(() => streak(data, today, shieldsOn), [data, today, shieldsOn]);
   const last14 = range(addDays(today, -13), today);
   const scores14 = last14.map((d) => (startDay && d >= startDay ? dayStats(data, d).score : null));
@@ -54,64 +57,32 @@ export function Insights({ today }: { today: string }) {
 
       <WeekCompare thisWeek={thisWeek} lastWeek={lastWeek} />
 
-      <div className="grid grid-cols-3 gap-2.5">
-        <Stat label="Streak" value={st.current} icon={<FlameIcon size={15} className="text-gold" />} />
-        <Stat label="Best" value={st.best} />
-        <Stat label="7-day avg" value={avg7 === null ? '–' : `${Math.round(avg7 * 100)}%`} />
-      </div>
-
-      {insight && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] border border-plan/30 bg-plan/10 px-4 py-3.5 text-[14px] leading-relaxed">
-          <span className="font-semibold text-plan">Insight · </span>
-          <span className="text-muted">{insight}</span>
-        </motion.div>
+      {quest && (
+        <section
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3"
+          aria-label={`Weekly quest: ${quest.title}. ${quest.progress} of ${quest.target}`}
+        >
+          <span className="text-[20px]" aria-hidden>
+            {quest.done ? '🏅' : '🎯'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Weekly quest{quest.done ? ' · complete' : ''}</div>
+            <div className="text-[14px] leading-snug font-medium">{quest.title}</div>
+          </div>
+          <div className="flex shrink-0 gap-1" aria-hidden>
+            {Array.from({ length: quest.target }, (_, i) => (
+              <motion.span
+                key={i}
+                initial={false}
+                animate={{ scale: i < quest.progress ? 1 : 0.85 }}
+                className="size-3 rounded-full"
+                style={{ background: i < quest.progress ? 'var(--habit)' : 'var(--surface-3)' }}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
-      <Card title="Efficacy · last 14 days">
-        <div className="flex h-32 items-end gap-1.5">
-          {scores14.map((s, i) => (
-            <div key={last14[i]} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-              <motion.div
-                className="w-full rounded-md"
-                style={{ background: s === null ? 'var(--track)' : 'linear-gradient(to top, var(--plan), var(--habit))' }}
-                initial={{ height: 0 }}
-                animate={{ height: s === null ? 4 : `${Math.max(4, s * 100)}%` }}
-                transition={{ delay: i * 0.03, type: 'spring', stiffness: 120, damping: 18 }}
-              />
-              <span className={`text-[12px] ${last14[i] === today ? 'font-bold text-text' : 'text-faint'}`}>
-                {WEEKDAYS[fromKey(last14[i]).getDay()][0]}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Heatmap today={today} score={(d) => (startDay && d >= startDay && d <= today ? dayStats(data, d).score : undefined)} />
-
-      <Card title="Why you miss · last 30 days">
-        {reasonTotal === 0 ? (
-          <p className="text-[14px] text-muted">No misses logged yet. Keep it honest — the data gets useful fast.</p>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {REASONS.filter((r) => reasons[r.code])
-              .sort((a, b) => (reasons[b.code] ?? 0) - (reasons[a.code] ?? 0))
-              .map((r, i) => {
-                const pct = (reasons[r.code] ?? 0) / reasonTotal;
-                return (
-                  <div key={r.code}>
-                    <div className="mb-1 flex justify-between text-[13.5px]">
-                      <span>{r.emoji} {r.label}</span>
-                      <span className="tabular text-muted">{reasons[r.code]}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-                      <motion.div className="h-full rounded-full bg-miss" initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }} transition={{ delay: i * 0.05, duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </Card>
 
       <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
       <Card title="Habits · last 30 days">
@@ -141,6 +112,76 @@ export function Insights({ today }: { today: string }) {
           })}
         </div>
       </Card>
+
+      <button
+        onClick={() => setShowMore((v) => !v)}
+        aria-expanded={showMore}
+        className="min-h-12 rounded-2xl border border-line bg-surface text-[14px] font-semibold text-muted"
+      >
+        {showMore ? 'Hide details' : 'More insights — trends, calendar, why you miss'}
+      </button>
+      {showMore && (
+        <>
+        <div className="grid grid-cols-3 gap-2.5">
+          <Stat label="Streak" value={st.current} icon={<FlameIcon size={15} className="text-gold" />} />
+          <Stat label="Best" value={st.best} />
+          <Stat label="7-day avg" value={avg7 === null ? '–' : `${Math.round(avg7 * 100)}%`} />
+        </div>
+
+        {insight && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] border border-plan/30 bg-plan/10 px-4 py-3.5 text-[14px] leading-relaxed">
+            <span className="font-semibold text-plan">Insight · </span>
+            <span className="text-muted">{insight}</span>
+          </motion.div>
+        )}
+
+        <Card title="Efficacy · last 14 days">
+          <div className="flex h-32 items-end gap-1.5">
+            {scores14.map((s, i) => (
+              <div key={last14[i]} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                <motion.div
+                  className="w-full rounded-md"
+                  style={{ background: s === null ? 'var(--track)' : 'linear-gradient(to top, var(--plan), var(--habit))' }}
+                  initial={{ height: 0 }}
+                  animate={{ height: s === null ? 4 : `${Math.max(4, s * 100)}%` }}
+                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 120, damping: 18 }}
+                />
+                <span className={`text-[12px] ${last14[i] === today ? 'font-bold text-text' : 'text-faint'}`}>
+                  {WEEKDAYS[fromKey(last14[i]).getDay()][0]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Heatmap today={today} score={(d) => (startDay && d >= startDay && d <= today ? dayStats(data, d).score : undefined)} />
+
+        <Card title="Why you miss · last 30 days">
+          {reasonTotal === 0 ? (
+            <p className="text-[14px] text-muted">No misses logged yet. Keep it honest — the data gets useful fast.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {REASONS.filter((r) => reasons[r.code])
+                .sort((a, b) => (reasons[b.code] ?? 0) - (reasons[a.code] ?? 0))
+                .map((r, i) => {
+                  const pct = (reasons[r.code] ?? 0) / reasonTotal;
+                  return (
+                    <div key={r.code}>
+                      <div className="mb-1 flex justify-between text-[13.5px]">
+                        <span>{r.emoji} {r.label}</span>
+                        <span className="tabular text-muted">{reasons[r.code]}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                        <motion.div className="h-full rounded-full bg-miss" initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }} transition={{ delay: i * 0.05, duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </Card>
+        </>
+      )}
     </div>
   );
 }

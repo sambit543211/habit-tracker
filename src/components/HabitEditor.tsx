@@ -15,6 +15,7 @@ export function HabitEditor() {
   const [tiny, setTiny] = useState('');
   const [remindAt, setRemindAt] = useState('');
   const [pairWith, setPairWith] = useState('');
+  const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState(false);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export function HabitEditor() {
     setTiny(habit?.tiny ?? '');
     setRemindAt(habit?.remindAt ?? '');
     setPairWith(habit?.pairWith ?? '');
+    setMore(!!(habit?.cue || habit?.tiny || habit?.pairWith));
     setConfirm(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
@@ -48,16 +50,6 @@ export function HabitEditor() {
       <label className="mt-5 block text-[13px] font-medium text-muted">I will…</label>
       <input autoFocus={!habit} value={name} onChange={(e) => setName(e.target.value)} placeholder="Read 10 pages" className={field} />
 
-      <label className="mt-4 block text-[13px] font-medium text-muted">After I… <span className="text-faint">(your trigger)</span></label>
-      <input value={cue} onChange={(e) => setCue(e.target.value)} placeholder="pour my morning coffee" className={field} />
-
-      <label className="mt-4 block text-[13px] font-medium text-muted">Tiny version for hard days</label>
-      <input value={tiny} onChange={(e) => setTiny(e.target.value)} placeholder="Read 1 page" className={field} />
-
-      <label className="mt-4 block text-[13px] font-medium text-muted">Pair it with… <span className="text-faint">(optional)</span></label>
-      <input value={pairWith} onChange={(e) => setPairWith(e.target.value)} placeholder="my favourite podcast — only while doing this" className={field} />
-      <p className="mt-1.5 text-[12.5px] text-faint">A treat you only allow while doing the habit.</p>
-
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">
         <input type="time" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} className={`${field} mt-0 tabular`} />
@@ -67,7 +59,31 @@ export function HabitEditor() {
           </button>
         )}
       </div>
-      <p className="mt-1.5 text-[12.5px] text-faint">Time it to your trigger. Skipped if you've already done it.</p>
+      <p className="mt-1.5 text-[12.5px] text-faint">Skipped if you've already done it.</p>
+
+      <button
+        onClick={() => setMore((m) => !m)}
+        aria-expanded={more}
+        className="mt-4 flex min-h-11 w-full items-center justify-between text-[14px] font-medium text-muted"
+      >
+        More options — trigger, tiny version, pair with
+        <motion.span animate={{ rotate: more ? 90 : 0 }} aria-hidden>
+          ›
+        </motion.span>
+      </button>
+      {more && (
+        <div>
+        <label className="mt-2 block text-[13px] font-medium text-muted">After I… <span className="text-faint">(your trigger)</span></label>
+        <input value={cue} onChange={(e) => setCue(e.target.value)} placeholder="pour my morning coffee" className={field} />
+
+        <label className="mt-4 block text-[13px] font-medium text-muted">Tiny version for hard days</label>
+        <input value={tiny} onChange={(e) => setTiny(e.target.value)} placeholder="Read 1 page" className={field} />
+
+        <label className="mt-4 block text-[13px] font-medium text-muted">Pair it with… <span className="text-faint">(optional)</span></label>
+        <input value={pairWith} onChange={(e) => setPairWith(e.target.value)} placeholder="my favourite podcast — only while doing this" className={field} />
+        <p className="mt-1.5 text-[12.5px] text-faint">A treat you only allow while doing the habit.</p>
+        </div>
+      )}
 
       <motion.button
         whileTap={{ scale: 0.98 }}

@@ -12,7 +12,7 @@ import { celebrateBig, celebrateSmall, haptic } from '../lib/feedback';
 import { BedtimeNote } from '../components/BedtimeNote';
 import { reviewWeekFor } from '../components/WeeklyReviewSheet';
 import { greeting, sinceWake, toMin, windowLength } from '../lib/time';
-import { levelFor, pace, promisesKept, weeklyQuest } from '../lib/game';
+import { levelFor, pace, promisesKept } from '../lib/game';
 import { fmtElapsed, quitStats } from '../lib/quit';
 import { circleScore, groupStreak, useCircle } from '../lib/circle';
 
@@ -36,7 +36,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const shieldsOn = profile.shields !== false;
   const st = useMemo(() => streak(data, today, shieldsOn), [habits, logs, startDay, today, shieldsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const level = useMemo(() => levelFor(promisesKept(data, today)), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const quest = useMemo(() => weeklyQuest(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const todayHabits = habitsOn(data, today);
   const todayPlans = plansOn(data, today);
   const tomorrowCount = plansOn(data, addDays(today, 1)).length;
@@ -300,31 +299,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </motion.button>
       )}
 
-      {quest && (
-        <section
-          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3"
-          aria-label={`Weekly quest: ${quest.title}. ${quest.progress} of ${quest.target}`}
-        >
-          <span className="text-[20px]" aria-hidden>
-            {quest.done ? '🏅' : '🎯'}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Weekly quest{quest.done ? ' · complete' : ''}</div>
-            <div className="text-[14px] leading-snug font-medium">{quest.title}</div>
-          </div>
-          <div className="flex shrink-0 gap-1" aria-hidden>
-            {Array.from({ length: quest.target }, (_, i) => (
-              <motion.span
-                key={i}
-                initial={false}
-                animate={{ scale: i < quest.progress ? 1 : 0.85 }}
-                className="size-3 rounded-full"
-                style={{ background: i < quest.progress ? 'var(--habit)' : 'var(--surface-3)' }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
 
       <AnimatePresence>
         {shieldUsed && (
@@ -385,7 +359,7 @@ function ColumnHeader({ title, color, done, total, action }: { title: string; co
 
 /**
  * Empty Plans column: instead of a blank, offer yesterday's unfinished plans.
- * Open ones go through "Close the loop" (they still need a ✓ or a reason);
+ * Dropped ones from yesterday can be re-added with one tap.
  * dropped ones can be re-added with one tap.
  */
 function SmartEmptyPlans({ today, onAdd }: { today: string; onAdd: () => void }) {
