@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { Sheet } from './Sheet';
@@ -30,6 +30,11 @@ export function HabitEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
+  const nameRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (editing === 'new') nameRef.current?.focus({ preventScroll: true });
+  }, [editing]);
+
   const close = () => editHabit(null);
   const save = () => {
     const n = name.trim();
@@ -48,7 +53,7 @@ export function HabitEditor() {
       <p className="mt-1 text-[14px] text-muted">A daily non-negotiable. Small and specific wins.</p>
 
       <label className="mt-5 block text-[13px] font-medium text-muted">I will…</label>
-      <input autoFocus={!habit} value={name} onChange={(e) => setName(e.target.value)} placeholder="Read 10 pages" className={field} />
+      <input ref={nameRef} value={name} enterKeyHint="done" onKeyDown={(e) => e.key === 'Enter' && save()} onChange={(e) => setName(e.target.value)} placeholder="Read 10 pages" className={field} />
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">

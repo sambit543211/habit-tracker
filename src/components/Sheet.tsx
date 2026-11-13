@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { XIcon } from './icons';
 
 interface SheetProps {
@@ -13,6 +13,19 @@ interface SheetProps {
 /** Bottom sheet with backdrop, spring entrance and drag-to-dismiss. */
 export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
   const controls = useDragControls();
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Lock the page behind the sheet (stops iOS from scrolling it under your finger).
+  useEffect(() => {
+    if (!open) return;
+    const y = window.scrollY;
+    const b = document.body.style;
+    const prev = { position: b.position, top: b.top, width: b.width, overflow: b.overflow };
+    Object.assign(b, { position: 'fixed', top: `-${y}px`, width: '100%', overflow: 'hidden' });
+    return () => {
+      Object.assign(b, prev);
+      window.scrollTo(0, y);
+    };
+  }, [open]);
   // iOS keyboard: lift the sheet above it and keep the focused field in view.
   const [kb, setKb] = useState(0);
   useEffect(() => {
@@ -23,9 +36,16 @@ export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
     update();
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
+    // Keep the focused field visible by scrolling the sheet itself — never the page behind it.
     const onFocus = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 320);
+      const panel = panelRef.current;
+      if (!el || !panel || !panel.contains(el) || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+      setTimeout(() => {
+        const r = el.getBoundingClientRect();
+        const pr = panel.getBoundingClientRect();
+        if (r.bottom > pr.bottom - 16 || r.top < pr.top + 56) panel.scrollBy({ top: r.top - pr.top - pr.height / 3, behavior: 'smooth' });
+      }, 350);
     };
     document.addEventListener('focusin', onFocus);
     return () => {
@@ -54,10 +74,11 @@ export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
             onClick={onClose}
           />
           <motion.div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
             style={kb > 60 ? { bottom: kb, maxHeight: `calc(100dvh - ${kb}px - 24px)` } : undefined}
-            className="absolute inset-x-0 bottom-0 mx-auto max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-[28px] border-t border-line bg-surface px-5 pt-3 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl no-scrollbar"
+            className="absolute inset-x-0 bottom-0 mx-auto max-h-[92dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-line bg-surface px-5 pt-3 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl no-scrollbar"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
