@@ -321,7 +321,7 @@ function WeekCompare({ thisWeek, lastWeek }: { thisWeek: { avg: number; days: nu
       </div>
       {delta !== null && !flat && (
         <p className="mt-2.5 text-[13px] text-muted">
-          {up ? 'Better than last week. Keep the trend going.' : 'A dip — check "Why you miss" below for the pattern.'}
+          {up ? 'Better than last week. Keep the trend going.' : 'A dip — open More insights below to see why.'}
         </p>
       )}
     </section>

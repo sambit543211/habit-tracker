@@ -358,9 +358,7 @@ function ColumnHeader({ title, color, done, total, action }: { title: string; co
 }
 
 /**
- * Empty Plans column: instead of a blank, offer yesterday's unfinished plans.
- * Dropped ones from yesterday can be re-added with one tap.
- * dropped ones can be re-added with one tap.
+ * Empty Plans column: offer yesterday's dropped plans as one-tap re-adds.
  */
 function SmartEmptyPlans({ today, onAdd }: { today: string; onAdd: () => void }) {
   const plans = useStore((s) => s.plans);
