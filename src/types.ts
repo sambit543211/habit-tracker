@@ -99,6 +99,8 @@ export interface Reminders {
   lastCall: boolean;
   /** Reminder kinds the server paused after being ignored 3 days running */
   paused: string[];
+  /** Show the number of open promises on the app icon */
+  badge?: boolean;
 }
 
 export const DEFAULT_REMINDERS: Reminders = {

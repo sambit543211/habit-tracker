@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { useStore } from '../store';
+import { useStore, useUI } from '../store';
 import { useSync } from '../sync';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Switch } from './Switch';
+import { clearNotifications } from '../lib/useAppBadge';
 
 type TimeKey = 'morning' | 'evening' | 'streak';
 type FlagKey = 'brief' | 'lastCall';
@@ -25,6 +26,7 @@ export function RemindersCard() {
   const session = useSync((s) => s.session);
   const reminders = useStore((s) => s.reminders);
   const setReminders = useStore((s) => s.setReminders);
+  const showToast = useUI((s) => s.showToast);
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +124,24 @@ export function RemindersCard() {
               </div>
             );
           })}
+          <div className="flex items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <div className={`text-[15px] font-medium ${reminders.badge ? '' : 'text-muted'}`}>Number on app icon</div>
+              <div className="text-[12.5px] text-faint">Red count of habits and plans still open today</div>
+            </div>
+            <Switch on={!!reminders.badge} onChange={(v) => setReminders({ badge: v })} label="Number on app icon" />
+          </div>
+          <div className="py-3">
+            <button
+              onClick={async () => {
+                const n = await clearNotifications();
+                showToast(n ? `Cleared ${n} notification${n === 1 ? '' : 's'}` : 'No notifications to clear', { tone: 'plan' });
+              }}
+              className="min-h-11 w-full rounded-2xl bg-surface-2 text-[14px] font-semibold"
+            >
+              Clear notifications
+            </button>
+          </div>
           <p className="pt-3 text-[12.5px] text-faint">Wording rotates so it stays fresh. Nudges are skipped when you're on track, and pause themselves if you keep ignoring them.</p>
         </div>
       )}
