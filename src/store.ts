@@ -60,9 +60,13 @@ interface Store extends Data {
   freshStartSeen?: string;
 
   completeOnboarding: (habits: { name: string; cue?: string }[]) => void;
+  /** Start fresh on `day`: wipes history on this device (the cloud is wiped by the start_fresh RPC). */
+  startFreshLocal: (day: string, dataToo: boolean) => void;
   addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string }) => void;
   updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith'>>) => void;
   archiveHabit: (id: string) => void;
+  /** Save a new order: ids top to bottom */
+  reorderHabits: (ids: string[]) => void;
 
   markHabit: (day: string, id: string) => void;
   missHabit: (day: string, id: string, miss: Miss) => void;
@@ -150,9 +154,20 @@ export const useStore = create<Store>()(
         const today = dayKeyAt();
         set((s) => ({
           startDay: s.startDay ?? today,
-          habits: [...s.habits, { id: uid(), name, cue, tiny, remindAt, pairWith, createdDay: today }],
+          habits: [
+            ...s.habits,
+            { id: uid(), name, cue, tiny, remindAt, pairWith, createdDay: today, position: Math.max(0, ...s.habits.map((h) => h.position ?? 0)) + 1 },
+          ],
         }));
       },
+
+      reorderHabits: (ids) =>
+        set((s) => ({
+          habits: s.habits.map((h) => {
+            const i = ids.indexOf(h.id);
+            return i === -1 || h.position === i + 1 ? h : { ...h, position: i + 1 };
+          }),
+        })),
 
       updateHabit: (id, patch) =>
         set((s) => ({ habits: s.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)) })),
@@ -276,6 +291,29 @@ export const useStore = create<Store>()(
       },
 
       dismissFreshStart: (day) => set({ freshStartSeen: day }),
+
+      startFreshLocal: (day, dataToo) =>
+        set((s) => ({
+          ...(dataToo
+            ? {
+                logs: {},
+                plans: s.plans.filter((p) => p.day >= day),
+                reflections: {},
+                weeklyReviews: {},
+                smokes: [],
+                habits: s.habits.filter((h) => !h.archivedDay).map((h) => ({ ...h, createdDay: day })),
+                startDay: day,
+              }
+            : {}),
+          // Progress moments start over too.
+          levelSeen: 0,
+          badgesSeen: [],
+          questsSeen: [],
+          milestonesSeen: [],
+          shieldSeen: undefined,
+          dayClosedSeen: undefined,
+          freshStartSeen: day,
+        })),
 
       replaceData: (data) =>
         set({

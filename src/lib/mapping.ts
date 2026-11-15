@@ -15,6 +15,7 @@ export interface HabitRow {
   archived_day: string | null;
   remind_at: string | null;
   pair_with: string | null;
+  position?: number | null;
 }
 
 export interface PlanRow {
@@ -165,6 +166,7 @@ export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
   archived_day: h.archivedDay ?? null,
   remind_at: h.remindAt ?? null,
   pair_with: h.pairWith ?? null,
+  position: h.position ?? null,
 });
 
 export const rowToHabit = (r: HabitRow): Habit => ({
@@ -176,6 +178,7 @@ export const rowToHabit = (r: HabitRow): Habit => ({
   archivedDay: r.archived_day ?? undefined,
   remindAt: hhmm(r.remind_at) ?? undefined,
   pairWith: r.pair_with ?? undefined,
+  position: r.position ?? undefined,
 });
 
 export const planToRow = (p: Plan, user_id: string): PlanRow => ({

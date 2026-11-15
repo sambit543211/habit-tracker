@@ -282,6 +282,28 @@ export async function pull(): Promise<void> {
   }
 }
 
+// ---------- Start fresh ----------
+
+/**
+ * Wipe all history and start counting on `day` (habits are kept).
+ * Cloud: push pending edits, wipe on the server, then pull the clean state.
+ */
+export async function startFresh(day: string): Promise<void> {
+  const store = useStore.getState();
+  if (!supabase || !userId) {
+    store.startFreshLocal(day, true);
+    return;
+  }
+  await flush();
+  if (outbox.size) throw new Error("You're offline — try again when connected.");
+  const { error } = await supabase.rpc('start_fresh', { p_day: day });
+  if (error) throw new Error(error.message);
+  const remote = await fetchRemote();
+  applyRemote(remote);
+  useStore.getState().startFreshLocal(day, false);
+  useSync.setState({ status: 'idle', lastSynced: Date.now() });
+}
+
 // ---------- Sign-in / sign-out ----------
 
 /** True once this device's data has been reconciled with the account. */

@@ -43,6 +43,18 @@ export function Insights({ today }: { today: string }) {
         <h1 className="text-[30px] leading-tight font-bold tracking-[-0.03em]">Insights</h1>
       </header>
 
+      {(!startDay || startDay >= today) && (
+        <section className="card px-5 py-6 text-center">
+          <div className="text-[34px]" aria-hidden>📈</div>
+          <h2 className="mt-1 text-[18px] font-semibold">Your patterns start here</h2>
+          <p className="mx-auto mt-1 max-w-xs text-[14px] text-muted">
+            {startDay && startDay > today
+              ? `Tracking starts ${formatDay(startDay, { weekday: 'long' })}. After a few days you'll see which habits stick and which slip.`
+              : "After your first finished day you'll see which habits stick and which slip."}
+          </p>
+        </section>
+      )}
+
       <WeekCompare thisWeek={thisWeek} lastWeek={lastWeek} />
 
       <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
