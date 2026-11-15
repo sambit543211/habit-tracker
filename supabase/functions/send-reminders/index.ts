@@ -265,6 +265,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Circle: "X invited you", "X accepted / declined your invite" (each sent once, within a day).
+    const { data: evs } = await db
+      .from('circle_events')
+      .select('id,kind,actor')
+      .eq('to_user', p.user_id)
+      .eq('pushed', false)
+      .gte('created_at', new Date(Date.now() - 86400_000).toISOString());
+    if (evs?.length) {
+      await db.from('circle_events').update({ pushed: true }).in('id', evs.map((e) => e.id));
+      for (const e of evs) {
+        const { data: who } = await db.from('profiles').select('display_name').eq('user_id', e.actor).maybeSingle();
+        const actor = (who?.display_name ?? '').trim().split(/\s+/)[0] || 'A friend';
+        candidates.push({
+          kind: `circle:${e.id}`,
+          title: e.kind === 'invited' ? `👥 ${actor} invited you to their Circle` : e.kind === 'accepted' ? `🎉 ${actor} joined your Circle` : `${actor} declined your Circle invite`,
+          body:
+            e.kind === 'invited'
+              ? 'Open Keep to accept and share habits together.'
+              : e.kind === 'accepted'
+                ? 'Your invite was accepted. Add a shared goal to start a group streak.'
+                : 'You can invite someone else any time.',
+        });
+      }
+    }
+
     const userSubs = subs.filter((s) => s.user_id === p.user_id);
     for (const c of candidates) {
       if (PAUSABLE.includes(c.kind)) {

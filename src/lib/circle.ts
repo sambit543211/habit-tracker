@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import { supabase } from './supabase';
+import { useUI } from '../store';
 
 export interface CircleLink {
   user_id: string;
@@ -146,6 +147,20 @@ export const useCircle = create<CircleStore>((set) => ({
     set({ loading: true });
     const { data, error } = await supabase.rpc('circle_state', { on_day: day });
     set({ loading: false, data: error ? null : (data as CircleData), error: error ? error.message : null });
+    // "Rahul accepted your invite" etc. — shown once, then marked seen on the server.
+    const { data: inbox } = await supabase.rpc('circle_inbox');
+    const events = (inbox ?? []) as { kind: 'accepted' | 'declined'; name: string }[];
+    events.forEach((e, i) =>
+      setTimeout(
+        () =>
+          useUI
+            .getState()
+            .showToast(e.kind === 'accepted' ? `🎉 ${e.name} accepted your Circle invite` : `${e.name} declined your Circle invite`, {
+              tone: e.kind === 'accepted' ? 'habit' : 'miss',
+            }),
+        i * 3500,
+      ),
+    );
   },
 }));
 

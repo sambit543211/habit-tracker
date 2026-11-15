@@ -29,6 +29,8 @@ export interface Habit {
   remindAt?: string;
   /** Temptation bundling: something enjoyable you only allow while doing it */
   pairWith?: string;
+  /** Your order in lists (lower = higher up) */
+  position?: number;
 }
 
 /** Name + day shape, shown on Profile and used for the calendar. */

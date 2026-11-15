@@ -84,6 +84,35 @@ export function Today({ today, hour }: { today: string; hour: number }) {
     editPlan({ day: today });
   };
 
+  // After "Start fresh" with day 1 = tomorrow: nothing counts today.
+  if (startDay && startDay > today) {
+    const n = data.habits.filter((h) => !h.archivedDay).length;
+    return (
+      <div className="flex flex-col gap-4">
+        <header className="pt-1">
+          <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">{formatDay(today, { weekday: 'long', day: 'numeric', month: 'short' })}</div>
+          <h1 className="text-[24px] leading-tight font-bold tracking-[-0.03em]">
+            {greeting(hour)}
+            {firstName ? `, ${firstName}` : ''}
+          </h1>
+        </header>
+        <section className="card hero px-5 py-6 text-center">
+          <div className="text-[40px]" aria-hidden>🌱</div>
+          <h2 className="mt-2 text-[22px] font-bold tracking-[-0.02em]">Day 1 is {formatDay(startDay, { weekday: 'long' })}</h2>
+          <p className="mx-auto mt-1.5 max-w-xs text-[14.5px] text-muted">
+            A clean slate: score, streak and level all start at zero. Your {n} habit{n === 1 ? ' is' : 's are'} ready.
+          </p>
+          <button onClick={() => setTab('plan')} className="mt-5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white">
+            Plan {formatDay(startDay, { weekday: 'long' })} →
+          </button>
+          <button onClick={() => setTab('profile')} className="mt-1 min-h-11 w-full text-[14px] font-medium text-muted">
+            Review or reorder your habits
+          </button>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}

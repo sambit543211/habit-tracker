@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
+import { habitsOn } from './lib/score';
 import type { Plan } from './types';
 
 const plan = (id: string, day: string, status: Plan['status'] = 'pending', extra: Partial<Plan> = {}): Plan => ({
@@ -32,5 +33,43 @@ describe('rollOverPlans', () => {
     expect(today).toHaveLength(1);
     expect(today[0]).toMatchObject({ originDay: '2026-11-10', carryCount: 2 });
     expect(today[0].id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('habit order', () => {
+  beforeEach(() => useStore.getState().reset());
+  it('new habits go last and reorder sticks', () => {
+    const s = useStore.getState();
+    s.addHabit({ name: 'A' });
+    s.addHabit({ name: 'B' });
+    s.addHabit({ name: 'C' });
+    const ids = useStore.getState().habits.map((h) => h.id);
+    expect(useStore.getState().habits.map((h) => h.position)).toEqual([1, 2, 3]);
+    useStore.getState().reorderHabits([ids[2], ids[0], ids[1]]);
+    const today = useStore.getState().habits[0].createdDay;
+    expect(habitsOn(useStore.getState(), today).map((h) => h.name)).toEqual(['C', 'A', 'B']);
+  });
+});
+
+describe('startFreshLocal', () => {
+  beforeEach(() => useStore.getState().reset());
+  it('wipes history, keeps habits and upcoming plans, starts on the day', () => {
+    const s = useStore.getState();
+    s.addHabit({ name: 'Read' });
+    const h = useStore.getState().habits[0];
+    useStore.setState({
+      logs: { '2026-11-14': { [h.id]: { status: 'done', at: 1 } } },
+      plans: [plan('old', '2026-11-14'), plan('next', '2026-11-16')],
+      levelSeen: 4,
+      badgesSeen: ['first'],
+    });
+    useStore.getState().startFreshLocal('2026-11-16', true);
+    const st = useStore.getState();
+    expect(st.logs).toEqual({});
+    expect(st.plans.map((p) => p.id)).toEqual(['next']);
+    expect(st.habits[0].createdDay).toBe('2026-11-16');
+    expect(st.startDay).toBe('2026-11-16');
+    expect(st.levelSeen).toBe(0);
+    expect(st.badgesSeen).toEqual([]);
   });
 });

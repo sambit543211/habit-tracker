@@ -1,13 +1,15 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, useUI } from '../store';
-import { dayStats, habitsOn, streakFor } from '../lib/score';
+import { dayStats, streakFor } from '../lib/score';
+import { HabitList } from '../components/HabitList';
 import { useData } from '../lib/useData';
 import { addDays, formatDay, range } from '../lib/date';
 import { RemindersCard } from '../components/RemindersCard';
 import { AccountCard } from '../components/AccountCard';
+import { StartFreshCard } from '../components/StartFreshCard';
 import { FlameIcon, PlusIcon } from '../components/icons';
-import { fmtDuration, fmtTime, weekStart, windowLength } from '../lib/time';
+import { fmtDuration, weekStart, windowLength } from '../lib/time';
 import { achievements, levelFor, weekSummary, weeklyQuest } from '../lib/game';
 import { Switch } from '../components/Switch';
 
@@ -75,7 +77,7 @@ export function Profile({ today }: { today: string }) {
   const thisWeek = weeklyReviews[weekStart(today)];
   const lastWeek = weeklyReviews[weekStart(addDays(today, -7))];
   const experiment = thisWeek?.experiment || lastWeek?.experiment;
-  const active = habitsOn(data, today);
+  const active = data.habits.filter((h) => !h.archivedDay);
   const rule = profile.streakRule ?? 'all';
 
   const saveName = () => {
@@ -142,23 +144,10 @@ export function Profile({ today }: { today: string }) {
             Add your first habit
           </button>
         ) : (
-          <ul className="mt-2 flex flex-col divide-y divide-line">
-            {active.map((h) => (
-              <li key={h.id} className="list-none">
-                <button onClick={() => editHabit(h.id)} className="flex min-h-12 w-full items-center gap-3 py-2 text-left">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{h.name}</span>
-                    {(h.cue || h.remindAt) && (
-                      <span className="block truncate text-[12.5px] text-muted">
-                        {[h.cue && `After I ${h.cue}`, h.remindAt && `⏰ ${fmtTime(h.remindAt)}`].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-[13px] text-faint">Edit ›</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <HabitList />
+            {active.length > 1 && <p className="mt-1.5 text-[12px] text-faint">Drag ≡ to reorder. Today shows them in this order.</p>}
+          </>
         )}
         {active.length > 6 && rule === 'all' && (
           <p className="mt-2 text-[12.5px] text-muted">
@@ -358,6 +347,7 @@ export function Profile({ today }: { today: string }) {
       </Group>
       <Group title="Account">
         <AccountCard />
+        <StartFreshCard />
       </Group>
     </div>
   );

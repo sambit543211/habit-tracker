@@ -1,8 +1,12 @@
 import type { Data, Habit, Plan, ReasonCode } from '../types';
 import { addDays, range, weekday } from './date';
 
+/** Habits in your chosen order (drag to reorder on Me); unordered ones go last, oldest first. */
+export const byPosition = (a: Habit, b: Habit) =>
+  (a.position ?? Infinity) - (b.position ?? Infinity) || a.createdDay.localeCompare(b.createdDay);
+
 export const habitsOn = (data: Data, day: string): Habit[] =>
-  data.habits.filter((h) => h.createdDay <= day && (!h.archivedDay || day < h.archivedDay));
+  data.habits.filter((h) => h.createdDay <= day && (!h.archivedDay || day < h.archivedDay)).sort(byPosition);
 
 export const plansOn = (data: Data, day: string): Plan[] =>
   data.plans.filter((p) => p.day === day);

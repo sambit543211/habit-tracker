@@ -126,10 +126,15 @@ export function Circle({ today }: { today: string }) {
               <div key={m.user_id} className={`flex shrink-0 flex-col items-center gap-1 ${m.status === 'invited' ? 'opacity-50' : ''}`}>
                 <Avatar name={m.name} color={colorOf(m.user_id)} size={44} />
                 <span className="max-w-14 truncate text-[12px] text-muted">{m.user_id === me ? 'You' : m.name.split(/\s+/)[0]}</span>
-                {m.status === 'invited' && <span className="-mt-1 text-[12px] text-faint">pending</span>}
+                {m.status === 'invited' && <span className="-mt-1 text-[12px] text-gold">waiting…</span>}
               </div>
             ))}
           </section>
+          {members.some((m) => m.status === 'invited') && (
+            <p className="-mt-2 text-[13px] text-muted">
+              ⏳ Waiting for {members.filter((m) => m.status === 'invited').map((m) => m.name.split(/\s+/)[0]).join(', ')} to accept. You'll get a notification when they do.
+            </p>
+          )}
 
           {/* Shared goals */}
           {circle.goals.map((g) => {
