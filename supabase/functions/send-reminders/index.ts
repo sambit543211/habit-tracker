@@ -318,7 +318,8 @@ Deno.serve(async (req) => {
         .select();
       if (!claimed?.length) continue;
 
-      const payload = JSON.stringify({ title: c.title, body: c.body, tag: c.kind, url: APP_URL, badge });
+      // Icon number only if the user turned it on; 0 clears it.
+      const payload = JSON.stringify({ title: c.title, body: c.body, tag: c.kind, url: APP_URL, badge: p.icon_badge ? badge : 0 });
       for (const s of userSubs) {
         try {
           await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600 });

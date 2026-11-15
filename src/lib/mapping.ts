@@ -75,6 +75,7 @@ export interface ProfileRow {
   brief_reminder?: boolean;
   lastcall_reminder?: boolean;
   paused_reminders?: string[];
+  icon_badge?: boolean;
   streak_shields?: boolean;
   partner_name?: string | null;
   streak_rule?: 'all' | 'most';
@@ -121,6 +122,7 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.brief_reminder = s.reminders.brief !== false;
     row.lastcall_reminder = s.reminders.lastCall !== false;
     row.paused_reminders = s.reminders.paused ?? [];
+    row.icon_badge = !!s.reminders.badge;
   }
   if (s.profile) {
     row.display_name = s.profile.name?.trim() || null;
@@ -154,6 +156,7 @@ export const rowToReminders = (r: ProfileRow): Reminders => ({
   brief: r.brief_reminder ?? true,
   lastCall: r.lastcall_reminder ?? true,
   paused: r.paused_reminders ?? [],
+  badge: r.icon_badge ?? false,
 });
 
 export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
