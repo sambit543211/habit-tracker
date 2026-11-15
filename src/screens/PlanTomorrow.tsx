@@ -1,13 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { useStore, useUI } from '../store';
+import { useData } from '../lib/useData';
 import { habitsOn, planCapacity, plansOn } from '../lib/score';
 import { addDays, formatDay } from '../lib/date';
 import { isEvening } from '../lib/useToday';
-import { PlanInput } from '../components/PlanInput';
 import { PlanRows } from '../components/PlanRows';
 import { DayCalendar } from '../components/DayCalendar';
-import { StarIcon } from '../components/icons';
+import { PlusIcon, StarIcon } from '../components/icons';
 import { fmtDuration, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
 import type { Plan } from '../types';
 import { planMetaText } from '../lib/planMeta';
@@ -16,24 +16,20 @@ const MUST_LIMIT = 3;
 
 /** Plan today or tomorrow: calendar, free time, must-dos. */
 export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
-  const habits = useStore((s) => s.habits);
-  const plans = useStore((s) => s.plans);
-  const logs = useStore((s) => s.logs);
-  const startDay = useStore((s) => s.startDay);
+  const data = useData();
+  const { logs } = data;
   const profile = useStore((s) => s.profile);
-  const { addPlan } = useStore();
   const editPlan = useUI((s) => s.editPlan);
 
   const evening = isEvening(hour);
   const [which, setWhich] = useState<'today' | 'tomorrow'>(evening ? 'tomorrow' : 'today');
   const tomorrow = addDays(today, 1);
   const day = which === 'today' ? today : tomorrow;
-  const data = { habits, plans, logs, startDay };
   const list = plansOn(data, day);
   const dayHabits = habitsOn(data, day);
   const doneHabits = new Set(Object.entries(logs[day] ?? {}).filter(([, l]) => l.status === 'done').map(([id]) => id));
   const musts = list.filter((p) => p.must);
-  const capacity = useMemo(() => planCapacity(data, today), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const capacity = useMemo(() => planCapacity(data, today), [data, today]);
   const overplanned = which === 'tomorrow' && capacity !== null && list.length > Math.ceil(capacity) + 1;
 
   // Minutes since wake right now (only meaningful for today).
@@ -91,16 +87,14 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
           </ul>
         )}
         {musts.length > MUST_LIMIT && <p className="mt-2 px-1 text-[13px] text-miss">More than 3 must-dos dilutes focus. Demote one?</p>}
-        <div className="mt-2.5">
-          <PlanInput
-            key={`${day}-${musts.length < MUST_LIMIT}`}
-            defaultMust={musts.length < MUST_LIMIT}
-            placeholder={musts.length < MUST_LIMIT ? 'Add a must-do…' : 'Add a plan…'}
-            onAdd={(t, m, d) => addPlan(day, t, m, d)}
-            onDetails={() => editPlan({ day })}
-          />
-          <p className="mt-1.5 px-1 text-[12px] text-faint">Try “Gym 7pm 1h” — times go straight to your calendar. Tap + empty for more options.</p>
-        </div>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => editPlan({ day })}
+          className="mt-2.5 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-plan/50 bg-plan/10 py-3.5 text-[15px] font-semibold text-plan"
+        >
+          <PlusIcon size={18} strokeWidth={2.6} />
+          Add a plan for {which === 'today' ? 'today' : 'tomorrow'}
+        </motion.button>
       </section>
 
       <section>
@@ -116,7 +110,6 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
             {overbooked && 'Packed day — leave some buffer.'}
           </p>
         )}
-        <p className="-mt-1 mb-2 px-1 text-[12px] text-faint">Tap a free slot to add a plan there.</p>
         <DayCalendar day={day} plans={list} habits={dayHabits} profile={profile} now={nowSince} doneHabits={doneHabits} />
       </section>
 

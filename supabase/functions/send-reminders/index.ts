@@ -132,9 +132,12 @@ Deno.serve(async (req) => {
     for (const l of logs ?? []) logSet.set(`${l.day}:${l.habit_id}`, l.status);
     const hs = habits ?? [];
     const ps = plans ?? [];
-    const perfect = (d: string) => {
+    // A day counts toward the streak by the user's rule: every habit ('all') or at least 80% ('most').
+    const most = p.streak_rule === 'most';
+    const kept = (d: string) => {
       const active = hs.filter((h) => activeOn(h, d));
-      return active.length > 0 && active.every((h) => logSet.get(`${d}:${h.id}`) === 'done');
+      const done = active.filter((h) => logSet.get(`${d}:${h.id}`) === 'done').length;
+      return active.length > 0 && (most ? done / active.length >= 0.8 : done === active.length);
     };
 
     const todayHabits = hs.filter((h) => activeOn(h, today));
@@ -150,7 +153,7 @@ Deno.serve(async (req) => {
     const useShields = p.streak_shields !== false;
     const first = [addDays(today, -120), p.start_day ?? today].sort()[1];
     for (let d = first; d <= yesterday; d = addDays(d, 1)) {
-      if (perfect(d)) {
+      if (kept(d)) {
         streak++;
         if (useShields && shields < SHIELD_MAX && ++sinceEarn >= SHIELD_EVERY) {
           shields++;
@@ -216,7 +219,7 @@ Deno.serve(async (req) => {
       candidates.push({
         kind: 'streak',
         title:
-          streak > 0
+          streak > 0 && !kept(today)
             ? withName(pick([`🔥 ${streak}-day streak at risk`, `{N}, your ${streak}-day streak needs you`, `Don't let day ${streak + 1} slip`], seed('streak')))
             : 'Habits still open',
         body: `${plural(left, 'habit')} left — your day ends at ${bed}.${shields > 0 ? ` (🛡 ${shields} shield ready — save it.)` : ''}`,

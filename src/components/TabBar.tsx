@@ -23,8 +23,7 @@ export function TabBar({ planBadge }: { planBadge?: boolean }) {
     ...(quitOn ? [{ id: 'quit' as Tab, label: 'Quit', Icon: NoSmokeIcon }] : []),
     { id: 'profile', label: 'Me', Icon: UserIcon },
   ];
-  // The Habits screen is reached from Me, so Me stays highlighted there.
-  const current = tab === 'habits' ? 'profile' : tab;
+  const current = tab;
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(calc(env(safe-area-inset-bottom)-14px),10px)]">
       <div className="tabbar flex w-full max-w-md items-center justify-between rounded-[26px] p-1.5">

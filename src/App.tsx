@@ -6,7 +6,6 @@ import { addDays } from './lib/date';
 import { Today } from './screens/Today';
 import { PlanTomorrow } from './screens/PlanTomorrow';
 import { Insights } from './screens/Insights';
-import { Habits } from './screens/Habits';
 import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
@@ -34,15 +33,14 @@ export default function App() {
 
   useAppBadge(today);
   // New day (or app opened after one): unfinished plans roll onto today.
-  const syncReady = useSync((s) => s.ready);
+  const ready = useSync((s) => s.ready);
   const planCount = useStore((s) => s.plans.length);
   useEffect(() => {
-    if (!syncReady) return;
+    if (!ready) return;
     const n = useStore.getState().rollOverPlans(today);
     if (n) useUI.getState().showToast(`${n} unfinished plan${n > 1 ? 's' : ''} moved to today`, { tone: 'plan' });
-  }, [today, syncReady, planCount]);
+  }, [today, ready, planCount]);
   const hasName = useStore((s) => !!s.profile.name);
-  const ready = useSync((s) => s.ready);
   const session = useSync((s) => s.session);
 
   if (CLOUD_ENABLED && !ready) return <Splash />;
@@ -64,7 +62,6 @@ export default function App() {
             {tab === 'today' && <Today today={today} hour={hour} />}
             {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
             {tab === 'insights' && <Insights today={today} />}
-            {tab === 'habits' && <Habits today={today} />}
             {tab === 'profile' && <Profile today={today} />}
             {tab === 'quit' && <Quit today={today} />}
             {tab === 'circle' && <Circle today={today} />}

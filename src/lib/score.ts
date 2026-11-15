@@ -68,7 +68,15 @@ export function dayStats(data: Data, day: string): DayStats {
 export const SHIELD_EVERY = 7;
 export const SHIELD_MAX = 2;
 
-export function streak(data: Data, today: string, useShields = false) {
+/** Did this day count toward the streak? 'all' = every habit, 'most' = at least 80% of them. */
+export const streakDay = (s: DayStats, rule: 'all' | 'most' = 'all') =>
+  rule === 'all' ? s.perfectHabits : s.habitsTotal > 0 && s.habitsDone / s.habitsTotal >= 0.8;
+
+/** Streak using the user's own settings (shields + rule). */
+export const streakFor = (data: Data, today: string, profile: { shields?: boolean; streakRule?: 'all' | 'most' }) =>
+  streak(data, today, profile.shields !== false, profile.streakRule ?? 'all');
+
+export function streak(data: Data, today: string, useShields = false, rule: 'all' | 'most' = 'all') {
   const out = { current: 0, best: 0, todayDone: false, shields: 0, shieldedDays: [] as string[], toNextShield: SHIELD_EVERY };
   if (!data.startDay) return out;
   let run = 0;
@@ -76,7 +84,7 @@ export function streak(data: Data, today: string, useShields = false) {
   let shields = 0;
   let sinceEarn = 0;
   for (const d of range(data.startDay, today)) {
-    if (dayStats(data, d).perfectHabits) {
+    if (streakDay(dayStats(data, d), rule)) {
       run++;
       best = Math.max(best, run);
       if (useShields && shields < SHIELD_MAX && ++sinceEarn >= SHIELD_EVERY) {
@@ -97,7 +105,7 @@ export function streak(data: Data, today: string, useShields = false) {
   out.best = best;
   out.shields = shields;
   out.toNextShield = shields >= SHIELD_MAX ? 0 : SHIELD_EVERY - sinceEarn;
-  out.todayDone = dayStats(data, today).perfectHabits;
+  out.todayDone = streakDay(dayStats(data, today), rule);
   return out;
 }
 

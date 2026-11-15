@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { useEffect, useMemo } from 'react';
 import { useStore, useUI } from '../store';
-import { dayStats, habitsOn, plansOn, streak } from '../lib/score';
+import { dayStats, habitsOn, plansOn, streakFor } from '../lib/score';
+import { useData } from '../lib/useData';
 import { levelFor, promisesKept } from '../lib/game';
 import { addDays } from '../lib/date';
 import { Sheet } from './Sheet';
@@ -19,17 +20,14 @@ export function CloseDaySheet({ today }: { today: string }) {
   const open = useUI((s) => s.closeDayOpen);
   const setOpen = useUI((s) => s.setCloseDay);
   const setTab = useUI((s) => s.setTab);
-  const habits = useStore((s) => s.habits);
-  const plans = useStore((s) => s.plans);
-  const logs = useStore((s) => s.logs);
-  const startDay = useStore((s) => s.startDay);
+  const data = useData();
+  const logs = data.logs;
   const profile = useStore((s) => s.profile);
   const markDayClosed = useStore((s) => s.markDayClosed);
 
-  const data = { habits, plans, logs, startDay };
-  const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const st = useMemo(() => streak(data, today, profile.shields !== false), [habits, logs, startDay, today, profile.shields]); // eslint-disable-line react-hooks/exhaustive-deps
-  const level = useMemo(() => levelFor(promisesKept(data, today)), [habits, plans, logs, startDay, today]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stats = useMemo(() => dayStats(data, today), [data, today]);
+  const st = useMemo(() => streakFor(data, today, profile), [data, today, profile]);
+  const level = useMemo(() => levelFor(promisesKept(data, today)), [data, today]);
 
   const openHabits = habitsOn(data, today).filter((h) => !logs[today]?.[h.id]);
   const openPlans = plansOn(data, today).filter((p) => p.status === 'pending');
