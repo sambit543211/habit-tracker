@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, useUI } from '../store';
 import { achievements, levelFor, weeklyQuest } from '../lib/game';
-import { dayStats, streak } from '../lib/score';
+import { dayStats, streakFor } from '../lib/score';
+import { useData } from '../lib/useData';
 import { celebrateBig } from '../lib/feedback';
 import { Sheet } from './Sheet';
 import { Ring } from './Ring';
@@ -20,20 +21,16 @@ const MILESTONES: { n: number; title: string; text: string }[] = [
 
 /** Day-closed summary + streak milestone moments. */
 export function Celebrations({ today }: { today: string }) {
-  const habits = useStore((s) => s.habits);
-  const plans = useStore((s) => s.plans);
-  const logs = useStore((s) => s.logs);
-  const startDay = useStore((s) => s.startDay);
+  const data = useData();
   const name = useStore((s) => s.profile.name);
   const milestonesSeen = useStore((s) => s.milestonesSeen);
   const markMilestone = useStore((s) => s.markMilestone);
   const dayClosedSeen = useStore((s) => s.dayClosedSeen);
   const markDayClosed = useStore((s) => s.markDayClosed);
 
-  const data = { habits, plans, logs, startDay };
-  const stats = useMemo(() => dayStats(data, today), [habits, plans, logs, today]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shieldsOn = useStore((s) => s.profile.shields !== false);
-  const st = useMemo(() => streak(data, today, shieldsOn), [habits, logs, startDay, today, shieldsOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stats = useMemo(() => dayStats(data, today), [data, today]);
+  const profile = useStore((s) => s.profile);
+  const st = useMemo(() => streakFor(data, today, profile), [data, today, profile]);
 
   // ---- Level-ups, new badges and quest completion ----
   const reviewCount = useStore((s) => Object.keys(s.weeklyReviews).length);
@@ -45,7 +42,7 @@ export function Celebrations({ today }: { today: string }) {
   const game = useMemo(() => {
     const a = achievements(data, today, reviewCount);
     return { level: levelFor(a.kept), earned: a.badges.filter((b) => b.earned), quest: weeklyQuest(data, today) };
-  }, [habits, plans, logs, startDay, today, reviewCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, today, reviewCount]);
   const levelUp = levelSeen > 0 && game.level.level > levelSeen ? game.level : null;
   useEffect(() => {
     // First run on this device: adopt the current state silently (no retroactive fanfare).

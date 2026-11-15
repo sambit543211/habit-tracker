@@ -40,6 +40,8 @@ export interface Profile {
   sleep: string;
   /** Streak shields on (earned every 7 perfect days) */
   shields?: boolean;
+  /** Streak rule: 'all' habits (strict) or 'most' (at least 80%) */
+  streakRule?: 'all' | 'most';
   /** Accountability partner's name */
   partner?: string;
   /** Quit-smoking mode (optional) */
@@ -138,10 +140,6 @@ export interface Plan {
   remindAt?: string;
   /** First day this plan was meant for (set when it rolls over) */
   originDay?: string;
-  /** WOOP: what might get in the way */
-  obstacle?: string;
-  /** WOOP: "If that happens, I will…" */
-  ifThen?: string;
 }
 
 export interface Data {

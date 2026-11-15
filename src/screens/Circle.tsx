@@ -13,7 +13,7 @@ import {
   type CircleGoal,
   type CircleMember,
 } from '../lib/circle';
-import { Sheet } from '../components/Sheet';
+import { Sheet, focusNoScroll } from '../components/Sheet';
 import { FlameIcon, PlusIcon } from '../components/icons';
 import { haptic } from '../lib/feedback';
 
@@ -378,7 +378,7 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
       <h2 className="text-[22px] font-semibold tracking-[-0.02em]">Add a friend</h2>
       <p className="mt-1 text-[14px] text-muted">Search people who use Keep by name, or type their full email.</p>
       <input
-        autoFocus
+        ref={focusNoScroll}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Name or email"
@@ -424,7 +424,7 @@ function GoalSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
       <h2 className="text-[22px] font-semibold tracking-[-0.02em]">New shared goal</h2>
       <p className="mt-1 text-[14px] text-muted">A common name everyone links their own habit to — so “Workout” and “Gym” count as the same thing.</p>
       <input
-        autoFocus
+        ref={focusNoScroll}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="e.g. Gym"

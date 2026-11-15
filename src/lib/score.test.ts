@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayKeyAt, addDays } from './date';
-import { dayStats, streak, openPastItems, planCapacity } from './score';
+import { dayStats, streak, streakDay, openPastItems, planCapacity } from './score';
 import type { Data, Plan } from '../types';
 
 const plan = (day: string, status: Plan['status'], id = Math.random().toString()): Plan => ({
@@ -83,5 +83,19 @@ describe('plan capacity', () => {
     expect(planCapacity(d, '2026-11-10')).toBeNull();
     d.plans.push(plan('2026-11-07', 'missed'), plan('2026-11-07', 'done'));
     expect(planCapacity(d, '2026-11-10')).toBeCloseTo(1);
+  });
+});
+
+describe('streak rule', () => {
+  const base = (done: number, total: number) =>
+    ({ habitsDone: done, habitsTotal: total, perfectHabits: total > 0 && done === total }) as Parameters<typeof streakDay>[0];
+  it("'all' needs every habit", () => {
+    expect(streakDay(base(7, 8), 'all')).toBe(false);
+    expect(streakDay(base(8, 8), 'all')).toBe(true);
+  });
+  it("'most' needs at least 80%", () => {
+    expect(streakDay(base(7, 8), 'most')).toBe(true);
+    expect(streakDay(base(6, 8), 'most')).toBe(false);
+    expect(streakDay(base(0, 0), 'most')).toBe(false);
   });
 });

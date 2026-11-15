@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import { useStore } from '../store';
+import { focusNoScroll } from './Sheet';
 
 /**
  * A quiet, optional one-liner before bed. Only shown in the last two hours
@@ -43,7 +44,7 @@ export function BedtimeNote({ day }: { day: string }) {
           className="flex gap-2 overflow-hidden"
         >
           <input
-            autoFocus
+            ref={focusNoScroll}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="One thing I learned today…"

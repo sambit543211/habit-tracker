@@ -29,7 +29,7 @@ const uid = (): string => {
 
 /** Editable plan details (everything except identity and status). */
 export type PlanDetails = Partial<
-  Pick<Plan, 'title' | 'must' | 'note' | 'start' | 'duration' | 'remindOffset' | 'remindAt' | 'obstacle' | 'ifThen'>
+  Pick<Plan, 'title' | 'must' | 'note' | 'start' | 'duration' | 'remindOffset' | 'remindAt'>
 >;
 
 interface Store extends Data {
@@ -237,8 +237,6 @@ export const useStore = create<Store>()(
           duration: plan.duration,
           remindOffset: plan.remindOffset,
           remindAt: plan.remindAt,
-          obstacle: plan.obstacle,
-          ifThen: plan.ifThen,
         };
         set((s) => ({
           plans: [...updatePlan(s.plans, id, { status: 'carried', miss, carriedTo: copy.id }), copy],
@@ -325,7 +323,7 @@ export interface Toast {
 }
 
 interface UI {
-  tab: 'today' | 'plan' | 'insights' | 'habits' | 'profile' | 'quit' | 'circle';
+  tab: 'today' | 'plan' | 'insights' | 'profile' | 'quit' | 'circle';
   editingPlan: PlanEditTarget | null;
   editPlan: (t: PlanEditTarget | null) => void;
   reviewWeekOpen: boolean;

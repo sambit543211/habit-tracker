@@ -33,8 +33,6 @@ export interface PlanRow {
   duration_min: number | null;
   remind_offset: number | null;
   remind_at: string | null;
-  obstacle: string | null;
-  if_then: string | null;
   origin_day: string | null;
 }
 
@@ -78,6 +76,7 @@ export interface ProfileRow {
   paused_reminders?: string[];
   streak_shields?: boolean;
   partner_name?: string | null;
+  streak_rule?: 'all' | 'most';
   quit?: QuitSettings | null;
   circle_enabled?: boolean;
 }
@@ -128,6 +127,7 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.sleep_time = s.profile.sleep;
     row.streak_shields = s.profile.shields !== false;
     row.partner_name = s.profile.partner?.trim() || null;
+    row.streak_rule = s.profile.streakRule ?? 'all';
     row.quit = s.profile.quit ?? null;
     row.circle_enabled = !!s.profile.circle;
   }
@@ -140,6 +140,7 @@ export const rowToProfile = (r: ProfileRow): Profile => ({
   sleep: hhmm(r.sleep_time) ?? DEFAULT_PROFILE.sleep,
   shields: r.streak_shields ?? true,
   partner: r.partner_name ?? undefined,
+  streakRule: r.streak_rule ?? 'all',
   quit: r.quit ?? undefined,
   circle: r.circle_enabled ?? false,
 });
@@ -193,8 +194,6 @@ export const planToRow = (p: Plan, user_id: string): PlanRow => ({
   duration_min: p.start ? Math.max(15, p.duration ?? 15) : null,
   remind_offset: p.remindOffset ?? null,
   remind_at: p.remindAt ?? null,
-  obstacle: p.obstacle || null,
-  if_then: p.ifThen || null,
   origin_day: p.originDay ?? null,
 });
 
@@ -213,8 +212,6 @@ export const rowToPlan = (r: PlanRow): Plan => ({
   duration: r.duration_min ?? undefined,
   remindOffset: r.remind_offset ?? undefined,
   remindAt: hhmm(r.remind_at) ?? undefined,
-  obstacle: r.obstacle ?? undefined,
-  ifThen: r.if_then ?? undefined,
   originDay: r.origin_day ?? undefined,
 });
 
