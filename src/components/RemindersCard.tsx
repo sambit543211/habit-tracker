@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { useSync } from '../sync';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
-import { Switch } from './PlanEditor';
+import { Switch } from './Switch';
 
 type TimeKey = 'morning' | 'evening' | 'streak';
 type FlagKey = 'brief' | 'lastCall';

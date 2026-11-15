@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useStore } from '../store';
+import { focusNoScroll } from '../components/Sheet';
 
 /** Asked once: your name is your accountability. */
 export function NamePrompt() {
@@ -21,7 +22,7 @@ export function NamePrompt() {
           Your name goes on every day's promises. People work harder to keep commitments they've put their name to.
         </p>
         <input
-          autoFocus
+          ref={focusNoScroll}
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="given-name"

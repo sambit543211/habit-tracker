@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore, useUI, type PlanDetails } from '../store';
 import { Sheet } from './Sheet';
+import { Switch } from './Switch';
 import { StarIcon } from './icons';
 import { fmtDuration, fmtTime, fromMin, toMin } from '../lib/time';
 import { addDays, dayKeyAt, formatDay } from '../lib/date';
@@ -41,8 +42,6 @@ export function PlanEditor() {
   const [customDur, setCustomDur] = useState(false);
   const [offset, setOffset] = useState<number | undefined>(undefined);
   const [remindAt, setRemindAt] = useState('');
-  const [obstacle, setObstacle] = useState('');
-  const [ifThen, setIfThen] = useState('');
 
   useEffect(() => {
     if (!target) return;
@@ -57,8 +56,6 @@ export function PlanEditor() {
     setCustomDur(!!p?.duration && !DURATIONS.includes(p.duration));
     setOffset(p?.remindOffset);
     setRemindAt(p?.remindAt ?? '');
-    setObstacle(p?.obstacle ?? '');
-    setIfThen(p?.ifThen ?? '');
     setDay(p?.day ?? ('day' in target ? target.day : today));
     // Details open when editing a plan that already has some, or when a time slot was tapped.
     setDetails(!!(p?.start || p?.note || p?.remindAt || presetStart));
@@ -94,8 +91,6 @@ export function PlanEditor() {
       duration: useTimed ? Math.max(15, d) : undefined,
       remindOffset: useTimed ? offset : undefined,
       remindAt: !useTimed && remindAt ? remindAt : undefined,
-      obstacle: obstacle.trim() || undefined,
-      ifThen: ifThen.trim() || undefined,
     };
     if (existing) updatePlan(existing.id, details);
     else addPlan(day || today, t, must, details);
@@ -311,23 +306,5 @@ export function PlanEditor() {
         </button>
       )}
     </Sheet>
-  );
-}
-
-export function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`relative h-[30px] w-[50px] shrink-0 rounded-full transition-colors before:absolute before:-inset-y-2 before:inset-x-0 before:content-[''] ${on ? 'bg-habit' : 'bg-surface-3'}`}
-    >
-      <motion.span
-        transition={{ type: 'spring', stiffness: 600, damping: 35 }}
-        animate={{ left: on ? 23 : 3 }}
-        className="absolute top-[3px] size-6 rounded-full bg-white shadow"
-      />
-    </button>
   );
 }

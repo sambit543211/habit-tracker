@@ -1,15 +1,15 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, useUI } from '../store';
-import { dayStats, streak } from '../lib/score';
+import { dayStats, habitsOn, streakFor } from '../lib/score';
+import { useData } from '../lib/useData';
 import { addDays, formatDay, range } from '../lib/date';
-import { AnimatedNumber } from '../components/Ring';
 import { RemindersCard } from '../components/RemindersCard';
 import { AccountCard } from '../components/AccountCard';
-import { FlameIcon } from '../components/icons';
-import { fmtDuration, weekStart, windowLength } from '../lib/time';
-import { achievements, levelFor, weekSummary } from '../lib/game';
-import { Switch } from '../components/PlanEditor';
+import { FlameIcon, PlusIcon } from '../components/icons';
+import { fmtDuration, fmtTime, weekStart, windowLength } from '../lib/time';
+import { achievements, levelFor, weekSummary, weeklyQuest } from '../lib/game';
+import { Switch } from '../components/Switch';
 
 /** Share text via the iOS share sheet, falling back to the clipboard. */
 export async function shareText(text: string): Promise<'shared' | 'copied' | 'failed'> {
@@ -34,48 +34,49 @@ export const initials = (name?: string) =>
     .join('') || '·';
 
 export function Profile({ today }: { today: string }) {
-  const habits = useStore((s) => s.habits);
-  const plans = useStore((s) => s.plans);
-  const logs = useStore((s) => s.logs);
-  const startDay = useStore((s) => s.startDay);
+  const data = useData();
+  const { startDay } = data;
   const profile = useStore((s) => s.profile);
   const weeklyReviews = useStore((s) => s.weeklyReviews);
   const setProfile = useStore((s) => s.setProfile);
   const setReviewWeek = useUI((s) => s.setReviewWeek);
+  const editHabit = useUI((s) => s.editHabit);
   const showToast = useUI((s) => s.showToast);
   const theme = useStore((s) => s.theme ?? 'system');
   const setTheme = useStore((s) => s.setTheme);
   const reviewCount = Object.keys(weeklyReviews).length;
   const game = useMemo(() => {
-    const a = achievements({ habits, plans, logs, startDay }, today, reviewCount);
-    return { ...a, level: levelFor(a.kept) };
-  }, [habits, plans, logs, startDay, today, reviewCount]);
-  const earned = game.badges.filter((b) => b.earned).length;
+    const a = achievements(data, today, reviewCount);
+    return { ...a, level: levelFor(a.kept), quest: weeklyQuest(data, today) };
+  }, [data, today, reviewCount]);
+  const earned = game.badges.filter((b) => b.earned);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(profile.name ?? '');
+  const [allBadges, setAllBadges] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (editing) nameRef.current?.focus({ preventScroll: true });
+  }, [editing]);
 
   const stats = useMemo(() => {
-    const data = { habits, plans, logs, startDay };
-    if (!startDay) return { days: 0, best: 0, avg: null as number | null, kept: 0 };
+    if (!startDay) return { days: 0, best: 0, avg: null as number | null };
     let days = 0;
     let sum = 0;
-    let n = 0;
-    let kept = 0;
-    for (const d of range(startDay, today)) {
+    for (const d of range(startDay, addDays(today, -1))) {
       const s = dayStats(data, d);
-      kept += s.habitsDone + s.plansDone;
-      if (s.score !== null && d < today) {
+      if (s.score !== null) {
         days++;
         sum += s.score;
-        n++;
       }
     }
-    return { days, best: streak(data, today, profile.shields !== false).best, avg: n ? sum / n : null, kept };
-  }, [habits, plans, logs, startDay, today, profile.shields]);
+    return { days, best: streakFor(data, today, profile).best, avg: days ? sum / days : null };
+  }, [data, startDay, today, profile]);
 
   const thisWeek = weeklyReviews[weekStart(today)];
   const lastWeek = weeklyReviews[weekStart(addDays(today, -7))];
   const experiment = thisWeek?.experiment || lastWeek?.experiment;
+  const active = habitsOn(data, today);
+  const rule = profile.streakRule ?? 'all';
 
   const saveName = () => {
     const n = draft.trim();
@@ -90,7 +91,7 @@ export function Profile({ today }: { today: string }) {
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 260, damping: 18 }}
-          className="relative grid size-24 place-items-center rounded-full text-[34px] font-bold text-white shadow-[0_12px_40px_color-mix(in_srgb,var(--plan)_35%,transparent)]"
+          className="relative grid size-20 place-items-center rounded-full text-[30px] font-bold text-white shadow-[0_12px_40px_color-mix(in_srgb,var(--plan)_35%,transparent)]"
           style={{ background: 'linear-gradient(135deg, var(--habit), var(--plan))' }}
         >
           {initials(profile.name)}
@@ -104,16 +105,17 @@ export function Profile({ today }: { today: string }) {
             }}
           >
             <input
-              autoFocus
+              ref={nameRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              enterKeyHint="done"
               className="min-w-0 flex-1 rounded-2xl border border-line bg-surface px-4 py-3 text-center text-[18px] font-semibold outline-none focus:border-line-strong"
               aria-label="Your name"
             />
             <button type="submit" className="rounded-2xl bg-text px-4 font-semibold text-bg">Save</button>
           </form>
         ) : (
-          <button onClick={() => { setDraft(profile.name ?? ''); setEditing(true); }} className="mt-4">
+          <button onClick={() => { setDraft(profile.name ?? ''); setEditing(true); }} className="mt-3">
             <h1 className="text-[28px] leading-tight font-bold tracking-[-0.03em]">{profile.name || 'Add your name'}</h1>
             <span className="text-[12.5px] text-faint">Tap to edit</span>
           </button>
@@ -123,128 +125,176 @@ export function Profile({ today }: { today: string }) {
         )}
       </header>
 
-      <Group title="You" defaultOpen>
-        {/* Reliability level */}
-        <section className="card hero px-4 py-4" aria-label={`Level ${game.level.level}, ${game.level.name}`}>
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">Reliability level</div>
-              <div className="mt-1 text-[22px] leading-tight font-bold tracking-[-0.02em]">
-                <span className="text-plan">Lv {game.level.level}</span> · {game.level.name}
-              </div>
-            </div>
-            <div className="tabular text-right text-[13px] text-muted">{game.level.xp} kept</div>
-          </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-3">
-            <motion.div
-              className="h-full rounded-full"
-              style={{ background: 'linear-gradient(90deg, var(--habit), var(--plan))' }}
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.max(3, game.level.progress * 100)}%` }}
-              transition={{ type: 'spring', stiffness: 90, damping: 18 }}
-            />
-          </div>
-          <div className="mt-2 text-[12.5px] text-muted">
-            {game.level.next === null
-              ? 'Top level reached.'
-              : `${game.level.toNext} more promise${game.level.toNext === 1 ? '' : 's'} to “${game.level.nextName}”`}
-          </div>
-        </section>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          <Stat label="Days tracked" value={stats.days} />
-          <Stat label="Best streak" value={stats.best} icon={<FlameIcon size={16} className="text-gold" />} />
-          <Stat label="Avg efficacy" value={stats.avg === null ? null : Math.round(stats.avg * 100)} suffix="%" />
-          <Stat label="Promises kept" value={stats.kept} />
+      {/* Habits: add, edit, remove — right here */}
+      <section className="card px-4 py-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Your habits · {active.length}</h2>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editHabit('new')}
+            className="flex min-h-9 items-center gap-1 rounded-full bg-habit/15 px-3 text-[13px] font-semibold text-habit"
+          >
+            <PlusIcon size={15} strokeWidth={2.6} /> Add
+          </motion.button>
         </div>
-
-        <button onClick={() => useUI.getState().setTab('habits')} className="card flex min-h-14 items-center justify-between px-4 py-3.5 text-left">
-          <span>
-            <span className="block text-[15px] font-semibold">Your habits</span>
-            <span className="block text-[13px] text-muted">
-              {habits.filter((h) => !h.archivedDay).length} daily non-negotiables · add, edit, triggers, reminders
-            </span>
-          </span>
-          <span className="text-[18px] text-muted" aria-hidden>
-            →
-          </span>
-        </button>
-
-        {/* Badges + personal bests */}
-        <section className="card px-4 py-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Badges</h2>
-            <span className="tabular text-[12.5px] text-muted">
-              {earned}/{game.badges.length}
-            </span>
-          </div>
-          <ul className="mt-3 grid grid-cols-5 gap-x-1 gap-y-3">
-            {game.badges.map((b) => (
-              <li key={b.id} className="list-none">
-                <button
-                  onClick={() => showToast(`${b.emoji} ${b.title} — ${b.text}${b.earned ? ' ✓' : ''}`, { tone: b.earned ? 'habit' : 'plan' })}
-                  aria-label={`${b.title}: ${b.text}. ${b.earned ? 'Earned' : 'Locked'}`}
-                  className="flex w-full flex-col items-center gap-1"
-                >
-                  <span
-                    className={`grid size-12 place-items-center rounded-full text-[22px] ${b.earned ? 'bg-gold/15' : 'bg-surface-2 opacity-40 grayscale'}`}
-                  >
-                    {b.emoji}
+        {active.length === 0 ? (
+          <button onClick={() => editHabit('new')} className="mt-3 w-full rounded-2xl border border-dashed border-line-strong/60 py-6 text-[14px] text-muted">
+            Add your first habit
+          </button>
+        ) : (
+          <ul className="mt-2 flex flex-col divide-y divide-line">
+            {active.map((h) => (
+              <li key={h.id} className="list-none">
+                <button onClick={() => editHabit(h.id)} className="flex min-h-12 w-full items-center gap-3 py-2 text-left">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-medium">{h.name}</span>
+                    {(h.cue || h.remindAt) && (
+                      <span className="block truncate text-[12.5px] text-muted">
+                        {[h.cue && `After I ${h.cue}`, h.remindAt && `⏰ ${fmtTime(h.remindAt)}`].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
                   </span>
-                  <span className={`line-clamp-2 text-center text-[12px] leading-tight ${b.earned ? 'text-text' : 'text-faint'}`}>{b.title}</span>
+                  <span className="text-[13px] text-faint">Edit ›</span>
                 </button>
               </li>
             ))}
           </ul>
-          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
-            <Best label="Most in a day" value={String(game.bests.mostInADay)} />
-            <Best label="Best week" value={game.bests.bestWeek === null ? '–' : `${Math.round(game.bests.bestWeek * 100)}%`} />
-            <Best label="Perfect days" value={String(game.bests.perfectDays)} />
-          </div>
-        </section>
+        )}
+        {active.length > 6 && rule === 'all' && (
+          <p className="mt-2 text-[12.5px] text-muted">
+            <span className="font-semibold text-gold">That's a lot for a strict streak.</span> Consider the “most habits” streak rule in Settings, or moving some to Plans.
+          </p>
+        )}
+      </section>
 
-        {experiment && (
-          <div className="rounded-[20px] border border-plan/30 bg-plan/10 px-4 py-3.5">
-            <div className="text-[12px] font-semibold tracking-wide text-plan uppercase">This week's experiment</div>
-            <div className="mt-1 text-[15px] font-medium">{experiment}</div>
+      {/* Progress: level, quest, numbers, badges — one card */}
+      <section className="card hero px-4 py-4" aria-label={`Level ${game.level.level}, ${game.level.name}`}>
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">Progress</div>
+            <div className="mt-1 text-[21px] leading-tight font-bold tracking-[-0.02em]">
+              <span className="text-plan">Lv {game.level.level}</span> · {game.level.name}
+            </div>
+          </div>
+          <div className="tabular text-right text-[13px] text-muted">{game.level.xp} kept</div>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-3">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: 'linear-gradient(90deg, var(--habit), var(--plan))' }}
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(3, game.level.progress * 100)}%` }}
+            transition={{ type: 'spring', stiffness: 90, damping: 18 }}
+          />
+        </div>
+        <div className="mt-1.5 text-[12px] text-muted">
+          {game.level.next === null ? 'Top level reached.' : `${game.level.toNext} more to “${game.level.nextName}”`}
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <Num label="Days tracked" value={String(stats.days)} />
+          <Num label="Best streak" value={String(stats.best)} icon={<FlameIcon size={14} className="text-gold" />} />
+          <Num label="Avg score" value={stats.avg === null ? '–' : `${Math.round(stats.avg * 100)}%`} />
+        </div>
+
+        {game.quest && (
+          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-surface-2 px-3 py-2.5" aria-label={`Weekly quest: ${game.quest.title}. ${game.quest.progress} of ${game.quest.target}`}>
+            <span className="text-[18px]" aria-hidden>{game.quest.done ? '🏅' : '🎯'}</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11.5px] font-semibold tracking-[0.08em] text-muted uppercase">This week's quest{game.quest.done ? ' · done' : ''}</div>
+              <div className="text-[13.5px] leading-snug font-medium">{game.quest.title}</div>
+            </div>
+            <div className="flex shrink-0 gap-1" aria-hidden>
+              {Array.from({ length: game.quest.target }, (_, i) => (
+                <span key={i} className="size-2.5 rounded-full" style={{ background: i < game.quest!.progress ? 'var(--habit)' : 'var(--surface-3)' }} />
+              ))}
+            </div>
           </div>
         )}
 
-        <button onClick={() => setReviewWeek(true)} className="card flex items-center justify-between px-4 py-4 text-left">
-          <span>
-            <span className="block text-[15px] font-semibold">Weekly review</span>
-            <span className="block text-[13px] text-muted">{thisWeek ? 'Done for this week — tap to edit' : '3 questions · about 2 minutes'}</span>
-          </span>
-          <span className="text-[20px]">{thisWeek ? '✅' : '🗓️'}</span>
-        </button>
-
-        {/* Accountability partner */}
-        <section className="card px-4 py-4">
-          <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Accountability partner</h2>
-          <p className="mt-1 text-[12.5px] text-faint">Send a friend your weekly summary.</p>
-          <input
-            value={profile.partner ?? ''}
-            onChange={(e) => setProfile({ partner: e.target.value })}
-            placeholder="Their name (e.g. Rahul)"
-            aria-label="Partner's name"
-            className="mt-3 w-full rounded-2xl border border-line bg-surface-2 px-4 py-3 outline-none placeholder:text-faint focus:border-line-strong"
-          />
-          <button
-            onClick={async () => {
-              const text = weekSummary({ habits, plans, logs, startDay }, today, profile.name, experiment);
-              const r = await shareText(profile.partner?.trim() ? `Hi ${profile.partner.trim()},\n${text}` : text);
-              if (r === 'copied') showToast('Summary copied — paste it in a message', { tone: 'plan' });
-              if (r === 'failed') showToast("Couldn't share from this browser", { tone: 'miss' });
-            }}
-            className="mt-2.5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white"
-          >
-            Share this week{profile.partner?.trim() ? ` with ${profile.partner.trim()}` : ''}
+        {experiment && (
+          <button onClick={() => setReviewWeek(true)} className="mt-2 w-full rounded-2xl bg-surface-2 px-3 py-2.5 text-left">
+            <div className="text-[11.5px] font-semibold tracking-[0.08em] text-plan uppercase">This week's experiment</div>
+            <div className="text-[13.5px] font-medium">{experiment}</div>
           </button>
+        )}
+
+        <button
+          onClick={() => setAllBadges((v) => !v)}
+          aria-expanded={allBadges}
+          className="mt-4 flex min-h-11 w-full items-center justify-between border-t border-line pt-3 text-left"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="text-[13px] font-semibold">Badges {earned.length}/{game.badges.length}</span>
+            <span className="truncate text-[18px] leading-none">{earned.map((b) => b.emoji).join(' ')}</span>
+          </span>
+          <motion.span animate={{ rotate: allBadges ? 90 : 0 }} className="text-[18px] text-muted" aria-hidden>›</motion.span>
+        </button>
+        {allBadges && (
+          <>
+            <ul className="mt-2 grid grid-cols-5 gap-x-1 gap-y-3">
+              {game.badges.map((b) => (
+                <li key={b.id} className="list-none">
+                  <button
+                    onClick={() => showToast(`${b.emoji} ${b.title} — ${b.text}${b.earned ? ' ✓' : ''}`, { tone: b.earned ? 'habit' : 'plan' })}
+                    aria-label={`${b.title}: ${b.text}. ${b.earned ? 'Earned' : 'Locked'}`}
+                    className="flex w-full flex-col items-center gap-1"
+                  >
+                    <span className={`grid size-11 place-items-center rounded-full text-[20px] ${b.earned ? 'bg-gold/15' : 'bg-surface-2 opacity-40 grayscale'}`}>{b.emoji}</span>
+                    <span className={`line-clamp-2 text-center text-[11.5px] leading-tight ${b.earned ? 'text-text' : 'text-faint'}`}>{b.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <Num label="Most in a day" value={String(game.bests.mostInADay)} />
+              <Num label="Best week" value={game.bests.bestWeek === null ? '–' : `${Math.round(game.bests.bestWeek * 100)}%`} />
+              <Num label="Perfect days" value={String(game.bests.perfectDays)} />
+            </div>
+          </>
+        )}
+
+        <button
+          onClick={async () => {
+            const r = await shareText(weekSummary(data, today, profile.name, experiment));
+            if (r === 'copied') showToast('Summary copied — paste it in a message', { tone: 'plan' });
+            if (r === 'failed') showToast("Couldn't share from this browser", { tone: 'miss' });
+          }}
+          className="mt-3 min-h-11 w-full rounded-2xl bg-surface-2 text-[14px] font-semibold"
+        >
+          Share my week
+        </button>
+      </section>
+
+      <Group title="Settings" hint="Streak rule, modes, reminders, your day, appearance">
+        <section className="card px-4 py-4">
+          <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Streak</h2>
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1" role="radiogroup" aria-label="Streak rule">
+            {(['all', 'most'] as const).map((r) => (
+              <button
+                key={r}
+                role="radio"
+                aria-checked={rule === r}
+                onClick={() => setProfile({ streakRule: r })}
+                className={`relative min-h-11 rounded-xl text-[14px] font-medium ${rule === r ? 'text-text' : 'text-muted'}`}
+              >
+                {rule === r && <motion.span layoutId="streak-rule" className="absolute inset-0 rounded-xl bg-surface shadow-sm" />}
+                <span className="relative">{r === 'all' ? 'Every habit' : 'Most habits (80%)'}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[12.5px] text-faint">
+            {rule === 'all' ? 'Strict: a day counts only when every habit is done.' : 'A day counts when at least 80% of your habits are done.'}
+          </p>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
+            <div>
+              <div className="text-[15px] font-semibold">🛡 Streak shields</div>
+              <p className="mt-0.5 text-[12.5px] text-faint">Every 7 streak days earns a shield (max 2). A missed day spends one instead of resetting.</p>
+            </div>
+            <Switch on={profile.shields !== false} onChange={(v) => setProfile({ shields: v })} label="Streak shields" />
+          </div>
         </section>
 
-      </Group>
-      <Group title="Settings" hint="Modes, reminders, your day, appearance">
-        {/* Optional modes */}
         <section className="card px-4 py-4">
           <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Optional modes</h2>
           <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-3">
@@ -278,18 +328,6 @@ export function Profile({ today }: { today: string }) {
         </section>
 
         <section className="card px-4 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[15px] font-semibold">🛡 Streak shields</h2>
-              <p className="mt-0.5 text-[12.5px] text-faint">
-                Every 7 perfect days earns a shield (max 2). A missed day spends one instead of resetting your streak. Off = fully strict.
-              </p>
-            </div>
-            <Switch on={profile.shields !== false} onChange={(v) => setProfile({ shields: v })} label="Streak shields" />
-          </div>
-        </section>
-
-        <section className="card px-4 py-4">
           <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Your day</h2>
           <p className="mt-1 text-[12.5px] text-faint">Used for your calendar and free-time count · {fmtDuration(windowLength(profile))} awake</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
@@ -315,9 +353,8 @@ export function Profile({ today }: { today: string }) {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[12.5px] text-faint">Auto follows your iPhone's light/dark setting.</p>
+          <p className="mt-2 text-[12.5px] text-faint">Auto follows your phone's light/dark setting.</p>
         </section>
-
       </Group>
       <Group title="Account">
         <AccountCard />
@@ -361,24 +398,14 @@ function Group({ title, hint, defaultOpen, children }: { title: string; hint?: s
   );
 }
 
-function Stat({ label, value, suffix, icon }: { label: string; value: number | null; suffix?: string; icon?: React.ReactNode }) {
+function Num({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
-    <div className="card px-4 py-4">
-      <div className="flex items-center gap-1 text-[26px] leading-none font-bold tracking-[-0.03em] tabular">
+    <div className="rounded-2xl bg-surface-2 px-1 py-2.5">
+      <div className="tabular flex items-center justify-center gap-1 text-[18px] font-bold">
         {icon}
-        {value === null ? '–' : <AnimatedNumber value={value} />}
-        {value !== null && suffix && <span className="text-[16px] text-muted">{suffix}</span>}
+        {value}
       </div>
-      <div className="mt-1.5 text-[12px] font-medium tracking-wide text-muted uppercase">{label}</div>
-    </div>
-  );
-}
-
-function Best({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="tabular text-[18px] font-bold">{value}</div>
-      <div className="text-[12px] text-muted">{label}</div>
+      <div className="text-[11.5px] text-muted">{label}</div>
     </div>
   );
 }

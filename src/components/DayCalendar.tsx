@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 import type { Habit, Plan, Profile } from '../types';
 import { activeBlocks, fmtTime, fromMin, layoutBlocks, sinceWake, toMin, windowLength } from '../lib/time';
 import { useUI } from '../store';
@@ -18,18 +19,47 @@ interface Props {
   doneHabits: Set<string>;
 }
 
-/** Apple-Calendar-style day view from wake time to bedtime. */
+/**
+ * Apple-Calendar-style day view. Shows only the hours around what's planned (plus now);
+ * "Show full day" opens wake → bedtime. With nothing timed it stays a one-line card.
+ */
 export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Props) {
   const editPlan = useUI((s) => s.editPlan);
+  const [full, setFull] = useState(false);
   const total = windowLength(profile);
-  const height = (total / 60) * HOUR;
-  const px = (min: number) => (min / 60) * HOUR;
   const wake = toMin(profile.wake);
 
   const blocks = layoutBlocks(activeBlocks(plans), profile).filter((b) => b.s < total);
   const markers = habits
     .filter((h) => h.remindAt && sinceWake(h.remindAt, profile) < total)
     .map((h) => ({ h, at: sinceWake(h.remindAt!, profile) }));
+
+  // Visible window (minutes since wake), whole hours.
+  const points = [...blocks.flatMap((b) => [b.s, Math.min(b.e, total)]), ...markers.map((m) => m.at), ...(now !== null && now >= 0 && now <= total ? [now] : [])];
+  const timed = blocks.length > 0 || markers.length > 0;
+  let from = 0;
+  let to = total;
+  if (!full && points.length) {
+    from = Math.max(0, Math.floor((Math.min(...points) - 60) / 60) * 60);
+    to = Math.min(total, Math.ceil((Math.max(...points) + 60) / 60) * 60);
+    if (to - from < 240) to = Math.min(total, from + 240);
+    if (to - from < 240) from = Math.max(0, to - 240);
+  }
+  const cropped = from > 0 || to < total;
+
+  if (!timed && !full) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-[20px] border border-dashed border-line-strong/60 px-4 py-3.5">
+        <span className="text-[13.5px] text-muted">Nothing on the calendar yet.</span>
+        <button onClick={() => setFull(true)} className="min-h-10 shrink-0 rounded-full bg-surface-2 px-3.5 text-[13px] font-semibold">
+          Pick a time
+        </button>
+      </div>
+    );
+  }
+
+  const height = ((to - from) / 60) * HOUR;
+  const px = (min: number) => ((min - from) / 60) * HOUR;
   // Habit markers get their own lane on the right so they never cover plans.
   const LANE = markers.length ? 92 : 0;
   const right = 8 + LANE;
@@ -37,21 +67,22 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
   const onEmptyTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const min = Math.floor(((y / HOUR) * 60) / 15) * 15;
+    const min = from + Math.floor(((y / HOUR) * 60) / 15) * 15;
     haptic(6);
     editPlan({ day, start: fromMin(wake + min) });
   };
 
-  const hours = Array.from({ length: Math.ceil(total / 60) + 1 }, (_, i) => i);
+  const hours = Array.from({ length: Math.ceil((to - from) / 60) + 1 }, (_, i) => from / 60 + i);
 
   return (
-    <div className="relative rounded-[20px] border border-line bg-surface">
+    <div>
+    <div className="relative overflow-hidden rounded-[20px] border border-line bg-surface">
       <div className="relative" style={{ height: height + 16 }}>
         {/* Hour grid */}
         {hours.map((i) => (
           <div key={i} className="pointer-events-none absolute inset-x-0" style={{ top: 8 + px(i * 60) }}>
             <div className="absolute left-0 w-[42px] -translate-y-1/2 pr-1 text-right text-[12px] font-medium text-faint tabular">
-              {i * 60 <= total ? fmtTime(fromMin(wake + i * 60)).replace(':00', '') : ''}
+              {i * 60 <= to ? fmtTime(fromMin(wake + i * 60)).replace(':00', '') : ''}
             </div>
             <div className="absolute right-0 border-t border-line" style={{ left: GUTTER }} />
           </div>
@@ -119,7 +150,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
         })}
 
         {/* Now line */}
-        {now !== null && now >= 0 && now <= total && (
+        {now !== null && now >= from && now <= to && (
           <div className="pointer-events-none absolute right-0 z-10 flex items-center" style={{ top: 8 + px(now), left: GUTTER - 5 }}>
             <motion.span
               className="size-2.5 rounded-full bg-miss"
@@ -130,6 +161,12 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
           </div>
         )}
       </div>
+    </div>
+    {(cropped || full) && (
+      <button onClick={() => setFull((f) => !f)} className="mt-1.5 min-h-10 w-full text-[13px] font-semibold text-muted">
+        {full ? 'Show less' : 'Show full day'}
+      </button>
+    )}
     </div>
   );
 }

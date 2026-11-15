@@ -113,3 +113,8 @@ export function Sheet({ open, onClose, children, z = 50 }: SheetProps) {
     </AnimatePresence>
   );
 }
+
+/** Use as `ref={focusNoScroll}` instead of autoFocus: focuses on mount without iOS scrolling the page. */
+export const focusNoScroll = (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+  el?.focus({ preventScroll: true });
+};

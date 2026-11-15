@@ -1,35 +1,23 @@
 import { motion } from 'framer-motion';
-import { useMemo, useState } from 'react';
-import { useStore } from '../store';
-import { dayStats, reasonCounts, streak, weekdayAverages } from '../lib/score';
+import { useState } from 'react';
+import { useData } from '../lib/useData';
+import { dayStats, reasonCounts, weekdayAverages } from '../lib/score';
 import { addDays, formatDay, fromKey, range, toKey, WEEKDAYS } from '../lib/date';
 import { REASONS } from '../lib/reasons';
-import { FlameIcon } from '../components/icons';
 import { HabitHistorySheet } from '../components/HabitHistorySheet';
 import type { Habit } from '../types';
 import { weekStart } from '../lib/time';
-import { weeklyQuest } from '../lib/game';
 import { AnimatedNumber } from '../components/Ring';
 import { HabitGrid } from '../components/HabitGrid';
 
 const WEEKS = 15;
 
 export function Insights({ today }: { today: string }) {
-  const habits = useStore((s) => s.habits);
-  const plans = useStore((s) => s.plans);
-  const logs = useStore((s) => s.logs);
-  const startDay = useStore((s) => s.startDay);
-  const data = useMemo(() => ({ habits, plans, logs, startDay }), [habits, plans, logs, startDay]);
+  const data = useData();
+  const { startDay } = data;
 
-  const shieldsOn = useStore((s) => s.profile.shields !== false);
   const [history, setHistory] = useState<Habit | null>(null);
   const [showMore, setShowMore] = useState(false);
-  const quest = useMemo(() => weeklyQuest(data, today), [data, today]);
-  const st = useMemo(() => streak(data, today, shieldsOn), [data, today, shieldsOn]);
-  const last14 = range(addDays(today, -13), today);
-  const scores14 = last14.map((d) => (startDay && d >= startDay ? dayStats(data, d).score : null));
-  const past7 = range(addDays(today, -7), addDays(today, -1)).map((d) => dayStats(data, d).score).filter((s): s is number => s !== null);
-  const avg7 = past7.length ? past7.reduce((a, b) => a + b, 0) / past7.length : null;
 
   // This week's finished days (Mon → yesterday) vs last week (Mon → Sun): comparing to your past self.
   // Today is excluded while it's still in progress — otherwise mornings always look like a dip.
@@ -57,33 +45,6 @@ export function Insights({ today }: { today: string }) {
 
       <WeekCompare thisWeek={thisWeek} lastWeek={lastWeek} />
 
-      {quest && (
-        <section
-          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3"
-          aria-label={`Weekly quest: ${quest.title}. ${quest.progress} of ${quest.target}`}
-        >
-          <span className="text-[20px]" aria-hidden>
-            {quest.done ? '🏅' : '🎯'}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">Weekly quest{quest.done ? ' · complete' : ''}</div>
-            <div className="text-[14px] leading-snug font-medium">{quest.title}</div>
-          </div>
-          <div className="flex shrink-0 gap-1" aria-hidden>
-            {Array.from({ length: quest.target }, (_, i) => (
-              <motion.span
-                key={i}
-                initial={false}
-                animate={{ scale: i < quest.progress ? 1 : 0.85 }}
-                className="size-3 rounded-full"
-                style={{ background: i < quest.progress ? 'var(--habit)' : 'var(--surface-3)' }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-
       <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
       <HabitGrid data={data} today={today} onOpen={setHistory} />
 
@@ -92,41 +53,16 @@ export function Insights({ today }: { today: string }) {
         aria-expanded={showMore}
         className="min-h-12 rounded-2xl border border-line bg-surface text-[14px] font-semibold text-muted"
       >
-        {showMore ? 'Hide details' : 'More insights — trends, calendar, why you miss'}
+        {showMore ? 'Hide details' : 'More insights — calendar, why you miss'}
       </button>
       {showMore && (
         <>
-        <div className="grid grid-cols-3 gap-2.5">
-          <Stat label="Streak" value={st.current} icon={<FlameIcon size={15} className="text-gold" />} />
-          <Stat label="Best" value={st.best} />
-          <Stat label="7-day avg" value={avg7 === null ? '–' : `${Math.round(avg7 * 100)}%`} />
-        </div>
-
         {insight && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-[20px] border border-plan/30 bg-plan/10 px-4 py-3.5 text-[14px] leading-relaxed">
             <span className="font-semibold text-plan">Insight · </span>
             <span className="text-muted">{insight}</span>
           </motion.div>
         )}
-
-        <Card title="Efficacy · last 14 days">
-          <div className="flex h-32 items-end gap-1.5">
-            {scores14.map((s, i) => (
-              <div key={last14[i]} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-                <motion.div
-                  className="w-full rounded-md"
-                  style={{ background: s === null ? 'var(--track)' : 'linear-gradient(to top, var(--plan), var(--habit))' }}
-                  initial={{ height: 0 }}
-                  animate={{ height: s === null ? 4 : `${Math.max(4, s * 100)}%` }}
-                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 120, damping: 18 }}
-                />
-                <span className={`text-[12px] ${last14[i] === today ? 'font-bold text-text' : 'text-faint'}`}>
-                  {WEEKDAYS[fromKey(last14[i]).getDay()][0]}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         <Heatmap today={today} score={(d) => (startDay && d >= startDay && d <= today ? dayStats(data, d).score : undefined)} />
 
@@ -156,18 +92,6 @@ export function Insights({ today }: { today: string }) {
         </Card>
         </>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value, icon }: { label: string; value: number | string; icon?: React.ReactNode }) {
-  return (
-    <div className="card px-3 py-3.5 text-center">
-      <div className="tabular flex items-center justify-center gap-1 text-[24px] font-bold tracking-[-0.03em]">
-        {icon}
-        {value}
-      </div>
-      <div className="mt-0.5 text-[12px] font-medium tracking-wide text-muted uppercase">{label}</div>
     </div>
   );
 }

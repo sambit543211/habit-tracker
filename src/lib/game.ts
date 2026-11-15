@@ -154,7 +154,7 @@ export function weeklyQuest(data: Data, today: string): Quest | null {
     const label = reasonLabel(reason).toLowerCase();
     return {
       id: `${mon}:reason:${reason}`,
-      title: `Beat “${label}” 3 days in a row`,
+      title: `3 days in a row with no “${label}” misses`,
       text: `It was your top miss reason last week (${top[1]}×).`,
       target: 3,
       progress: Math.min(3, bestRun),
