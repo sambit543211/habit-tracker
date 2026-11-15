@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { dayStats, habitRate, habitStreak, habitsOn, reasonCounts, streak, weekdayAverages } from '../lib/score';
+import { dayStats, reasonCounts, streak, weekdayAverages } from '../lib/score';
 import { addDays, formatDay, fromKey, range, toKey, WEEKDAYS } from '../lib/date';
 import { REASONS } from '../lib/reasons';
 import { FlameIcon } from '../components/icons';
@@ -10,6 +10,7 @@ import type { Habit } from '../types';
 import { weekStart } from '../lib/time';
 import { weeklyQuest } from '../lib/game';
 import { AnimatedNumber } from '../components/Ring';
+import { HabitGrid } from '../components/HabitGrid';
 
 const WEEKS = 15;
 
@@ -44,7 +45,6 @@ export function Insights({ today }: { today: string }) {
   const reasons = reasonCounts(data, from30, today);
   const reasonTotal = Object.values(reasons).reduce((a, b) => a + b, 0);
   const weekdayAvg = weekdayAverages(data, from30, addDays(today, -1));
-  const activeHabits = habitsOn(data, today);
 
   const insight = buildInsight(reasons, reasonTotal, weekdayAvg);
 
@@ -85,33 +85,7 @@ export function Insights({ today }: { today: string }) {
 
 
       <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
-      <Card title="Habits · last 30 days">
-        <p className="-mt-2 mb-1 text-[12.5px] text-faint">Tap a habit to see each day and fix a missed check-in.</p>
-        {activeHabits.length === 0 && <p className="text-[14px] text-muted">No habits yet.</p>}
-        <div className="flex flex-col divide-y divide-line">
-          {activeHabits.map((h) => {
-            const rate = habitRate(data, h, today);
-            const hs = habitStreak(data, h, today);
-            return (
-              <button key={h.id} onClick={() => setHistory(h)} className="flex min-h-12 w-full items-center gap-3 py-2.5 text-left">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-medium">{h.name}</div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <motion.div className="h-full rounded-full bg-habit" initial={{ width: 0 }} animate={{ width: `${(rate ?? 0) * 100}%` }} transition={{ duration: 0.7 }} />
-                  </div>
-                </div>
-                <div className="w-12 text-right">
-                  <div className="tabular text-[15px] font-semibold">{rate === null ? '–' : `${Math.round(rate * 100)}%`}</div>
-                  <div className="flex items-center justify-end gap-0.5 text-[12px] text-muted">
-                    <FlameIcon size={11} className="text-gold" />{hs}
-                  </div>
-                </div>
-                <span className="text-muted" aria-hidden>›</span>
-              </button>
-            );
-          })}
-        </div>
-      </Card>
+      <HabitGrid data={data} today={today} onOpen={setHistory} />
 
       <button
         onClick={() => setShowMore((v) => !v)}
