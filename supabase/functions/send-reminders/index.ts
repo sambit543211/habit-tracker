@@ -102,6 +102,9 @@ const CHEER_BODY: Record<string, string> = {
 const names = (xs: string[]) => (xs.length <= 1 ? xs[0] ?? 'A friend' : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const inRange = (m: number, a: number, b: number) => (a <= b ? m >= a && m < b : m >= a || m < b);
 const NUDGE_CAP = 4;
+// Nobody gets nudged between midnight and 8 am (their local time). Any other time is fine.
+const QUIET_START = 0;
+const QUIET_END = 8 * 60;
 
 const activeOn = (h: Row, day: string) => h.created_day <= day && (!h.archived_day || day < h.archived_day);
 
@@ -308,12 +311,8 @@ Deno.serve(async (req) => {
     if (socialOnly) candidates.length = 0;
 
     // ---------- Social: circle events, nudges, cheers ----------
-    const wakeM = toMin(p.wake_time) ?? 480;
     const sleepM = toMin(p.sleep_time) ?? 120;
-    const asleep = inRange(now.minutes, sleepM, wakeM);
-    const weekday = new Date(`${now.date}T12:00:00Z`).getUTCDay();
-    const atWork =
-      p.office_hours !== false && weekday >= 1 && weekday <= 5 && inRange(now.minutes, toMin(p.office_start) ?? 600, toMin(p.office_end) ?? 1020);
+    const asleep = inRange(now.minutes, QUIET_START, QUIET_END);
     const muted: string[] = p.muted_circles ?? [];
     const firstName = async (id: string) => {
       const { data: who } = await db.from('profiles').select('display_name').eq('user_id', id).maybeSingle();
@@ -409,7 +408,7 @@ Deno.serve(async (req) => {
           done.push(r.id);
           continue;
         }
-        if (asleep || atWork) continue; // held: delivered after wake-up / after office hours
+        if (asleep) continue; // held: delivered at 8 am
         byGoal.set(r.goal_id, [...(byGoal.get(r.goal_id) ?? []), r]);
       }
       for (const [goal, rs] of byGoal) {

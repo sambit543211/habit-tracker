@@ -555,7 +555,7 @@ function NudgeSheet({
           </h2>
           <p className="mt-1 text-[14px] text-muted">
             {target.goal.emoji} {target.goal.name}
-            {target.habit ? ` · ${target.habit}` : ''} — they'll get a notification now (or after work / when they wake up).
+            {target.habit ? ` · ${target.habit}` : ''} — they'll get a notification now (or at 8 am if it's past midnight for them).
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {lines.map((l) => (
