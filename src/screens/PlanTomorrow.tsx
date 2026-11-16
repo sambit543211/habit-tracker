@@ -8,7 +8,7 @@ import { isEvening } from '../lib/useToday';
 import { PlanRows } from '../components/PlanRows';
 import { DayCalendar } from '../components/DayCalendar';
 import { PlusIcon, StarIcon } from '../components/icons';
-import { fmtDuration, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
+import { dayProfile, fmtDuration, freeFromNow, sinceWake, timeBudget, windowLength } from '../lib/time';
 import type { Plan } from '../types';
 import { planMetaText } from '../lib/planMeta';
 
@@ -18,7 +18,7 @@ const MUST_LIMIT = 3;
 export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
   const data = useData();
   const { logs } = data;
-  const profile = useStore((s) => s.profile);
+  const baseProfile = useStore((s) => s.profile);
   const editPlan = useUI((s) => s.editPlan);
 
   const evening = isEvening(hour);
@@ -26,6 +26,8 @@ export function PlanTomorrow({ today, hour }: { today: string; hour: number }) {
   const tomorrow = addDays(today, 1);
   const day = which === 'today' ? today : tomorrow;
   const list = plansOn(data, day);
+  // Calendar and free time include plans set before your usual wake-up (e.g. "Gym 7 am").
+  const profile = useMemo(() => dayProfile(list, baseProfile), [list, baseProfile]);
   const dayHabits = habitsOn(data, day);
   const doneHabits = new Set(Object.entries(logs[day] ?? {}).filter(([, l]) => l.status === 'done').map(([id]) => id));
   const musts = list.filter((p) => p.must);

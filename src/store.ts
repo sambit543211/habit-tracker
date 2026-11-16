@@ -17,6 +17,9 @@ import {
 import { addDays, dayKeyAt } from './lib/date';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
+/** After 8 pm (or before the 2 am cutoff) a brand-new day 1 starts tomorrow. */
+export const lateStart = (d = new Date()) => d.getHours() >= 20 || d.getHours() < 2;
+
 const uid = (): string => {
   const c = globalThis.crypto as Crypto;
   if (typeof c.randomUUID === 'function') return c.randomUUID();
@@ -139,13 +142,14 @@ export const useStore = create<Store>()(
       markDayClosed: (day) => set({ dayClosedSeen: day }),
 
       completeOnboarding: (habits) => {
-        const today = dayKeyAt();
+        // Joining late in the evening (or after midnight)? Day 1 is tomorrow, so it can't start as a failed day.
+        const day1 = lateStart() ? addDays(dayKeyAt(), 1) : dayKeyAt();
         set((s) => ({
           onboarded: true,
-          startDay: s.startDay ?? today,
+          startDay: s.startDay ?? day1,
           habits: [
             ...s.habits,
-            ...habits.map((h) => ({ id: uid(), name: h.name, cue: h.cue, createdDay: today })),
+            ...habits.map((h, i) => ({ id: uid(), name: h.name, cue: h.cue, createdDay: day1, position: s.habits.length + i + 1 })),
           ],
         }));
       },

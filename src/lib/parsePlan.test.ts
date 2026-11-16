@@ -30,3 +30,12 @@ describe('parsePlan', () => {
     expect(parsePlan('Stretch 8pm 5m').duration).toBe(15);
   });
 });
+
+describe('day words', () => {
+  it('takes tomorrow / today out of the title', () => {
+    expect(parsePlan('Dentist appointment tomorrow at 5')).toMatchObject({ title: 'Dentist appointment', when: 'tomorrow', start: '17:00' });
+    expect(parsePlan('Call mom tonight 9pm')).toMatchObject({ title: 'Call mom', when: 'today', start: '21:00' });
+    expect(parsePlan('kal gym 7am')).toMatchObject({ title: 'gym', when: 'tomorrow', start: '07:00' });
+    expect(parsePlan('Buy groceries')).toEqual({ title: 'Buy groceries', start: undefined, duration: undefined, when: undefined });
+  });
+});

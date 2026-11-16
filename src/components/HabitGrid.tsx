@@ -5,6 +5,7 @@ import { habitsOn } from '../lib/score';
 import type { Data, Habit } from '../types';
 
 const SPANS = [7, 14, 30] as const;
+const MIN_DAYS = 3;
 type Span = (typeof SPANS)[number];
 
 type Cell = 'done' | 'missed' | 'unchecked' | 'today' | 'off';
@@ -26,9 +27,11 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
   const rows = habits
     .map((h) => {
       const cells = days.map((d) => cell(h, d));
-      const counted = cells.filter((c) => c === 'done' || c === 'missed' || c === 'unchecked').length;
-      const done = cells.filter((c) => c === 'done').length;
-      return { h, cells, done, counted, rate: counted ? done / counted : null };
+      // Rates use finished days only (today is still in progress), and need 3 of them to mean anything.
+      const past = cells.slice(0, -1);
+      const counted = past.filter((c) => c === 'done' || c === 'missed' || c === 'unchecked').length;
+      const done = past.filter((c) => c === 'done').length;
+      return { h, cells, done, counted, rate: counted >= MIN_DAYS ? done / counted : null };
     })
     .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
 
@@ -40,6 +43,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
   });
 
   const rated = rows.filter((r) => r.rate !== null);
+  const learning = rated.length === 0;
   const best = rated[0];
   const worst = rated.length > 1 ? rated[rated.length - 1] : undefined;
   const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -142,6 +146,11 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
         </span>
       </div>
 
+      {learning && (
+        <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] leading-snug text-muted">
+          🌱 Percentages appear after {MIN_DAYS} finished days — no judging yet.
+        </p>
+      )}
       {best && (
         <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] leading-snug text-muted">
           <span className="font-semibold text-habit">Strongest:</span> {best.h.name} ({pct(best.rate!)})

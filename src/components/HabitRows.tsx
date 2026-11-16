@@ -11,15 +11,11 @@ export function HabitRows({
   day,
   showTiny,
   compact,
-  hintId,
-  onHintDone,
 }: {
   habits: Habit[];
   day: string;
   showTiny?: boolean;
   compact?: boolean;
-  hintId?: string;
-  onHintDone?: () => void;
 }) {
   const logs = useStore((s) => s.logs[day]);
   const { markHabit, clearHabit } = useStore();
@@ -57,8 +53,6 @@ export function HabitRows({
               onMiss={() => openMiss({ kind: 'habit', id: h.id, day })}
               onUndo={() => clearHabit(day, h.id)}
               compact={compact}
-              hint={h.id === hintId}
-              onHintDone={onHintDone}
             />
           );
         })}

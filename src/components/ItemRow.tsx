@@ -1,4 +1,4 @@
-import { animate, motion, useAnimationControls, useMotionValue, useTransform } from 'framer-motion';
+import { motion, useAnimationControls, useMotionValue, useTransform } from 'framer-motion';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { CheckIcon, XIcon } from './icons';
 import { haptic } from '../lib/feedback';
@@ -23,18 +23,15 @@ interface ItemRowProps {
   badge?: ReactNode;
   /** Dense layout for the two-column Today view */
   compact?: boolean;
-  /** Play the one-time swipe tutorial on this row */
-  hint?: boolean;
-  onHintDone?: () => void;
 }
 
 const SWIPE = 84;
 
 /**
- * A trackable item. Tap the circle to complete, swipe right to complete,
- * swipe left (or tap ×) to log a miss. Tap a resolved circle to undo.
+ * A trackable item. Tap the circle (or the text, when there's nothing to open) to complete,
+ * swipe right to complete, swipe left to log a miss. Tap a resolved circle to undo.
  */
-export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, hint, onHintDone, badge, tint }: ItemRowProps) {
+export function ItemRow({ title, subtitle, status, accent, leading, trailing, onDone, onMiss, onUndo, onOpen, compact, badge, tint }: ItemRowProps) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
 
@@ -50,25 +47,6 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
     prevStatus.current = status;
   }, [status, pop]);
 
-  // One-time swipe tutorial: nudge right (done), then left (didn't).
-  useEffect(() => {
-    if (!hint || status !== 'pending') return;
-    let cancelled = false;
-    const run = async () => {
-      await new Promise((r) => setTimeout(r, 900));
-      for (const to of [56, 0, -56, 0]) {
-        if (cancelled) return;
-        await animate(x, to, { type: 'spring', stiffness: 260, damping: 22 });
-        await new Promise((r) => setTimeout(r, to === 0 ? 150 : 450));
-      }
-      if (!cancelled) onHintDone?.();
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hint]);
   const doneOpacity = useTransform(x, [12, SWIPE], [0, 1]);
   const missOpacity = useTransform(x, [-SWIPE, -12], [1, 0]);
   const pending = status === 'pending';
@@ -132,7 +110,7 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
             : {}),
         }}
         className={`relative flex border border-line bg-surface ${
-          compact ? 'min-h-[54px] items-start gap-2 rounded-2xl py-2.5 pr-6 pl-2.5' : 'min-h-[64px] items-center gap-3.5 rounded-[20px] px-4 py-3'
+          compact ? 'min-h-[54px] items-start gap-2 rounded-2xl py-2.5 pr-2.5 pl-2.5' : 'min-h-[64px] items-center gap-3.5 rounded-[20px] px-4 py-3'
         }`}
       >
         {flash > 0 && (
@@ -148,9 +126,11 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
         )}
         <StatusButton status={status} onClick={pending ? done : onUndo} compact={compact} />
         <div
-          className={`min-w-0 flex-1 ${onOpen ? 'cursor-pointer' : ''}`}
+          className={`min-w-0 flex-1 ${onOpen || pending ? 'cursor-pointer' : ''}`}
           onClick={() => {
-            if (!dragged.current) onOpen?.();
+            if (dragged.current) return;
+            if (onOpen) onOpen();
+            else if (pending) done();
           }}
         >
           <div className={`flex gap-1.5 ${compact ? 'items-start' : 'items-center gap-2'}`}>
@@ -168,21 +148,6 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
           {badge && <div className="mt-1">{badge}</div>}
         </div>
         {trailing}
-        {pending && (
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => {
-              haptic(8);
-              onMiss();
-            }}
-            aria-label={`I didn't do ${title}`}
-            className={`grid shrink-0 place-items-center rounded-full text-faint transition-colors hover:bg-surface-2 hover:text-miss ${
-              compact ? "absolute top-1 right-0.5 size-7 before:absolute before:content-[''] before:-inset-2" : "relative size-9 before:absolute before:content-[''] before:-inset-1"
-            }`}
-          >
-            <XIcon size={compact ? 13 : 18} />
-          </motion.button>
-        )}
       </motion.div>
     </motion.li>
   );

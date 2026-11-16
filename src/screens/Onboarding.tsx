@@ -1,18 +1,19 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
-import { useStore } from '../store';
+import { lateStart, useStore } from '../store';
 import { CheckIcon, PlusIcon } from '../components/icons';
 import { Ring } from '../components/Ring';
 
+// No triggers pre-filled: people add their own "After I…" later if they want one.
 const SUGGESTIONS = [
-  { name: 'Drink 2L water', cue: 'wake up' },
-  { name: 'Workout 30 min', cue: 'finish work' },
-  { name: 'Read 10 pages', cue: 'get into bed' },
-  { name: 'Meditate 5 min', cue: 'brush my teeth in the morning' },
-  { name: 'Journal', cue: 'finish dinner' },
-  { name: 'No phone in bed', cue: 'get into bed' },
-  { name: 'Walk 8k steps', cue: 'have lunch' },
-  { name: 'Learn something new', cue: 'commute home' },
+  { name: 'Drink 2L water' },
+  { name: 'Workout 30 min' },
+  { name: 'Read 10 pages' },
+  { name: 'Meditate 5 min' },
+  { name: 'Journal' },
+  { name: 'No phone in bed' },
+  { name: 'Walk 8k steps' },
+  { name: 'Learn something new' },
 ];
 
 const STEPS = [
@@ -23,9 +24,10 @@ const STEPS = [
 
 export function Onboarding() {
   const [step, setStep] = useState(0);
-  const [picked, setPicked] = useState<{ name: string; cue?: string }[]>([]);
+  const [picked, setPicked] = useState<{ name: string }[]>([]);
   const [custom, setCustom] = useState('');
   const complete = useStore((s) => s.completeOnboarding);
+  const late = lateStart();
 
   const toggle = (h: { name: string; cue?: string }) =>
     setPicked((p) => (p.some((x) => x.name === h.name) ? p.filter((x) => x.name !== h.name) : [...p, h]));
@@ -104,7 +106,10 @@ export function Onboarding() {
               </button>
             </form>
             <div className="flex-1" />
-            <p className="mb-3 text-center text-[13px] text-muted">{picked.length} selected</p>
+            <p className="mb-3 text-center text-[13px] text-muted">
+              {picked.length} selected
+              {late && <span className="mt-1 block text-plan">🌙 It's late — your day 1 starts tomorrow morning.</span>}
+            </p>
             <PrimaryButton disabled={!picked.length} onClick={() => complete(picked)}>
               Start tracking
             </PrimaryButton>

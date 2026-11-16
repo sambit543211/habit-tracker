@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, useUI } from '../store';
 import { dayStats, habitsOn, plansOn, streakFor } from '../lib/score';
 import { useData } from '../lib/useData';
@@ -39,7 +39,8 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   useCelebrations(stats.perfectHabits, stats.score === 1 && stats.pending === 0, today);
 
   const evening = isEvening(hour);
-  const isFreshStart = (weekday(today) === 1 || today.endsWith('-01')) && freshStartSeen !== today;
+  // "Fresh start" only means something once you have a past to start fresh from.
+  const isFreshStart = (weekday(today) === 1 || today.endsWith('-01')) && freshStartSeen !== today && !!startDay && startDay <= addDays(today, -7);
   const atRisk = !st.todayDone && st.current > 0 && evening;
   const score = stats.score === null ? 0 : Math.round(stats.score * 100);
   const firstName = profile.name?.split(/\s+/)[0];
@@ -48,7 +49,12 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const wd = weekday(today);
   const reviewDue = (wd === 0 || wd === 1) && !weeklyReviews[reviewWeekFor(today)] && !!startDay && startDay < today;
   // One-time swipe tutorial on the first open habit.
-  const hintHabit = !swipeHintSeen ? todayHabits.find((h) => !logs[today]?.[h.id]) : undefined;
+  // How-to line until the first check-in ever; then it goes away for good.
+  const anyLog = Object.keys(logs).length > 0;
+  const showHowTo = !swipeHintSeen && !anyLog && todayHabits.length > 0;
+  useEffect(() => {
+    if (!swipeHintSeen && anyLog) markSwipeHintSeen();
+  }, [swipeHintSeen, anyLog, markSwipeHintSeen]);
   const pc = stats.pending > 0 ? pace(data, today, nowSince, toMin(profile.wake)) : null;
   const paceText =
     pc && (pc.usual > 0 || pc.diff !== 0)
@@ -62,7 +68,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const shieldUsed = st.shieldedDays.includes(yesterday) && shieldSeen !== yesterday;
   const lateEvening = hour >= 21 || hour < 2;
   const showCloseDay = lateEvening && stats.habitsTotal + stats.plansTotal > 0 && (stats.pending > 0 || dayClosedSeen !== today);
-  const newUser = !startDay || startDay > addDays(today, -7);
   const smokes = useStore((s) => s.smokes);
   const q = profile.quit?.enabled ? profile.quit : null;
   const qs = q ? quitStats(q, smokes, today) : null;
@@ -81,6 +86,14 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const pendingInvite = invites > 0;
   const nudges = nudgesForMe(circleData);
   const markHabit = useStore((s) => s.markHabit);
+  const setProfile = useStore((s) => s.setProfile);
+  const [promoHidden, setPromoHidden] = useState(() => {
+    try {
+      return !!localStorage.getItem('keep-circle-promo');
+    } catch {
+      return false;
+    }
+  });
   // Friends nudged me about a shared habit I still haven't done → banner with a one-tap Done.
   const nudgedFor = (() => {
     if (!circleData) return [];
@@ -299,16 +312,16 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       </AnimatePresence>
 
       <AnimatePresence>
-        {hintHabit && (
+        {showHowTo && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
             className="flex items-center justify-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted"
           >
-            <span className="font-semibold text-habit">Swipe →</span> done
+            Tap a habit when it's done
             <span className="text-faint">·</span>
-            <span className="font-semibold text-miss">← Swipe</span> didn't
+            <span className="font-semibold text-miss">← swipe</span> if you didn't
           </motion.div>
         )}
       </AnimatePresence>
@@ -341,8 +354,6 @@ export function Today({ today, hour }: { today: string; hour: number }) {
               day={today}
               showTiny={hour >= 18 || hour < 2}
               compact
-              hintId={hintHabit?.id}
-              onHintDone={() => setTimeout(markSwipeHintSeen, 2500)}
             />
           ) : (
             <EmptyColumn text="No habits yet" cta="Add a habit" onClick={() => editHabit('new')} />
@@ -372,6 +383,29 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           )}
         </section>
       </div>
+
+      {/* Circle is the social part of Keep — offer it from day 2 to people who haven't tried it */}
+      {!circleOn && !pendingInvite && !!startDay && startDay < today && !promoHidden && (
+        <Banner
+          key="circle-promo"
+          tone="plan"
+          icon={<span className="text-[16px]">👥</span>}
+          title="Do it with a friend"
+          text="Share a habit, nudge each other, keep a streak together."
+          onClick={() => {
+            setProfile({ circle: true });
+            setTab('circle');
+          }}
+          onDismiss={() => {
+            try {
+              localStorage.setItem('keep-circle-promo', '1');
+            } catch {
+              /* ignore */
+            }
+            setPromoHidden(true);
+          }}
+        />
+      )}
 
       {/* Tonight: one card for the end-of-day ritual (close the day → plan tomorrow → weekly review on Sun/Mon) */}
       {evening && (
@@ -411,7 +445,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         )}
       </AnimatePresence>
 
-      {newUser && <p className="pb-2 text-center text-[12px] text-faint">Tap ○ when done · unfinished plans move to tomorrow · tap a plan to edit</p>}
+
     </div>
   );
 }

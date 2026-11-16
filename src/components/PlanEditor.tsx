@@ -56,7 +56,10 @@ export function PlanEditor() {
     setCustomDur(!!p?.duration && !DURATIONS.includes(p.duration));
     setOffset(p?.remindOffset);
     setRemindAt(p?.remindAt ?? '');
-    setDay(p?.day ?? ('day' in target ? target.day : today));
+    // Late at night a new plan is almost always for tomorrow — and adding it to today would only drag today's score down.
+    const h = new Date().getHours();
+    const asked = 'day' in target ? target.day : today;
+    setDay(p?.day ?? (asked === today && !('start' in target && target.start) && (h >= 21 || h < 2) ? tomorrow : asked));
     // Details open when editing a plan that already has some, or when a time slot was tapped.
     setDetails(!!(p?.start || p?.note || p?.remindAt || presetStart));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,19 +73,22 @@ export function PlanEditor() {
   const close = () => editPlan(null);
   const wakeHour = useStore((s) => Math.floor(toMin(s.profile.wake) / 60));
   // "Gym 7pm 1h" typed in the title fills in the time block (unless one is already set).
-  const parsed = !timed && title.trim() ? parsePlan(title, wakeHour) : null;
+  const parsed = title.trim() ? parsePlan(title, wakeHour) : null;
+  const typedDay = !existing && parsed?.when ? (parsed.when === 'tomorrow' ? tomorrow : today) : null;
   const save = () => {
     let t = title.trim();
     if (!t) return;
     let useTimed = timed;
     let s = start;
     let d = duration;
-    if (parsed?.start) {
+    if (parsed?.start && !timed) {
       t = parsed.title;
       useTimed = true;
       s = parsed.start;
       d = parsed.duration ?? 30;
     }
+    // "…tomorrow" / "…today" in the text picks the day and comes out of the title.
+    if (typedDay) t = parsed!.title;
     const details: PlanDetails = {
       title: t,
       must,
@@ -93,7 +99,7 @@ export function PlanEditor() {
       remindAt: !useTimed && remindAt ? remindAt : undefined,
     };
     if (existing) updatePlan(existing.id, details);
-    else addPlan(day || today, t, must, details);
+    else addPlan(typedDay ?? (day || today), t, must, details);
     close();
   };
 
@@ -167,9 +173,10 @@ export function PlanEditor() {
             <StarIcon size={14} filled={must} />
             Must-do
           </motion.button>
-          {parsed?.start ? (
+          {parsed?.start || typedDay ? (
             <span className="text-[13px] font-medium text-plan">
-              ⏰ {fmtTime(parsed.start)}–{fmtTime(fromMin(toMin(parsed.start) + (parsed.duration ?? 30)))}
+              {typedDay ? (typedDay === tomorrow ? '📅 Tomorrow ' : '📅 Today ') : ''}
+              {parsed?.start && !timed ? `⏰ ${fmtTime(parsed.start)}–${fmtTime(fromMin(toMin(parsed.start) + (parsed.duration ?? 30)))}` : ''}
             </span>
           ) : (
             isNew && <span className="text-[12.5px] text-faint">Tip: “Gym 7pm 1h” sets the time</span>
@@ -182,7 +189,7 @@ export function PlanEditor() {
           disabled={!title.trim()}
           className="mt-4 min-h-14 w-full rounded-2xl bg-plan text-[16px] font-semibold text-white shadow-[0_6px_20px_color-mix(in_srgb,var(--plan)_35%,transparent)] transition-opacity disabled:opacity-30 disabled:shadow-none"
         >
-          {isNew ? `Add to ${day === tomorrow ? 'tomorrow' : day === today ? 'today' : 'plan'}` : 'Save'}
+          {isNew ? `Add to ${(typedDay ?? day) === tomorrow ? 'tomorrow' : (typedDay ?? day) === today ? 'today' : 'plan'}` : 'Save'}
         </motion.button>
       </form>
 

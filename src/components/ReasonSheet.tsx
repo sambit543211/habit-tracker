@@ -23,6 +23,8 @@ export function ReasonSheet() {
   const [note, setNote] = useState('');
   const [nextTime, setNextTime] = useState('');
   const [makeCue, setMakeCue] = useState(false);
+  // One tap logs it. "Add a note" first switches to pick-then-save.
+  const [detailed, setDetailed] = useState(false);
 
   useEffect(() => {
     if (target) {
@@ -30,6 +32,7 @@ export function ReasonSheet() {
       setNote('');
       setNextTime('');
       setMakeCue(false);
+      setDetailed(false);
     }
   }, [target]);
 
@@ -39,9 +42,9 @@ export function ReasonSheet() {
   const close = () => openMiss(null);
   const canCarry = plan && plan.day <= dayKeyAt();
 
-  const submit = () => {
-    if (!reason || !target) return;
-    const miss = { reason, note: note.trim() || undefined, nextTime: nextTime.trim() || undefined };
+  const submit = (picked: ReasonCode | null = reason) => {
+    if (!picked || !target) return;
+    const miss = { reason: picked, note: note.trim() || undefined, nextTime: nextTime.trim() || undefined };
     const { clearHabit } = useStore.getState();
     const showToast = useUI.getState().showToast;
     if (target.kind === 'habit') {
@@ -127,7 +130,7 @@ export function ReasonSheet() {
             <motion.button
               key={r.code}
               whileTap={{ scale: 0.94 }}
-              onClick={() => setReason(r.code)}
+              onClick={() => (detailed ? setReason(r.code) : submit(r.code))}
               className={`flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-left text-[14px] font-medium transition-colors ${
                 active ? 'border-miss bg-miss/10 text-text' : 'border-line bg-surface-2 text-muted'
               }`}
@@ -139,8 +142,14 @@ export function ReasonSheet() {
         })}
       </div>
 
+      {!detailed && (
+        <button onClick={() => setDetailed(true)} className="mt-3 min-h-11 w-full text-[13.5px] font-medium text-muted">
+          Tap a reason to log it · <span className="underline underline-offset-2">add a note first</span>
+        </button>
+      )}
+
       <AnimatePresence initial={false}>
-        {reason && (
+        {detailed && reason && (
           <motion.div
             key="more"
             initial={{ opacity: 0, height: 0 }}
@@ -179,14 +188,16 @@ export function ReasonSheet() {
         )}
       </AnimatePresence>
 
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        disabled={!reason}
-        onClick={submit}
-        className="mt-5 w-full rounded-2xl bg-text py-4 text-[16px] font-semibold text-bg transition-opacity disabled:opacity-30"
-      >
-        Log it
-      </motion.button>
+      {detailed && (
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          disabled={!reason}
+          onClick={() => submit()}
+          className="mt-5 w-full rounded-2xl bg-text py-4 text-[16px] font-semibold text-bg transition-opacity disabled:opacity-30"
+        >
+          {reason ? 'Log it' : 'Pick a reason above'}
+        </motion.button>
+      )}
         </>
       )}
     </Sheet>
