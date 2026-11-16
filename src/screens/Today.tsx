@@ -84,7 +84,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   // Friends nudged me about a shared habit I still haven't done → banner with a one-tap Done.
   const nudgedFor = (() => {
     if (!circleData) return [];
-    const out = new Map<string, { habitId: string; habit: string; goal: string; from: string[]; msg?: string | null }>();
+    const out = new Map<string, { habitId: string; habit: string; goal: string; from: string[]; msg?: string | null; again?: boolean }>();
     for (const c of circleData.circles ?? []) {
       const nameOf = (id: string) => c.members.find((m) => m.user_id === id)?.name.split(/\s+/)[0] ?? 'A friend';
       for (const r of c.reactions) {
@@ -96,6 +96,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         const e = out.get(link.habit_id) ?? { habitId: link.habit_id, habit: link.habit, goal: g.name, from: [] };
         if (!e.from.includes(nameOf(r.from))) e.from.push(nameOf(r.from));
         if (r.msg) e.msg = r.msg;
+        if ((r.times ?? 1) > 1) e.again = true;
         out.set(link.habit_id, e);
       }
     }
@@ -279,7 +280,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             <span className="text-[24px]" aria-hidden>👋</span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-[14.5px] font-semibold">
-                {n.from.join(' & ')} nudged you · {n.goal}
+                {n.from.join(' & ')} nudged you{n.again ? ' again' : ''} · {n.goal}
               </div>
               <div className="truncate text-[13px] text-muted">{n.msg ? `“${n.msg}”` : `${n.habit} is still open`}</div>
             </div>

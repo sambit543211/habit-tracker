@@ -10,13 +10,23 @@ alter table public.profiles
   add column if not exists office_end time not null default '17:00',
   add column if not exists muted_circles uuid[] not null default '{}';
 
--- ---------- a short message with each nudge / cheer ----------
+-- ---------- a short message with each nudge / cheer; nudges can repeat (10 min apart) ----------
 alter table public.circle_reactions add column if not exists message text;
+alter table public.circle_reactions add column if not exists times int not null default 1;
 
 -- "Hima did Gym after your nudge"
-alter table public.circle_events drop constraint if exists circle_events_kind_check;
-alter table public.circle_events add constraint circle_events_kind_check check (kind in ('invited', 'accepted', 'declined', 'nudge_worked'));
-alter table public.circle_events add column if not exists goal_id uuid references public.circle_goals on delete cascade;
+create table if not exists public.nudge_wins (
+  id bigint generated always as identity primary key,
+  to_user uuid not null references auth.users on delete cascade,
+  actor uuid not null references auth.users on delete cascade,
+  circle_id uuid references public.circles on delete cascade,
+  goal_id uuid references public.circle_goals on delete cascade,
+  created_at timestamptz not null default now(),
+  pushed boolean not null default false,
+  seen boolean not null default false
+);
+alter table public.nudge_wins enable row level security;
+revoke all on public.nudge_wins from anon, authenticated;
 
 -- ---------- instant delivery: wake the push function as soon as something social happens ----------
 create or replace function public._ping_push() returns trigger
@@ -31,11 +41,11 @@ begin
 end $$;
 revoke all on function public._ping_push() from public, anon, authenticated;
 
-drop trigger if exists ping_on_reaction on public.circle_reactions;
-create trigger ping_on_reaction after insert on public.circle_reactions
+create or replace trigger ping_on_reaction after insert or update of created_at on public.circle_reactions
   for each statement execute function public._ping_push();
-drop trigger if exists ping_on_event on public.circle_events;
-create trigger ping_on_event after insert on public.circle_events
+create or replace trigger ping_on_event after insert on public.circle_events
+  for each statement execute function public._ping_push();
+create or replace trigger ping_on_win after insert on public.nudge_wins
   for each statement execute function public._ping_push();
 
 -- ---------- nudge / cheer with an optional message ----------
@@ -55,10 +65,19 @@ begin
     where l.goal_id = goal and l.user_id = to_whom) then
     return 'already_done';
   end if;
+  if reaction = 'cheer' then
+    insert into public.circle_reactions (circle_id, goal_id, from_user, to_user, day, kind, message)
+    values (c, goal, me, to_whom, on_day, 'cheer', nullif(left(trim(coalesce(msg, '')), 80), ''))
+    on conflict do nothing;
+    return case when found then 'ok' else 'already_sent' end;
+  end if;
+  -- Nudges can be sent again, at least 10 minutes apart; each one notifies again.
   insert into public.circle_reactions (circle_id, goal_id, from_user, to_user, day, kind, message)
-  values (c, goal, me, to_whom, on_day, reaction, nullif(left(trim(coalesce(msg, '')), 80), ''))
-  on conflict do nothing;
-  return case when found then 'ok' else 'already_sent' end;
+  values (c, goal, me, to_whom, on_day, 'nudge', nullif(left(trim(coalesce(msg, '')), 80), ''))
+  on conflict (from_user, to_user, goal_id, day, kind) do update
+    set message = excluded.message, created_at = now(), notified = false, times = public.circle_reactions.times + 1
+    where public.circle_reactions.created_at < now() - interval '10 minutes';
+  return case when found then 'ok' else 'too_soon' end;
 end $$;
 
 -- Nudge everyone in the goal who hasn't done it today. Returns how many were nudged.
@@ -73,7 +92,9 @@ begin
   join public.circle_members cm on cm.circle_id = c and cm.user_id = l.user_id and cm.status = 'active'
   where l.goal_id = goal and l.user_id <> me
     and not exists (select 1 from public.habit_logs hl where hl.user_id = l.user_id and hl.habit_id = l.habit_id and hl.day = on_day and hl.status = 'done')
-  on conflict do nothing;
+  on conflict (from_user, to_user, goal_id, day, kind) do update
+    set message = excluded.message, created_at = now(), notified = false, times = public.circle_reactions.times + 1
+    where public.circle_reactions.created_at < now() - interval '10 minutes';
   get diagnostics n = row_count;
   return n;
 end $$;
@@ -86,19 +107,18 @@ create or replace function public._nudge_worked() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if new.status <> 'done' then return new; end if;
-  insert into public.circle_events (to_user, actor, kind, circle_id, goal_id)
-  select distinct r.from_user, new.user_id, 'nudge_worked', r.circle_id, r.goal_id
+  insert into public.nudge_wins (to_user, actor, circle_id, goal_id)
+  select distinct r.from_user, new.user_id, r.circle_id, r.goal_id
   from public.circle_reactions r
   join public.circle_links l on l.goal_id = r.goal_id and l.user_id = new.user_id and l.habit_id = new.habit_id
   where r.to_user = new.user_id and r.kind = 'nudge' and r.day = new.day and r.created_at > now() - interval '3 hours'
-    and not exists (select 1 from public.circle_events e
-                    where e.kind = 'nudge_worked' and e.to_user = r.from_user and e.actor = new.user_id
-                      and e.goal_id = r.goal_id and e.created_at > now() - interval '20 hours');
+    and not exists (select 1 from public.nudge_wins w
+                    where w.to_user = r.from_user and w.actor = new.user_id
+                      and w.goal_id = r.goal_id and w.created_at > now() - interval '20 hours');
   return new;
 end $$;
 revoke all on function public._nudge_worked() from public, anon, authenticated;
-drop trigger if exists nudge_worked on public.habit_logs;
-create trigger nudge_worked after insert or update of status on public.habit_logs
+create or replace trigger nudge_worked after insert or update of status on public.habit_logs
   for each row execute function public._nudge_worked();
 
 -- ---------- reactions now carry their message and time ----------
@@ -125,7 +145,7 @@ language sql stable security definer set search_path = '' as $$
       ) order by g.created_at), '[]'::jsonb)
       from public.circle_goals g where g.circle_id = c),
     'reactions', (select coalesce(jsonb_agg(jsonb_build_object(
-        'from', r.from_user, 'to', r.to_user, 'goal', r.goal_id, 'kind', r.kind, 'msg', r.message, 'at', r.created_at)
+        'from', r.from_user, 'to', r.to_user, 'goal', r.goal_id, 'kind', r.kind, 'msg', r.message, 'at', r.created_at, 'times', r.times)
         order by r.created_at), '[]'::jsonb)
       from public.circle_reactions r where r.circle_id = c and r.day = on_day)
   )
@@ -137,12 +157,16 @@ create or replace function public.circle_inbox() returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := (select auth.uid()); out jsonb;
 begin
-  select coalesce(jsonb_agg(jsonb_build_object('kind', e.kind, 'name', public._display_name(e.actor), 'circle', ci.name, 'goal', g.name, 'at', e.created_at)
-         order by e.created_at desc), '[]'::jsonb)
-  into out from public.circle_events e
-  left join public.circles ci on ci.id = e.circle_id
-  left join public.circle_goals g on g.id = e.goal_id
-  where e.to_user = me and not e.seen and e.kind <> 'invited';
+  select coalesce(jsonb_agg(x.j order by x.at desc), '[]'::jsonb) into out from (
+    select jsonb_build_object('kind', e.kind, 'name', public._display_name(e.actor), 'circle', ci.name, 'at', e.created_at) as j, e.created_at as at
+    from public.circle_events e left join public.circles ci on ci.id = e.circle_id
+    where e.to_user = me and not e.seen and e.kind <> 'invited'
+    union all
+    select jsonb_build_object('kind', 'nudge_worked', 'name', public._display_name(w.actor), 'circle', ci.name, 'goal', g.name, 'at', w.created_at), w.created_at
+    from public.nudge_wins w left join public.circles ci on ci.id = w.circle_id left join public.circle_goals g on g.id = w.goal_id
+    where w.to_user = me and not w.seen
+  ) x;
   update public.circle_events set seen = true where to_user = me and not seen and kind <> 'invited';
+  update public.nudge_wins set seen = true where to_user = me and not seen;
   return out;
 end $$;

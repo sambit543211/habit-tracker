@@ -34,6 +34,8 @@ export interface CircleReaction {
   /** Optional short message ("Gym time 💪") */
   msg?: string | null;
   at?: string;
+  /** Nudges can repeat (10 min apart): how many times today */
+  times?: number;
 }
 export interface CircleInfo {
   id: string;
