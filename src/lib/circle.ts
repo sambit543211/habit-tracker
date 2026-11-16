@@ -31,6 +31,9 @@ export interface CircleReaction {
   to: string;
   goal: string;
   kind: 'cheer' | 'nudge';
+  /** Optional short message ("Gym time 💪") */
+  msg?: string | null;
+  at?: string;
 }
 export interface CircleInfo {
   id: string;
@@ -163,8 +166,8 @@ const DEMO_CIRCLE: CircleInfo = {
     {
       id: 'g1', name: 'Gym', emoji: '🏋️', created_by: 'me',
       links: [
-        { user_id: 'me', habit_id: 'h1', habit: 'Workout 30 min', days: 'ddddddmdddddddddddddddddddddd-' },
-        { user_id: 'r', habit_id: 'x', habit: 'Gym', days: 'dddmdddddddddddddddddddddddddd' },
+        { user_id: 'me', habit_id: 'h3', habit: 'Workout 30 min', days: 'ddddddmdddddddddddddddddddddd-' },
+        { user_id: 'r', habit_id: 'x', habit: 'Gym', days: 'dddmddddddddddddddddddddddddd-' },
         { user_id: 'a', habit_id: 'y', habit: 'Strength training', days: 'ddddddddddddmddddddddddddddddd-' },
       ],
     },
@@ -176,7 +179,7 @@ const DEMO_CIRCLE: CircleInfo = {
       ],
     },
   ],
-  reactions: [{ from: 'r', to: 'me', goal: 'g1', kind: 'nudge' }],
+  reactions: [{ from: 'r', to: 'me', goal: 'g1', kind: 'nudge', msg: 'Shoes on, door open 👟' }],
 };
 
 const DEMO: Omit<CircleData, 'circle'> = {
@@ -231,14 +234,20 @@ export const useCircle = create<CircleStore>((set, get) => ({
     });
     // "Rahul accepted your invite" etc. — shown once, then marked seen on the server.
     const { data: inbox } = await supabase.rpc('circle_inbox');
-    const events = (inbox ?? []) as { kind: 'accepted' | 'declined'; name: string; circle?: string | null }[];
+    const events = (inbox ?? []) as { kind: 'accepted' | 'declined' | 'nudge_worked'; name: string; circle?: string | null; goal?: string | null }[];
     events.forEach((e, i) =>
       setTimeout(
         () =>
           useUI
             .getState()
-            .showToast(e.kind === 'accepted' ? `🎉 ${e.name} joined ${e.circle ? `“${e.circle}”` : 'your circle'}` : `${e.name} declined your invite${e.circle ? ` to “${e.circle}”` : ''}`, {
-              tone: e.kind === 'accepted' ? 'habit' : 'miss',
+            .showToast(
+              e.kind === 'nudge_worked'
+                ? `✅ ${e.name} did ${e.goal ?? 'it'} after your nudge`
+                : e.kind === 'accepted'
+                  ? `🎉 ${e.name} joined ${e.circle ? `“${e.circle}”` : 'your circle'}`
+                  : `${e.name} declined your invite${e.circle ? ` to “${e.circle}”` : ''}`,
+              {
+              tone: e.kind === 'declined' ? 'miss' : 'habit',
             }),
         i * 3500,
       ),
@@ -265,8 +274,11 @@ export const circleApi = {
   addGoal: (circle: string, name: string, emoji: string) => rpc<string>('circle_new_goal', { c: circle, goal_name: name, goal_emoji: emoji }),
   deleteGoal: (goal: string) => rpc<string>('circle_delete_goal', { goal }),
   link: (goal: string, habit: string | null) => rpc<string>('circle_link', { goal, habit }),
-  react: (to: string, goal: string, day: string, kind: 'cheer' | 'nudge') =>
-    rpc<string>('circle_react', { to_whom: to, goal, on_day: day, reaction: kind }),
+  /** Returns 'ok' | 'already_sent' | 'already_done' | … */
+  react: (to: string, goal: string, day: string, kind: 'cheer' | 'nudge', msg: string | null = null) =>
+    rpc<string>('circle_react', { to_whom: to, goal, on_day: day, reaction: kind, msg }),
+  /** Nudge everyone in the goal who hasn't done it today; returns how many. */
+  nudgeAll: (goal: string, day: string, msg: string | null = null) => rpc<number>('circle_nudge_all', { goal, on_day: day, msg }),
 };
 
 export const INVITE_MESSAGES: Record<string, string> = {

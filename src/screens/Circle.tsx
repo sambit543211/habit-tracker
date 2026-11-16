@@ -16,6 +16,8 @@ import {
 import { Sheet, focusNoScroll } from '../components/Sheet';
 import { FlameIcon, PlusIcon } from '../components/icons';
 import { haptic } from '../lib/feedback';
+import { Switch } from '../components/Switch';
+import { NUDGE_LINES, activityOf } from '../lib/nudgeLines';
 
 const GOAL_EMOJI = ['🏋️', '🏃', '🥗', '📚', '🧘', '💧', '😴', '🚭', '💻', '🎯'];
 const AVATAR = ['#3ddc97', '#8b7cff', '#ffb547', '#ff5c6c', '#38bdf8', '#f472b6'];
@@ -31,6 +33,9 @@ export function Circle({ today }: { today: string }) {
   const [linking, setLinking] = useState<CircleGoal | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [newCircle, setNewCircle] = useState(false);
+  const [nudging, setNudging] = useState<{ to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number } | null>(null);
+  const reminders = useStore((s) => s.reminders);
+  const setReminders = useStore((s) => s.setReminders);
 
   // Refresh on open, when my own ticks change (after sync has had a moment), and every 30 s.
   useEffect(() => {
@@ -232,7 +237,7 @@ export function Circle({ today }: { today: string }) {
                           (st === 'done' ? (
                             <ReactButton label="👏" done={reacted('cheer')} aria={`Cheer ${nameOf(l.user_id)}`} onClick={() => void act(() => circleApi.react(l.user_id, g.id, today, 'cheer'))} />
                           ) : st === 'open' ? (
-                            <ReactButton label="👋" done={reacted('nudge')} aria={`Nudge ${nameOf(l.user_id)}`} onClick={() => void act(() => circleApi.react(l.user_id, g.id, today, 'nudge'), `Nudged ${nameOf(l.user_id)}`)} />
+                            <ReactButton label="👋" done={reacted('nudge')} aria={`Nudge ${nameOf(l.user_id)}`} onClick={() => setNudging({ to: l.user_id, name: nameOf(l.user_id), goal: g, habit: l.habit })} />
                           ) : null)}
                         {isMe && st === 'open' && (
                           <button onClick={() => useUI.getState().setTab('today')} className="min-h-11 shrink-0 rounded-full bg-habit/15 px-3 text-[13px] font-semibold text-habit">
@@ -244,6 +249,18 @@ export function Circle({ today }: { today: string }) {
                   })}
                 </ul>
 
+                {(() => {
+                  const open = g.links.filter((l) => l.user_id !== me && todayStatus(l) === 'open');
+                  const notYet = open.filter((l) => !circle.reactions.some((x) => x.from === me && x.to === l.user_id && x.goal === g.id && x.kind === 'nudge'));
+                  return notYet.length >= 2 ? (
+                    <button
+                      onClick={() => setNudging({ to: null, name: 'everyone', goal: g, count: notYet.length })}
+                      className="mt-3 min-h-11 w-full rounded-2xl bg-gold/15 text-[14px] font-semibold text-gold"
+                    >
+                      👋 Nudge everyone who hasn't done it ({notYet.length})
+                    </button>
+                  ) : null;
+                })()}
                 {!mine && (
                   <button onClick={() => setLinking(g)} className="mt-3 min-h-11 w-full rounded-2xl border border-dashed border-plan/50 text-[14px] font-semibold text-plan">
                     Link one of your habits to “{g.name}”
@@ -267,6 +284,21 @@ export function Circle({ today }: { today: string }) {
           <p className="px-1 text-[12.5px] leading-relaxed text-faint">
             Friends see only the habits you link here: done, missed or not yet, and the streak. Your plans, notes and reasons stay private.
           </p>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-[14.5px] font-medium">Notifications from this circle</div>
+              <div className="text-[12.5px] text-faint">Nudges, cheers and “your nudge worked”</div>
+            </div>
+            <Switch
+              on={!(reminders.mutedCircles ?? []).includes(circle.id)}
+              onChange={(on) =>
+                setReminders({
+                  mutedCircles: on ? (reminders.mutedCircles ?? []).filter((id) => id !== circle.id) : [...(reminders.mutedCircles ?? []), circle.id],
+                })
+              }
+              label="Notifications from this circle"
+            />
+          </div>
           <button
             onClick={() => {
               if (!confirmLeave) return setConfirmLeave(true);
@@ -292,6 +324,25 @@ export function Circle({ today }: { today: string }) {
       />
 
       <GoalSheet open={goalSheet} onClose={() => setGoalSheet(false)} onAdd={async (name, emoji) => { if (circle) await act(() => circleApi.addGoal(circle.id, name, emoji), 'Goal added'); setGoalSheet(false); }} />
+
+      <NudgeSheet
+        target={nudging}
+        onClose={() => setNudging(null)}
+        onSend={async (msg) => {
+          const t = nudging!;
+          setNudging(null);
+          haptic([10, 30, 10]);
+          if (t.to === null) {
+            const n = (await act(() => circleApi.nudgeAll(t.goal.id, today, msg))) as number | undefined;
+            if (n !== undefined) showToast(n ? `👋 Nudged ${n} ${n === 1 ? 'friend' : 'friends'}` : 'Everyone already did it 🎉', { tone: 'plan' });
+            return;
+          }
+          const r = (await act(() => circleApi.react(t.to!, t.goal.id, today, 'nudge', msg))) as string | undefined;
+          if (r === 'ok') showToast(`👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
+          else if (r === 'already_done') showToast(`${t.name} already did it — send a 👏 instead`, { tone: 'habit' });
+          else if (r === 'already_sent') showToast(`You already nudged ${t.name} about this today`, { tone: 'plan' });
+        }}
+      />
 
       <NewCircleSheet
         open={newCircle}
@@ -468,6 +519,71 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
         </AnimatePresence>
       </div>
       <p className="mt-2 text-[12.5px] text-faint">Check the email matches before sending — names can repeat.</p>
+    </Sheet>
+  );
+}
+
+function NudgeSheet({
+  target,
+  onClose,
+  onSend,
+}: {
+  target: { to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number } | null;
+  onClose: () => void;
+  onSend: (msg: string | null) => void;
+}) {
+  const [custom, setCustom] = useState('');
+  useEffect(() => {
+    if (target) setCustom('');
+  }, [target]);
+  const lines = target ? NUDGE_LINES[activityOf(target.goal.name, target.habit)] : [];
+  return (
+    <Sheet open={!!target} onClose={onClose}>
+      {target && (
+        <>
+          <h2 className="text-[22px] font-semibold tracking-[-0.02em]">
+            👋 Nudge {target.to === null ? `everyone (${target.count})` : target.name}
+          </h2>
+          <p className="mt-1 text-[14px] text-muted">
+            {target.goal.emoji} {target.goal.name}
+            {target.habit ? ` · ${target.habit}` : ''} — they'll get a notification now (or after work / when they wake up).
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {lines.map((l) => (
+              <motion.button
+                key={l}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => onSend(l)}
+                className="min-h-14 rounded-2xl border border-line bg-surface-2 px-3 text-left text-[14px] leading-snug font-medium"
+              >
+                {l}
+              </motion.button>
+            ))}
+          </div>
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (custom.trim()) onSend(custom.trim());
+            }}
+          >
+            <input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              placeholder="Or write your own…"
+              maxLength={80}
+              enterKeyHint="send"
+              className="min-w-0 flex-1 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[15px] outline-none placeholder:text-faint focus:border-line-strong"
+            />
+            <button type="submit" disabled={!custom.trim()} className="shrink-0 rounded-2xl bg-plan px-4 text-[14px] font-semibold text-white disabled:opacity-30">
+              Send
+            </button>
+          </form>
+          <button onClick={() => onSend(null)} className="mt-2 min-h-11 w-full text-[14px] font-medium text-muted">
+            Just nudge, no message
+          </button>
+        </>
+      )}
     </Sheet>
   );
 }

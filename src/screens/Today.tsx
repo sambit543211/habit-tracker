@@ -80,6 +80,27 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const invites = circleData?.invites.length ?? 0;
   const pendingInvite = invites > 0;
   const nudges = nudgesForMe(circleData);
+  const markHabit = useStore((s) => s.markHabit);
+  // Friends nudged me about a shared habit I still haven't done → banner with a one-tap Done.
+  const nudgedFor = (() => {
+    if (!circleData) return [];
+    const out = new Map<string, { habitId: string; habit: string; goal: string; from: string[]; msg?: string | null }>();
+    for (const c of circleData.circles ?? []) {
+      const nameOf = (id: string) => c.members.find((m) => m.user_id === id)?.name.split(/\s+/)[0] ?? 'A friend';
+      for (const r of c.reactions) {
+        if (r.to !== circleData.me || r.kind !== 'nudge') continue;
+        const g = c.goals.find((x) => x.id === r.goal);
+        const link = g?.links.find((l) => l.user_id === circleData.me);
+        if (!g || !link || logs[today]?.[link.habit_id]?.status === 'done') continue;
+        if (!data.habits.some((h) => h.id === link.habit_id && !h.archivedDay)) continue;
+        const e = out.get(link.habit_id) ?? { habitId: link.habit_id, habit: link.habit, goal: g.name, from: [] };
+        if (!e.from.includes(nameOf(r.from))) e.from.push(nameOf(r.from));
+        if (r.msg) e.msg = r.msg;
+        out.set(link.habit_id, e);
+      }
+    }
+    return [...out.values()];
+  })();
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -244,6 +265,37 @@ export function Today({ today, hour }: { today: string; hour: number }) {
           </div>
         );
       })()}
+
+      <AnimatePresence initial={false}>
+        {nudgedFor.map((n) => (
+          <motion.div
+            key={n.habitId}
+            layout
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            className="flex items-center gap-3 rounded-[20px] border border-gold/40 bg-gold/10 px-3.5 py-3"
+          >
+            <span className="text-[24px]" aria-hidden>👋</span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14.5px] font-semibold">
+                {n.from.join(' & ')} nudged you · {n.goal}
+              </div>
+              <div className="truncate text-[13px] text-muted">{n.msg ? `“${n.msg}”` : `${n.habit} is still open`}</div>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                haptic([15, 30, 15]);
+                markHabit(today, n.habitId);
+              }}
+              className="min-h-11 shrink-0 rounded-full bg-habit px-4 text-[14px] font-semibold text-black/80"
+            >
+              Done ✓
+            </motion.button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       <AnimatePresence>
         {hintHabit && (

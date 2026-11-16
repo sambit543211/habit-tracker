@@ -76,6 +76,12 @@ export interface ProfileRow {
   lastcall_reminder?: boolean;
   paused_reminders?: string[];
   icon_badge?: boolean;
+  nudges_enabled?: boolean;
+  cheers_enabled?: boolean;
+  office_hours?: boolean;
+  office_start?: string;
+  office_end?: string;
+  muted_circles?: string[];
   streak_shields?: boolean;
   partner_name?: string | null;
   streak_rule?: 'all' | 'most';
@@ -123,6 +129,12 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.lastcall_reminder = s.reminders.lastCall !== false;
     row.paused_reminders = s.reminders.paused ?? [];
     row.icon_badge = !!s.reminders.badge;
+    row.nudges_enabled = s.reminders.nudges !== false;
+    row.cheers_enabled = s.reminders.cheers !== false;
+    row.office_hours = s.reminders.officeHours !== false;
+    row.office_start = s.reminders.officeStart ?? '10:00';
+    row.office_end = s.reminders.officeEnd ?? '17:00';
+    row.muted_circles = s.reminders.mutedCircles ?? [];
   }
   if (s.profile) {
     row.display_name = s.profile.name?.trim() || null;
@@ -157,6 +169,12 @@ export const rowToReminders = (r: ProfileRow): Reminders => ({
   lastCall: r.lastcall_reminder ?? true,
   paused: r.paused_reminders ?? [],
   badge: r.icon_badge ?? false,
+  nudges: r.nudges_enabled ?? true,
+  cheers: r.cheers_enabled ?? true,
+  officeHours: r.office_hours ?? true,
+  officeStart: hhmm(r.office_start) ?? '10:00',
+  officeEnd: hhmm(r.office_end) ?? '17:00',
+  mutedCircles: r.muted_circles ?? [],
 });
 
 export const habitToRow = (h: Habit, user_id: string): HabitRow => ({

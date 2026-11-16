@@ -66,6 +66,43 @@ const pick = <T>(variants: T[], seed: string): T => {
   return variants[h % variants.length];
 };
 
+// ---------- activity-aware wording (keep in sync with src/lib/nudgeLines.ts) ----------
+const ACTIVITY: [string, RegExp][] = [
+  ['quit', /smok|cigar|vape|alcohol|nicotine/i],
+  ['water', /water|hydrat|\bdrink\b|litre|liter|\b\d+ ?l\b/i],
+  ['move', /gym|work ?out|exercis|lift|strength|train|run|jog|cardio|yoga|walk|step|swim|cycl|sport|push.?up|stretch|fitness/i],
+  ['read', /read|book|page|kindle|news/i],
+  ['mind', /meditat|breath|mindful|pray|calm/i],
+  ['sleep', /sleep|bed|phone|screen|scroll/i],
+  ['food', /diet|eat|food|junk|sugar|meal|veg|fruit|protein|clean|fast/i],
+  ['learn', /learn|study|course|spanish|french|hindi|language|code|coding|practi[cs]e|lesson|duolingo/i],
+  ['write', /journal|writ|diary|gratitude|reflect/i],
+];
+const activityOf = (...names: (string | null | undefined)[]) => {
+  const text = names.filter(Boolean).join(' ');
+  return ACTIVITY.find(([, re]) => re.test(text))?.[0] ?? 'other';
+};
+const NUDGE_BODY: Record<string, string> = {
+  move: 'Your workout is still open today. Even 15 minutes counts.',
+  water: 'Water check — have a glass now.',
+  read: 'Reading is still open. A few pages count.',
+  mind: 'A few calm minutes are still waiting.',
+  sleep: 'Wind down — phone away, lights low.',
+  food: 'Stay on track with food today.',
+  learn: 'A quick practice keeps the streak alive.',
+  write: 'A few lines before bed?',
+  quit: "Stay strong — today's still a clean day.",
+  other: "It's still open today. You've got this.",
+};
+const CHEER_BODY: Record<string, string> = {
+  move: 'Strong work today 💪', water: 'Well hydrated 💧', read: 'Pages turned 📚', mind: 'Calm and done 🧘',
+  sleep: 'Good night routine 🌙', food: 'Clean eating win 🥗', learn: 'Brain gains 🧠', write: 'Words on the page ✍️',
+  quit: 'Another clean day 🌱', other: 'Nice work today 👏',
+};
+const names = (xs: string[]) => (xs.length <= 1 ? xs[0] ?? 'A friend' : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const inRange = (m: number, a: number, b: number) => (a <= b ? m >= a && m < b : m >= a || m < b);
+const NUDGE_CAP = 4;
+
 const activeOn = (h: Row, day: string) => h.created_day <= day && (!h.archived_day || day < h.archived_day);
 
 const b64url = (bytes: Uint8Array) =>
@@ -106,6 +143,8 @@ Deno.serve(async (req) => {
     return new Response('unauthorized', { status: 401 });
   }
   webpush.setVapidDetails(APP_URL, secrets.vapid_public, secrets.vapid_private);
+  // Called by a database trigger the moment someone nudges / cheers / accepts: only do the social part.
+  const socialOnly = ((await req.json().catch(() => ({}))) as { only?: string })?.only === 'social';
 
   const { data: subs, error: subErr } = await db.from('push_subscriptions').select('*');
   if (subErr) return new Response(subErr.message, { status: 500 });
@@ -265,28 +304,157 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Circle: "X invited you", "X accepted / declined your invite" (each sent once, within a day).
-    const { data: evs } = await db
-      .from('circle_events')
-      .select('id,kind,actor')
+    // Regular reminders only on the 5-minute schedule.
+    if (socialOnly) candidates.length = 0;
+
+    // ---------- Social: circle events, nudges, cheers ----------
+    const wakeM = toMin(p.wake_time) ?? 480;
+    const sleepM = toMin(p.sleep_time) ?? 120;
+    const asleep = inRange(now.minutes, sleepM, wakeM);
+    const weekday = new Date(`${now.date}T12:00:00Z`).getUTCDay();
+    const atWork =
+      p.office_hours !== false && weekday >= 1 && weekday <= 5 && inRange(now.minutes, toMin(p.office_start) ?? 600, toMin(p.office_end) ?? 1020);
+    const muted: string[] = p.muted_circles ?? [];
+    const firstName = async (id: string) => {
+      const { data: who } = await db.from('profiles').select('display_name').eq('user_id', id).maybeSingle();
+      return (who?.display_name ?? '').trim().split(/\s+/)[0] || 'A friend';
+    };
+
+    // Circle events: invites, accepted / declined, "your nudge worked". Held while you sleep.
+    if (!asleep) {
+      const { data: evs } = await db
+        .from('circle_events')
+        .select('id,kind,actor,circle_id,goal_id')
+        .eq('to_user', p.user_id)
+        .eq('pushed', false)
+        .gte('created_at', new Date(Date.now() - 86400_000).toISOString());
+      if (evs?.length) {
+        await db.from('circle_events').update({ pushed: true }).in('id', evs.map((e) => e.id));
+        for (const e of evs) {
+          if (e.circle_id && muted.includes(e.circle_id) && e.kind !== 'invited') continue;
+          const actor = await firstName(e.actor);
+          let goalName = 'it';
+          if (e.goal_id) {
+            const { data: g } = await db.from('circle_goals').select('name').eq('id', e.goal_id).maybeSingle();
+            goalName = g?.name ?? 'it';
+          }
+          candidates.push({
+            kind: `circle:${e.id}`,
+            title:
+              e.kind === 'invited' ? `👥 ${actor} invited you to their Circle`
+              : e.kind === 'accepted' ? `🎉 ${actor} joined your Circle`
+              : e.kind === 'nudge_worked' ? `✅ ${actor} did ${goalName} after your nudge`
+              : `${actor} declined your Circle invite`,
+            body:
+              e.kind === 'invited' ? 'Open Keep to accept and share habits together.'
+              : e.kind === 'accepted' ? 'Your invite was accepted. Add a shared goal to start a group streak.'
+              : e.kind === 'nudge_worked' ? 'Your nudge worked 🎉 Keep looking out for each other.'
+              : 'You can invite someone else any time.',
+          });
+        }
+      }
+    }
+
+    // Nudges and cheers sent to me.
+    const { data: reacts } = await db
+      .from('circle_reactions')
+      .select('id,circle_id,goal_id,from_user,kind,message,day,created_at')
       .eq('to_user', p.user_id)
-      .eq('pushed', false)
-      .gte('created_at', new Date(Date.now() - 86400_000).toISOString());
-    if (evs?.length) {
-      await db.from('circle_events').update({ pushed: true }).in('id', evs.map((e) => e.id));
-      for (const e of evs) {
-        const { data: who } = await db.from('profiles').select('display_name').eq('user_id', e.actor).maybeSingle();
-        const actor = (who?.display_name ?? '').trim().split(/\s+/)[0] || 'A friend';
+      .eq('notified', false)
+      .gte('day', yesterday)
+      .order('created_at');
+    if (reacts?.length) {
+      const done: string[] = []; // mark as handled (sent, merged or dropped)
+      const goalIds = [...new Set(reacts.map((r) => r.goal_id))];
+      const [{ data: goals }, { data: myLinks }] = await Promise.all([
+        db.from('circle_goals').select('id,name').in('id', goalIds),
+        db.from('circle_links').select('goal_id,habit_id').eq('user_id', p.user_id).in('goal_id', goalIds),
+      ]);
+      const goalName = (id: string) => goals?.find((g) => g.id === id)?.name ?? 'your habit';
+      const myHabit = (goal: string) => hs.find((h) => h.id === myLinks?.find((l) => l.goal_id === goal)?.habit_id);
+      const { count: sentToday } = await db
+        .from('notification_log')
+        .select('kind', { count: 'exact', head: true })
+        .eq('user_id', p.user_id)
+        .eq('day', today)
+        .like('kind', 'nudge:%');
+      const { count: cheersToday } = await db
+        .from('notification_log')
+        .select('kind', { count: 'exact', head: true })
+        .eq('user_id', p.user_id)
+        .eq('day', today)
+        .like('kind', 'cheer:%');
+      let nudgesLeft = Math.max(0, NUDGE_CAP - (sentToday ?? 0));
+      let cheerLeft = (cheersToday ?? 0) === 0;
+
+      // Nudges, one notification per goal (several friends are merged).
+      const byGoal = new Map<string, Row[]>();
+      for (const r of reacts.filter((x) => x.kind === 'nudge')) {
+        const h = myHabit(r.goal_id);
+        const stale = r.day !== today || (h && logSet.get(`${today}:${h.id}`) === 'done');
+        if (stale || p.nudges_enabled === false || muted.includes(r.circle_id)) {
+          done.push(r.id);
+          continue;
+        }
+        if (asleep || atWork) continue; // held: delivered after wake-up / after office hours
+        byGoal.set(r.goal_id, [...(byGoal.get(r.goal_id) ?? []), r]);
+      }
+      for (const [goal, rs] of byGoal) {
+        done.push(...rs.map((r) => r.id));
+        if (nudgesLeft <= 0) continue; // daily cap reached: still visible in the app
+        nudgesLeft--;
+        const who = [...new Set<string>(await Promise.all(rs.map((r) => firstName(r.from_user as string))))];
+        const msg = [...rs].reverse().find((r) => r.message)?.message;
+        const h = myHabit(goal);
+        const act = activityOf(goalName(goal), h?.name);
         candidates.push({
-          kind: `circle:${e.id}`,
-          title: e.kind === 'invited' ? `👥 ${actor} invited you to their Circle` : e.kind === 'accepted' ? `🎉 ${actor} joined your Circle` : `${actor} declined your Circle invite`,
-          body:
-            e.kind === 'invited'
-              ? 'Open Keep to accept and share habits together.'
-              : e.kind === 'accepted'
-                ? 'Your invite was accepted. Add a shared goal to start a group streak.'
-                : 'You can invite someone else any time.',
+          kind: `nudge:${rs[0].id}`,
+          title: `👋 ${names(who)} nudged you · ${goalName(goal)}`,
+          body: msg ? `“${msg}” — ${h?.name ?? goalName(goal)} is still open.` : NUDGE_BODY[act],
         });
+      }
+
+      // Cheers: at most one notification a day; the rest show in the app.
+      for (const r of reacts.filter((x) => x.kind === 'cheer')) {
+        if (r.day !== today || p.cheers_enabled === false || muted.includes(r.circle_id) || !cheerLeft) {
+          done.push(r.id);
+          continue;
+        }
+        if (asleep) continue;
+        done.push(r.id);
+        cheerLeft = false;
+        const who = await firstName(r.from_user);
+        const act = activityOf(goalName(r.goal_id), myHabit(r.goal_id)?.name);
+        candidates.push({
+          kind: `cheer:${r.id}`,
+          title: `👏 ${who} cheered your ${goalName(r.goal_id)}`,
+          body: r.message ? `“${r.message}”` : CHEER_BODY[act],
+        });
+      }
+      if (done.length) await db.from('circle_reactions').update({ notified: true }).in('id', done);
+    }
+
+    // Evening social proof: an hour and a half before bed, if friends already did a shared habit you haven't.
+    if (!socialOnly && p.nudges_enabled !== false && dueAt((sleepM - 90 + 1440) % 1440, now.minutes)) {
+      const { data: links } = await db.from('circle_links').select('goal_id,habit_id').eq('user_id', p.user_id);
+      for (const l of links ?? []) {
+        if (logSet.get(`${today}:${l.habit_id}`) === 'done') continue;
+        const { data: g } = await db.from('circle_goals').select('id,name,circle_id').eq('id', l.goal_id).maybeSingle();
+        if (!g || muted.includes(g.circle_id)) continue;
+        const { data: others } = await db.from('circle_links').select('user_id,habit_id').eq('goal_id', g.id).neq('user_id', p.user_id);
+        const doneBy: string[] = [];
+        for (const o of others ?? []) {
+          const { data: log } = await db.from('habit_logs').select('status').eq('user_id', o.user_id).eq('habit_id', o.habit_id).eq('day', today).maybeSingle();
+          if (log?.status === 'done') doneBy.push(await firstName(o.user_id));
+        }
+        if (!doneBy.length) continue;
+        const h = hs.find((x) => x.id === l.habit_id);
+        candidates.push({
+          kind: 'together',
+          title: `${names(doneBy)} already did ${g.name} today`,
+          body: `Your turn — ${NUDGE_BODY[activityOf(g.name, h?.name)]}`,
+        });
+        break; // one a day
       }
     }
 
