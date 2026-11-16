@@ -32,17 +32,26 @@ export interface CircleReaction {
   goal: string;
   kind: 'cheer' | 'nudge';
 }
+export interface CircleInfo {
+  id: string;
+  name: string;
+  owner: string;
+  members: CircleMember[];
+  goals: CircleGoal[];
+  reactions: CircleReaction[];
+}
+export interface CircleInvite {
+  circle_id: string;
+  circle: string;
+  from: string;
+  size: number;
+}
+/** You can be in up to 5 circles. `circle` is the one being viewed; `circles` is all of them. */
 export interface CircleData {
   me: string;
-  invite: { circle: string; from: string; size: number } | null;
-  circle: {
-    id: string;
-    name: string;
-    owner: string;
-    members: CircleMember[];
-    goals: CircleGoal[];
-    reactions: CircleReaction[];
-  } | null;
+  invites: CircleInvite[];
+  circles: CircleInfo[];
+  circle: CircleInfo | null;
 }
 
 // ---------- pure helpers ----------
@@ -77,14 +86,34 @@ export function groupStreak(goal: CircleGoal, activeCount: number) {
   return n;
 }
 
-/** My circle score today: linked goals done / linked goals. Null when nothing is linked. */
+const allCircles = (data: CircleData | null) => (data?.circles?.length ? data.circles : data?.circle ? [data.circle] : []);
+
+/** My circle score today, across all my circles: linked habits done / linked habits. Null when nothing is linked. */
 export function circleScore(data: CircleData | null) {
-  const goals = data?.circle?.goals ?? [];
-  const mine = goals.map((g) => g.links.find((l) => l.user_id === data!.me)).filter((l): l is CircleLink => !!l);
+  const links = allCircles(data)
+    .flatMap((c) => c.goals)
+    .map((g) => g.links.find((l) => l.user_id === data!.me))
+    .filter((l): l is CircleLink => !!l);
+  // The same habit linked in two circles counts once.
+  const mine = [...new Map(links.map((l) => [l.habit_id, l])).values()];
   if (!mine.length) return null;
   const done = mine.filter((l) => todayStatus(l) === 'done').length;
   return { done, total: mine.length, score: done / mine.length };
 }
+
+/** Best "together" streak in any of my circles. */
+export const bestGroupStreak = (data: CircleData | null) =>
+  Math.max(
+    0,
+    ...allCircles(data).flatMap((c) => {
+      const active = c.members.filter((m) => m.status === 'active').length;
+      return c.goals.map((g) => groupStreak(g, active));
+    }),
+  );
+
+/** Nudges sent to me today, across circles. */
+export const nudgesForMe = (data: CircleData | null) =>
+  allCircles(data).reduce((n, c) => n + c.reactions.filter((r) => r.to === data!.me && r.kind === 'nudge').length, 0);
 
 export const initialsOf = (name: string) =>
   name
@@ -100,62 +129,115 @@ interface CircleStore {
   data: CircleData | null;
   loading: boolean;
   error: string | null;
+  /** Which circle the Circle tab is showing */
+  selected: string | null;
+  select: (id: string) => void;
   refresh: (day: string) => Promise<void>;
 }
 
+const SELECTED_KEY = 'keep-circle';
+const readSelected = () => {
+  try {
+    return localStorage.getItem(SELECTED_KEY);
+  } catch {
+    return null;
+  }
+};
+const withSelection = (d: Omit<CircleData, 'circle'>, selected: string | null): CircleData => ({
+  ...d,
+  circle: d.circles.find((c) => c.id === selected) ?? d.circles[0] ?? null,
+});
+
 /** Sample circle for the cloud-free test build only (VITE_LOCAL_ONLY). */
-const DEMO: CircleData = {
-  me: 'me',
-  invite: null,
-  circle: {
-    id: 'demo',
-    name: "Sambit's circle",
-    owner: 'me',
-    members: [
-      { user_id: 'me', name: 'Sambit', status: 'active' },
-      { user_id: 'r', name: 'Rahul Verma', status: 'active' },
-      { user_id: 'a', name: 'Ananya', status: 'active' },
-      { user_id: 'k', name: 'Kabir', status: 'invited' },
-    ],
-    goals: [
-      {
-        id: 'g1', name: 'Gym', emoji: '🏋️', created_by: 'me',
-        links: [
-          { user_id: 'me', habit_id: 'h1', habit: 'Workout 30 min', days: 'ddddddmdddddddddddddddddddddd-' },
-          { user_id: 'r', habit_id: 'x', habit: 'Gym', days: 'dddmdddddddddddddddddddddddddd' },
-          { user_id: 'a', habit_id: 'y', habit: 'Strength training', days: 'ddddddddddddmddddddddddddddddd-' },
-        ],
-      },
-      {
-        id: 'g2', name: 'Clean eating', emoji: '🥗', created_by: 'r',
-        links: [
-          { user_id: 'r', habit_id: 'x2', habit: 'No junk food', days: 'ddddddddddddddddddddddddmdddd-' },
-          { user_id: 'a', habit_id: 'y2', habit: 'Diet', days: 'dddddddddddddddddddddddddddddm' },
-        ],
-      },
-    ],
-    reactions: [{ from: 'r', to: 'me', goal: 'g1', kind: 'nudge' }],
-  },
+const DEMO_CIRCLE: CircleInfo = {
+  id: 'demo',
+  name: "Sambit's circle",
+  owner: 'me',
+  members: [
+    { user_id: 'me', name: 'Sambit', status: 'active' },
+    { user_id: 'r', name: 'Rahul Verma', status: 'active' },
+    { user_id: 'a', name: 'Ananya', status: 'active' },
+    { user_id: 'k', name: 'Kabir', status: 'invited' },
+  ],
+  goals: [
+    {
+      id: 'g1', name: 'Gym', emoji: '🏋️', created_by: 'me',
+      links: [
+        { user_id: 'me', habit_id: 'h1', habit: 'Workout 30 min', days: 'ddddddmdddddddddddddddddddddd-' },
+        { user_id: 'r', habit_id: 'x', habit: 'Gym', days: 'dddmdddddddddddddddddddddddddd' },
+        { user_id: 'a', habit_id: 'y', habit: 'Strength training', days: 'ddddddddddddmddddddddddddddddd-' },
+      ],
+    },
+    {
+      id: 'g2', name: 'Clean eating', emoji: '🥗', created_by: 'r',
+      links: [
+        { user_id: 'r', habit_id: 'x2', habit: 'No junk food', days: 'ddddddddddddddddddddddddmdddd-' },
+        { user_id: 'a', habit_id: 'y2', habit: 'Diet', days: 'dddddddddddddddddddddddddddddm' },
+      ],
+    },
+  ],
+  reactions: [{ from: 'r', to: 'me', goal: 'g1', kind: 'nudge' }],
 };
 
-export const useCircle = create<CircleStore>((set) => ({
+const DEMO: Omit<CircleData, 'circle'> = {
+  me: 'me',
+  invites: [{ circle_id: 'demo3', circle: "Hima's circle", from: 'Hima', size: 1 }],
+  circles: [
+    DEMO_CIRCLE,
+    {
+      id: 'demo2',
+      name: 'Book club',
+      owner: 'a',
+      members: [
+        { user_id: 'a', name: 'Ananya', status: 'active' },
+        { user_id: 'me', name: 'Sambit', status: 'active' },
+      ],
+      goals: [
+        {
+          id: 'g3', name: 'Read', emoji: '📚', created_by: 'a',
+          links: [
+            { user_id: 'a', habit_id: 'y3', habit: 'Read 20 pages', days: 'ddddddddddddddddddddddddddddd-' },
+            { user_id: 'me', habit_id: 'h2', habit: 'Read 10 pages', days: 'dddddddddddddddddddddddddddddd' },
+          ],
+        },
+      ],
+      reactions: [],
+    },
+  ],
+};
+
+export const useCircle = create<CircleStore>((set, get) => ({
   data: null,
   loading: false,
   error: null,
+  selected: readSelected(),
+  select: (id) => {
+    try {
+      localStorage.setItem(SELECTED_KEY, id);
+    } catch {
+      /* storage unavailable */
+    }
+    const d = get().data;
+    set({ selected: id, data: d ? withSelection(d, id) : d });
+  },
   refresh: async (day) => {
-    if (!supabase) return set({ data: DEMO });
+    if (!supabase) return set({ data: withSelection(DEMO, get().selected) });
     set({ loading: true });
-    const { data, error } = await supabase.rpc('circle_state', { on_day: day });
-    set({ loading: false, data: error ? null : (data as CircleData), error: error ? error.message : null });
+    const { data, error } = await supabase.rpc('circle_state_all', { on_day: day });
+    set({
+      loading: false,
+      data: error || !data ? null : withSelection(data as Omit<CircleData, 'circle'>, get().selected),
+      error: error ? error.message : null,
+    });
     // "Rahul accepted your invite" etc. — shown once, then marked seen on the server.
     const { data: inbox } = await supabase.rpc('circle_inbox');
-    const events = (inbox ?? []) as { kind: 'accepted' | 'declined'; name: string }[];
+    const events = (inbox ?? []) as { kind: 'accepted' | 'declined'; name: string; circle?: string | null }[];
     events.forEach((e, i) =>
       setTimeout(
         () =>
           useUI
             .getState()
-            .showToast(e.kind === 'accepted' ? `🎉 ${e.name} accepted your Circle invite` : `${e.name} declined your Circle invite`, {
+            .showToast(e.kind === 'accepted' ? `🎉 ${e.name} joined ${e.circle ? `“${e.circle}”` : 'your circle'}` : `${e.name} declined your invite${e.circle ? ` to “${e.circle}”` : ''}`, {
               tone: e.kind === 'accepted' ? 'habit' : 'miss',
             }),
         i * 3500,
@@ -173,10 +255,14 @@ const rpc = async <T>(fn: string, args: Record<string, unknown>): Promise<T> => 
 
 export const circleApi = {
   search: (q: string) => rpc<{ user_id: string; name: string; email_hint: string }[]>('circle_search', { q }),
-  invite: (target: string) => rpc<string>('circle_invite', { target }),
-  respond: (accept: boolean) => rpc<string>('circle_respond', { accept }),
-  remove: (target: string | null) => rpc<string>('circle_remove', { target }),
-  addGoal: (name: string, emoji: string) => rpc<string>('circle_add_goal', { goal_name: name, goal_emoji: emoji }),
+  /** Create a new circle and return its id */
+  create: (name: string) => rpc<string>('circle_create', { circle_name: name }),
+  /** circle null = start a new circle with this friend */
+  invite: (circle: string | null, target: string) => rpc<string>('circle_invite_to', { c: circle, target }),
+  respond: (circle: string, accept: boolean) => rpc<string>('circle_answer', { c: circle, accept }),
+  /** target null = leave the circle yourself */
+  remove: (circle: string, target: string | null) => rpc<string>('circle_leave', { c: circle, target }),
+  addGoal: (circle: string, name: string, emoji: string) => rpc<string>('circle_new_goal', { c: circle, goal_name: name, goal_emoji: emoji }),
   deleteGoal: (goal: string) => rpc<string>('circle_delete_goal', { goal }),
   link: (goal: string, habit: string | null) => rpc<string>('circle_link', { goal, habit }),
   react: (to: string, goal: string, day: string, kind: 'cheer' | 'nudge') =>
@@ -184,10 +270,12 @@ export const circleApi = {
 };
 
 export const INVITE_MESSAGES: Record<string, string> = {
-  invited: 'Request sent',
+  invited: "Request sent — you'll be notified when they accept",
   self: "That's you",
   not_found: 'No such person',
-  already_in_a_circle: "They're already in a circle (or have a pending request)",
-  full: 'Your circle is full (6 people)',
-  answer_your_invite_first: 'Answer your own pending request first',
+  already_member: "They're already in this circle",
+  already_invited: 'Already invited — waiting for them to accept',
+  full: 'This circle is full (6 people)',
+  they_have_too_many: "They're already in 5 circles",
+  not_member: "You're not in that circle any more",
 };
