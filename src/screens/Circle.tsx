@@ -19,7 +19,9 @@ import { haptic } from '../lib/feedback';
 import { Switch } from '../components/Switch';
 import { NUDGE_LINES, activityOf } from '../lib/nudgeLines';
 
-const GOAL_EMOJI = ['🏋️', '🏃', '🥗', '📚', '🧘', '💧', '😴', '🚭', '💻', '🎯'];
+const GOAL_EMOJI = ['🏋️', '🏃', '💧', '🥗', '📚', '🧘', '😴', '🚭', '💻', '✍️', '🎯'];
+/** Suggested icon for a goal name ("Water" → 💧). */
+const EMOJI_FOR: Record<string, string> = { move: '🏋️', water: '💧', read: '📚', mind: '🧘', sleep: '😴', food: '🥗', learn: '💻', write: '✍️', quit: '🚭', other: '🎯' };
 const AVATAR = ['#3ddc97', '#8b7cff', '#ffb547', '#ff5c6c', '#38bdf8', '#f472b6'];
 
 /** Circle: shared goals with up to 6 friends. Only linked habits are visible to them. */
@@ -207,6 +209,8 @@ export function Circle({ today }: { today: string }) {
                     const st = todayStatus(l);
                     const isMe = l.user_id === me;
                     const reacted = (kind: 'cheer' | 'nudge') => circle.reactions.some((r) => r.from === me && r.to === l.user_id && r.goal === g.id && r.kind === kind);
+                    const nudgedTimes = (to: string) =>
+                      circle.reactions.find((r) => r.from === me && r.to === to && r.goal === g.id && r.kind === 'nudge')?.times ?? (reacted('nudge') ? 1 : 0);
                     const nudgedMe = isMe && circle.reactions.filter((r) => r.to === me && r.goal === g.id && r.kind === 'nudge');
                     const cheeredMe = isMe && circle.reactions.filter((r) => r.to === me && r.goal === g.id && r.kind === 'cheer');
                     return (
@@ -237,7 +241,12 @@ export function Circle({ today }: { today: string }) {
                           (st === 'done' ? (
                             <ReactButton label="👏" done={reacted('cheer')} aria={`Cheer ${nameOf(l.user_id)}`} onClick={() => void act(() => circleApi.react(l.user_id, g.id, today, 'cheer'))} />
                           ) : st === 'open' ? (
-                            <ReactButton label="👋" done={reacted('nudge')} aria={`Nudge ${nameOf(l.user_id)}`} onClick={() => setNudging({ to: l.user_id, name: nameOf(l.user_id), goal: g, habit: l.habit })} />
+                            <ReactButton
+                              label={nudgedTimes(l.user_id) > 0 ? `👋${nudgedTimes(l.user_id)}` : '👋'}
+                              done={false}
+                              aria={`Nudge ${nameOf(l.user_id)}${nudgedTimes(l.user_id) ? ` again (sent ${nudgedTimes(l.user_id)} today)` : ''}`}
+                              onClick={() => setNudging({ to: l.user_id, name: nameOf(l.user_id), goal: g, habit: l.habit })}
+                            />
                           ) : null)}
                         {isMe && st === 'open' && (
                           <button onClick={() => useUI.getState().setTab('today')} className="min-h-11 shrink-0 rounded-full bg-habit/15 px-3 text-[13px] font-semibold text-habit">
@@ -251,7 +260,7 @@ export function Circle({ today }: { today: string }) {
 
                 {(() => {
                   const open = g.links.filter((l) => l.user_id !== me && todayStatus(l) === 'open');
-                  const notYet = open.filter((l) => !circle.reactions.some((x) => x.from === me && x.to === l.user_id && x.goal === g.id && x.kind === 'nudge'));
+                  const notYet = open;
                   return notYet.length >= 2 ? (
                     <button
                       onClick={() => setNudging({ to: null, name: 'everyone', goal: g, count: notYet.length })}
@@ -334,13 +343,13 @@ export function Circle({ today }: { today: string }) {
           haptic([10, 30, 10]);
           if (t.to === null) {
             const n = (await act(() => circleApi.nudgeAll(t.goal.id, today, msg))) as number | undefined;
-            if (n !== undefined) showToast(n ? `👋 Nudged ${n} ${n === 1 ? 'friend' : 'friends'}` : 'Everyone already did it 🎉', { tone: 'plan' });
+            if (n !== undefined) showToast(n ? `👋 Nudged ${n} ${n === 1 ? 'friend' : 'friends'}` : 'Already nudged in the last 10 minutes (or everyone did it 🎉)', { tone: 'plan' });
             return;
           }
           const r = (await act(() => circleApi.react(t.to!, t.goal.id, today, 'nudge', msg))) as string | undefined;
           if (r === 'ok') showToast(`👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
           else if (r === 'already_done') showToast(`${t.name} already did it — send a 👏 instead`, { tone: 'habit' });
-          else if (r === 'already_sent') showToast(`You already nudged ${t.name} about this today`, { tone: 'plan' });
+          else if (r === 'already_sent' || r === 'too_soon') showToast(`You just nudged ${t.name} — you can nudge again in 10 minutes`, { tone: 'plan' });
         }}
       />
 
@@ -622,10 +631,19 @@ function NewCircleSheet({ open, onClose, onCreate }: { open: boolean; onClose: (
 
 function GoalSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (name: string, emoji: string) => void }) {
   const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState(GOAL_EMOJI[0]);
+  const [emoji, setEmoji] = useState('🎯');
+  const [picked, setPicked] = useState(false);
   useEffect(() => {
-    if (open) setName('');
+    if (open) {
+      setName('');
+      setEmoji('🎯');
+      setPicked(false);
+    }
   }, [open]);
+  // Until you pick an icon yourself, it follows the name: "Water" → 💧, "Gym" → 🏋️.
+  useEffect(() => {
+    if (!picked) setEmoji(EMOJI_FOR[activityOf(name)] ?? '🎯');
+  }, [name, picked]);
   return (
     <Sheet open={open} onClose={onClose}>
       <h2 className="text-[22px] font-semibold tracking-[-0.02em]">New shared goal</h2>
@@ -640,7 +658,7 @@ function GoalSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
       />
       <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Icon">
         {GOAL_EMOJI.map((e) => (
-          <button key={e} role="radio" aria-checked={emoji === e} onClick={() => setEmoji(e)} className={`grid size-11 place-items-center rounded-full border text-[20px] ${emoji === e ? 'border-plan bg-plan/15' : 'border-line bg-surface-2'}`}>
+          <button key={e} role="radio" aria-checked={emoji === e} onClick={() => { setEmoji(e); setPicked(true); }} className={`grid size-11 place-items-center rounded-full border text-[20px] ${emoji === e ? 'border-plan bg-plan/15' : 'border-line bg-surface-2'}`}>
             {e}
           </button>
         ))}

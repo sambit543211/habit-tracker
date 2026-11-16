@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
     if (!asleep) {
       const { data: evs } = await db
         .from('circle_events')
-        .select('id,kind,actor,circle_id,goal_id')
+        .select('id,kind,actor,circle_id')
         .eq('to_user', p.user_id)
         .eq('pushed', false)
         .gte('created_at', new Date(Date.now() - 86400_000).toISOString());
@@ -333,23 +333,36 @@ Deno.serve(async (req) => {
         for (const e of evs) {
           if (e.circle_id && muted.includes(e.circle_id) && e.kind !== 'invited') continue;
           const actor = await firstName(e.actor);
-          let goalName = 'it';
-          if (e.goal_id) {
-            const { data: g } = await db.from('circle_goals').select('name').eq('id', e.goal_id).maybeSingle();
-            goalName = g?.name ?? 'it';
-          }
           candidates.push({
             kind: `circle:${e.id}`,
             title:
               e.kind === 'invited' ? `👥 ${actor} invited you to their Circle`
               : e.kind === 'accepted' ? `🎉 ${actor} joined your Circle`
-              : e.kind === 'nudge_worked' ? `✅ ${actor} did ${goalName} after your nudge`
               : `${actor} declined your Circle invite`,
             body:
               e.kind === 'invited' ? 'Open Keep to accept and share habits together.'
               : e.kind === 'accepted' ? 'Your invite was accepted. Add a shared goal to start a group streak.'
-              : e.kind === 'nudge_worked' ? 'Your nudge worked 🎉 Keep looking out for each other.'
               : 'You can invite someone else any time.',
+          });
+        }
+      }
+      // "Hima did Gym after your nudge"
+      const { data: wins } = await db
+        .from('nudge_wins')
+        .select('id,actor,circle_id,goal_id')
+        .eq('to_user', p.user_id)
+        .eq('pushed', false)
+        .gte('created_at', new Date(Date.now() - 86400_000).toISOString());
+      if (wins?.length) {
+        await db.from('nudge_wins').update({ pushed: true }).in('id', wins.map((w) => w.id));
+        for (const w of wins) {
+          if (w.circle_id && muted.includes(w.circle_id)) continue;
+          const actor = await firstName(w.actor);
+          const { data: g } = await db.from('circle_goals').select('name').eq('id', w.goal_id).maybeSingle();
+          candidates.push({
+            kind: `win:${w.id}`,
+            title: `✅ ${actor} did ${g?.name ?? 'it'} after your nudge`,
+            body: 'Your nudge worked 🎉 Keep looking out for each other.',
           });
         }
       }
@@ -358,7 +371,7 @@ Deno.serve(async (req) => {
     // Nudges and cheers sent to me.
     const { data: reacts } = await db
       .from('circle_reactions')
-      .select('id,circle_id,goal_id,from_user,kind,message,day,created_at')
+      .select('id,circle_id,goal_id,from_user,kind,message,day,created_at,times')
       .eq('to_user', p.user_id)
       .eq('notified', false)
       .gte('day', yesterday)
@@ -404,12 +417,13 @@ Deno.serve(async (req) => {
         if (nudgesLeft <= 0) continue; // daily cap reached: still visible in the app
         nudgesLeft--;
         const who = [...new Set<string>(await Promise.all(rs.map((r) => firstName(r.from_user as string))))];
+        const again = rs.some((r) => (r.times ?? 1) > 1);
         const msg = [...rs].reverse().find((r) => r.message)?.message;
         const h = myHabit(goal);
         const act = activityOf(goalName(goal), h?.name);
         candidates.push({
-          kind: `nudge:${rs[0].id}`,
-          title: `👋 ${names(who)} nudged you · ${goalName(goal)}`,
+          kind: `nudge:${rs[0].id}:${rs[0].times ?? 1}`,
+          title: `👋 ${names(who)} nudged you${again ? ' again' : ''} · ${goalName(goal)}`,
           body: msg ? `“${msg}” — ${h?.name ?? goalName(goal)} is still open.` : NUDGE_BODY[act],
         });
       }
