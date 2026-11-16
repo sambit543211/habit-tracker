@@ -25,6 +25,8 @@ export interface CircleMember {
   user_id: string;
   name: string;
   status: 'invited' | 'active';
+  /** Can get nudge notifications (push on + nudges allowed) */
+  notify?: boolean;
 }
 export interface CircleReaction {
   from: string;
@@ -161,7 +163,7 @@ const DEMO_CIRCLE: CircleInfo = {
   members: [
     { user_id: 'me', name: 'Sambit', status: 'active' },
     { user_id: 'r', name: 'Rahul Verma', status: 'active' },
-    { user_id: 'a', name: 'Ananya', status: 'active' },
+    { user_id: 'a', name: 'Ananya', status: 'active', notify: false },
     { user_id: 'k', name: 'Kabir', status: 'invited' },
   ],
   goals: [
@@ -237,6 +239,8 @@ export const useCircle = create<CircleStore>((set, get) => ({
     // "Rahul accepted your invite" etc. — shown once, then marked seen on the server.
     const { data: inbox } = await supabase.rpc('circle_inbox');
     const events = (inbox ?? []) as { kind: 'accepted' | 'declined' | 'nudge_worked'; name: string; circle?: string | null; goal?: string | null }[];
+    // First names only, like everywhere else in the app.
+    for (const e of events) e.name = e.name.trim().split(/\s+/)[0] || e.name;
     events.forEach((e, i) =>
       setTimeout(
         () =>

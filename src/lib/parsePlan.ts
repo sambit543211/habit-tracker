@@ -7,6 +7,8 @@ export interface ParsedPlan {
   title: string;
   start?: string; // "HH:MM"
   duration?: number; // minutes (>= 15)
+  /** "tomorrow" / "today" / "tonight" typed in the text */
+  when?: 'today' | 'tomorrow';
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -30,6 +32,7 @@ export function parsePlan(input: string, wakeHour = 8): ParsedPlan {
   let text = ` ${input} `;
   let start: string | undefined;
   let duration: number | undefined;
+  let when: ParsedPlan['when'];
 
   const take = (re: RegExp, fn: (m: RegExpMatchArray) => boolean) => {
     const m = text.match(re);
@@ -86,11 +89,23 @@ export function parsePlan(input: string, wakeHour = 8): ParsedPlan {
     });
   }
 
+  // Day words: "tomorrow", "tmrw", "kal" → tomorrow; "today", "tonight", "aaj" → today.
+  take(/\s(tomorrow|tmrw|tmr|tomorow|kal)(?=\s)/i, () => {
+    when = 'tomorrow';
+    return true;
+  });
+  if (!when)
+    take(/\s(today|tonight|aaj)(?=\s)/i, () => {
+      when = 'today';
+      return true;
+    });
+
   const title = text.replace(/\s+/g, ' ').trim();
   if (!title) return { title: input.trim() };
   return {
     title,
     start,
     duration: start ? Math.max(15, duration ?? 30) : undefined,
+    when,
   };
 }

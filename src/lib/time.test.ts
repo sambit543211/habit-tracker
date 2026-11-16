@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fmtTime, layoutBlocks, sinceWake, timeBudget, weekStart, windowLength, freeFromNow } from './time';
-import type { Plan } from '../types';
+import { dayProfile, fmtTime, layoutBlocks, sinceWake, timeBudget, weekStart, windowLength, freeFromNow } from './time';
+import type { Plan, Profile } from '../types';
 
 const profile = { wake: '08:00', sleep: '02:00' };
 const plan = (start: string, duration: number, status: Plan['status'] = 'pending'): Plan & { start: string } => ({
@@ -34,5 +34,16 @@ describe('time helpers', () => {
   it('finds the Monday of a week', () => {
     expect(weekStart('2026-11-15')).toBe('2026-11-09'); // Sunday → previous Monday
     expect(weekStart('2026-11-09')).toBe('2026-11-09');
+  });
+});
+
+describe('dayProfile', () => {
+  const prof = { wake: '08:00', sleep: '02:00' } as Profile;
+  const P = (start: string, duration = 60) => ({ id: start, title: 't', day: 'd', must: false, status: 'pending', carryCount: 0, createdAt: 1, start, duration }) as Plan;
+  it('starts the day earlier for plans before wake-up', () => {
+    expect(dayProfile([P('07:00')], prof).wake).toBe('07:00');
+    expect(dayProfile([P('06:30')], prof).wake).toBe('06:00');
+    expect(dayProfile([P('09:00')], prof).wake).toBe('08:00');
+    expect(timeBudget([P('07:00')], dayProfile([P('07:00')], prof)).planned).toBe(60);
   });
 });

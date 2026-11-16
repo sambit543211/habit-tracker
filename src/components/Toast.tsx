@@ -30,7 +30,7 @@ export function Toast() {
               className="size-2 shrink-0 rounded-full"
               style={{ background: `var(--${toast.tone ?? 'habit'})` }}
             />
-            <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{toast.message}</span>
+            <span className="line-clamp-2 min-w-0 flex-1 text-[14px] leading-snug font-medium">{toast.message}</span>
             {toast.undo && (
               <button
                 onClick={() => {

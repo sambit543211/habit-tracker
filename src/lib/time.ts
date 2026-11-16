@@ -43,6 +43,23 @@ export const activeBlocks = (plans: Plan[]) =>
   plans.filter((p) => isTimed(p) && p.status !== 'missed' && p.status !== 'carried') as (Plan & { start: string })[];
 
 /**
+ * The waking window stretched to fit plans set before your usual wake-up
+ * ("Gym 7 am" when you wake at 8): the day starts on the hour of the earliest one.
+ */
+export function dayProfile(plans: Plan[], profile: Profile): Profile {
+  const total = windowLength(profile);
+  const wake = toMin(profile.wake);
+  let earliest = 0; // minutes before wake
+  for (const p of activeBlocks(plans)) {
+    if (sinceWake(p.start, profile) < total) continue;
+    const before = (wake - toMin(p.start) + 1440) % 1440;
+    if (before <= 1440 - total) earliest = Math.max(earliest, before);
+  }
+  if (!earliest) return profile;
+  return { ...profile, wake: fromMin(wake - Math.ceil(earliest / 60) * 60) };
+}
+
+/**
  * Planned vs free minutes inside the waking window. Overlapping blocks are
  * only counted once.
  */

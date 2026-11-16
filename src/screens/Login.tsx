@@ -14,7 +14,14 @@ const validEmail = (e: string) => /^\S+@\S+\.\S+$/.test(e);
  * dedicated email service is connected.
  */
 export function Login() {
-  const [mode, setMode] = useState<Mode>('signin');
+  // First visit on this device → "Create account"; anyone who has signed in here before → "Sign in".
+  const [mode, setMode] = useState<Mode>(() => {
+    try {
+      return localStorage.getItem('keep-returning') ? 'signin' : 'signup';
+    } catch {
+      return 'signup';
+    }
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -113,6 +120,10 @@ export function Login() {
           </div>
         </div>
       </div>
+      <div className="mt-3 text-center">
+        <div className="text-[22px] font-bold tracking-[-0.02em]">Keep</div>
+        <div className="text-[13.5px] text-muted">Daily habits, plans, and friends who keep you going.</div>
+      </div>
 
       <AnimatePresence mode="wait">
         {passwordMode && (
@@ -127,7 +138,7 @@ export function Login() {
             }}
             className="flex flex-1 flex-col"
           >
-            <h1 className="mt-7 text-[30px] leading-[1.1] font-bold tracking-[-0.03em]">
+            <h1 className="mt-6 text-[28px] leading-[1.1] font-bold tracking-[-0.03em]">
               {mode === 'signup' ? 'Create your account' : 'Welcome back'}
             </h1>
             <p className="mt-2 text-[15px] text-muted">Your habits and plans sync across every device.</p>

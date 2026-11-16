@@ -312,6 +312,7 @@ let initialDone = false;
 async function onSignedIn(session: Session) {
   const id = session.user.id;
   if (userId === id) return;
+  write('keep-returning', '1');
   userId = id;
   initialDone = false;
 

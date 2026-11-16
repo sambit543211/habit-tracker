@@ -17,8 +17,17 @@ import { Sheet, focusNoScroll } from '../components/Sheet';
 import { FlameIcon, PlusIcon } from '../components/icons';
 import { haptic } from '../lib/feedback';
 import { Switch } from '../components/Switch';
+import { enablePush, pushState, type PushState } from '../lib/push';
+import { shareText } from './Profile';
 import { NUDGE_LINES, activityOf } from '../lib/nudgeLines';
 
+const QUICK_GOALS: [string, string][] = [
+  ['💧', 'Water'],
+  ['🏋️', 'Gym'],
+  ['📚', 'Read'],
+  ['🚶', 'Walk'],
+  ['😴', 'Sleep early'],
+];
 const GOAL_EMOJI = ['🏋️', '🏃', '💧', '🥗', '📚', '🧘', '😴', '🚭', '💻', '✍️', '🎯'];
 /** Suggested icon for a goal name ("Water" → 💧). */
 const EMOJI_FOR: Record<string, string> = { move: '🏋️', water: '💧', read: '📚', mind: '🧘', sleep: '😴', food: '🥗', learn: '💻', write: '✍️', quit: '🚭', other: '🎯' };
@@ -35,7 +44,12 @@ export function Circle({ today }: { today: string }) {
   const [linking, setLinking] = useState<CircleGoal | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [newCircle, setNewCircle] = useState(false);
-  const [nudging, setNudging] = useState<{ to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number } | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [push, setPush] = useState<PushState | null>(null);
+  useEffect(() => {
+    void pushState().then(setPush);
+  }, []);
+  const [nudging, setNudging] = useState<{ to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number; notify?: boolean } | null>(null);
   const reminders = useStore((s) => s.reminders);
   const setReminders = useStore((s) => s.setReminders);
 
@@ -159,8 +173,8 @@ export function Circle({ today }: { today: string }) {
           <p className="mx-auto mt-1.5 max-w-xs text-[14px] text-muted">
             Add up to 5 friends who use Keep. Pick a shared goal like “Gym”, link your own habit to it, and keep each other going. You can be in up to 5 circles.
           </p>
-          <button onClick={() => setAdding(true)} className="mt-5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white">
-            Find a friend
+          <button onClick={() => setNewCircle(true)} className="mt-5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white">
+            Start a circle
           </button>
         </section>
       )}
@@ -172,16 +186,77 @@ export function Circle({ today }: { today: string }) {
           <section className="flex items-center gap-2 overflow-x-auto no-scrollbar" aria-label="Members">
             {members.map((m) => (
               <div key={m.user_id} className={`flex shrink-0 flex-col items-center gap-1 ${m.status === 'invited' ? 'opacity-50' : ''}`}>
-                <Avatar name={m.name} color={colorOf(m.user_id)} size={44} />
+                <div className="relative flex">
+                  <Avatar name={m.name} color={colorOf(m.user_id)} size={44} />
+                  {m.status === 'active' && m.user_id !== me && m.notify === false && (
+                    <span className="absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full bg-surface-2 text-[11px] ring-2 ring-bg" title="Notifications off">
+                      🔕
+                    </span>
+                  )}
+                </div>
                 <span className="max-w-14 truncate text-[12px] text-muted">{m.user_id === me ? 'You' : m.name.split(/\s+/)[0]}</span>
                 {m.status === 'invited' && <span className="-mt-1 text-[12px] text-gold">waiting…</span>}
               </div>
             ))}
           </section>
+          {active.some((m) => m.user_id !== me && m.notify === false) && (
+            <p className="-mt-2 text-[12.5px] text-faint">
+              🔕 {active.filter((m) => m.user_id !== me && m.notify === false).map((m) => m.name.split(/\s+/)[0]).join(', ')} hasn't turned on notifications — nudges show in the app until they do.
+            </p>
+          )}
           {members.some((m) => m.status === 'invited') && (
             <p className="-mt-2 text-[13px] text-muted">
               ⏳ Waiting for {members.filter((m) => m.status === 'invited').map((m) => m.name.split(/\s+/)[0]).join(', ')} to accept. You'll get a notification when they do.
             </p>
+          )}
+
+          {push === 'off' && (
+            <section className="flex items-center gap-3 rounded-2xl border border-plan/40 bg-plan/10 px-4 py-3">
+              <span className="text-[22px]" aria-hidden>🔔</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14.5px] font-semibold">Turn on notifications</div>
+                <div className="text-[12.5px] text-muted">So your friends' nudges actually reach you.</div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setPush(await enablePush());
+                  } catch (e) {
+                    showToast(e instanceof Error ? e.message : "Couldn't turn on notifications", { tone: 'miss' });
+                  }
+                }}
+                className="min-h-11 shrink-0 rounded-full bg-plan px-4 text-[14px] font-semibold text-white"
+              >
+                Turn on
+              </button>
+            </section>
+          )}
+          {push === 'needs-install' && (
+            <p className="rounded-2xl border border-line px-4 py-3 text-[13px] text-muted">
+              🔔 To get nudges as notifications, add Keep to your Home Screen (Share → Add to Home Screen) and open it from there.
+            </p>
+          )}
+
+          {/* First step: nothing shared yet → pick a goal together */}
+          {circle.goals.length === 0 && (
+            <section className="card px-4 py-4">
+              <h2 className="text-[17px] font-semibold">What will you do together?</h2>
+              <p className="mt-1 text-[13px] text-muted">Pick a shared goal — then each of you links your own habit to it.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {QUICK_GOALS.map(([emoji, name]) => (
+                  <button
+                    key={name}
+                    onClick={() => void act(() => circleApi.addGoal(circle.id, name, emoji), `Added “${name}” — now link your habit`)}
+                    className="min-h-11 rounded-full border border-line bg-surface-2 px-3.5 text-[14px] font-medium"
+                  >
+                    {emoji} {name}
+                  </button>
+                ))}
+                <button onClick={() => setGoalSheet(true)} className="min-h-11 rounded-full border border-dashed border-line-strong/60 px-3.5 text-[14px] font-medium text-muted">
+                  Something else…
+                </button>
+              </div>
+            </section>
           )}
 
           {/* Shared goals */}
@@ -245,7 +320,15 @@ export function Circle({ today }: { today: string }) {
                               label={nudgedTimes(l.user_id) > 0 ? `👋${nudgedTimes(l.user_id)}` : '👋'}
                               done={false}
                               aria={`Nudge ${nameOf(l.user_id)}${nudgedTimes(l.user_id) ? ` again (sent ${nudgedTimes(l.user_id)} today)` : ''}`}
-                              onClick={() => setNudging({ to: l.user_id, name: nameOf(l.user_id), goal: g, habit: l.habit })}
+                              onClick={() =>
+                                setNudging({
+                                  to: l.user_id,
+                                  name: nameOf(l.user_id),
+                                  goal: g,
+                                  habit: l.habit,
+                                  notify: members.find((m) => m.user_id === l.user_id)?.notify,
+                                })
+                              }
                             />
                           ) : null)}
                         {isMe && st === 'open' && (
@@ -279,6 +362,18 @@ export function Circle({ today }: { today: string }) {
                   <p className="mt-2.5 text-[12.5px] text-faint">
                     Waiting for {unlinked.filter((m) => m.user_id !== me).map((m) => m.name.split(/\s+/)[0]).join(', ')} to link a habit.
                   </p>
+                )}
+                {(g.created_by === me || circle.owner === me) && (
+                  <button
+                    onClick={() => {
+                      if (deleting !== g.id) return setDeleting(g.id);
+                      setDeleting(null);
+                      void act(() => circleApi.deleteGoal(g.id), 'Goal removed');
+                    }}
+                    className={`mt-2 min-h-9 text-[12.5px] font-medium ${deleting === g.id ? 'text-miss' : 'text-faint'}`}
+                  >
+                    {deleting === g.id ? `Tap again to delete “${g.name}” for everyone` : 'Delete goal'}
+                  </button>
                 )}
               </section>
             );
@@ -347,7 +442,7 @@ export function Circle({ today }: { today: string }) {
             return;
           }
           const r = (await act(() => circleApi.react(t.to!, t.goal.id, today, 'nudge', msg))) as string | undefined;
-          if (r === 'ok') showToast(`👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
+          if (r === 'ok') showToast(t.notify === false ? `👋 Nudged ${t.name} — they'll see it when they open Keep` : `👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
           else if (r === 'already_done') showToast(`${t.name} already did it — send a 👏 instead`, { tone: 'habit' });
           else if (r === 'already_sent' || r === 'too_soon') showToast(`You just nudged ${t.name} — you can nudge again in 10 minutes`, { tone: 'plan' });
         }}
@@ -399,18 +494,6 @@ export function Circle({ today }: { today: string }) {
             className="mt-3 min-h-11 w-full text-[14px] font-medium text-miss/80"
           >
             Stop sharing this habit
-          </button>
-        )}
-        {linking && (linking.created_by === me || circle?.owner === me) && (
-          <button
-            onClick={async () => {
-              const g = linking!;
-              setLinking(null);
-              await act(() => circleApi.deleteGoal(g.id), 'Goal removed');
-            }}
-            className="min-h-11 w-full text-[14px] font-medium text-faint"
-          >
-            Delete this goal for everyone
           </button>
         )}
       </Sheet>
@@ -528,6 +611,18 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
         </AnimatePresence>
       </div>
       <p className="mt-2 text-[12.5px] text-faint">Check the email matches before sending — names can repeat.</p>
+      <button
+        onClick={async () => {
+          const me = useStore.getState().profile.name?.trim().split(/\s+/)[0] ?? 'me';
+          const r = await shareText(
+            `Join me on Keep — we can keep each other going on our daily habits 💪\n${location.origin}/\nSign up, then search “${me}” in Circle (or I'll add you).`,
+          );
+          if (r === 'copied') useUI.getState().showToast('Invite copied — paste it in WhatsApp', { tone: 'plan' });
+        }}
+        className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-surface-2 text-[14.5px] font-semibold"
+      >
+        Not on Keep yet? Send them an invite
+      </button>
     </Sheet>
   );
 }
@@ -537,7 +632,7 @@ function NudgeSheet({
   onClose,
   onSend,
 }: {
-  target: { to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number } | null;
+  target: { to: string | null; name: string; goal: CircleGoal; habit?: string; count?: number; notify?: boolean } | null;
   onClose: () => void;
   onSend: (msg: string | null) => void;
 }) {
@@ -555,7 +650,10 @@ function NudgeSheet({
           </h2>
           <p className="mt-1 text-[14px] text-muted">
             {target.goal.emoji} {target.goal.name}
-            {target.habit ? ` · ${target.habit}` : ''} — they'll get a notification now (or at 8 am if it's past midnight for them).
+            {target.habit ? ` · ${target.habit}` : ''} —{' '}
+            {target.notify === false
+              ? `${target.name} hasn't turned on notifications yet, so they'll see it next time they open Keep.`
+              : "they'll get a notification now (or at 8 am if it's past midnight for them)."}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             {lines.map((l) => (
@@ -599,6 +697,7 @@ function NudgeSheet({
 
 function NewCircleSheet({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (name: string) => void }) {
   const [name, setName] = useState('');
+  const first = useStore((s) => s.profile.name?.trim().split(/\s+/)[0]);
   useEffect(() => {
     if (open) setName('');
   }, [open]);
@@ -616,7 +715,7 @@ function NewCircleSheet({ open, onClose, onCreate }: { open: boolean; onClose: (
           ref={focusNoScroll}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Gym buddies"
+          placeholder={first ? `e.g. Gym buddies, Family, ${first}'s crew` : 'e.g. Gym buddies'}
           maxLength={40}
           enterKeyHint="done"
           className="mt-4 w-full rounded-2xl border border-line bg-surface-2 px-4 py-3.5 outline-none placeholder:text-faint focus:border-line-strong"
