@@ -124,6 +124,51 @@ export function RemindersCard() {
               </div>
             );
           })}
+          {/* Circle */}
+          <div className="py-3">
+            <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">From your circles</div>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className={`text-[15px] font-medium ${reminders.nudges !== false ? '' : 'text-muted'}`}>👋 Nudges</div>
+                <div className="text-[12.5px] text-faint">Up to 4 a day · never while you sleep</div>
+              </div>
+              <Switch on={reminders.nudges !== false} onChange={(v) => setReminders({ nudges: v })} label="Nudges" />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className={`text-[15px] font-medium ${reminders.cheers !== false ? '' : 'text-muted'}`}>👏 Cheers</div>
+                <div className="text-[12.5px] text-faint">At most one a day; the rest show in the app</div>
+              </div>
+              <Switch on={reminders.cheers !== false} onChange={(v) => setReminders({ cheers: v })} label="Cheers" />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className={`text-[15px] font-medium ${reminders.officeHours !== false ? '' : 'text-muted'}`}>💼 Office hours</div>
+                <div className="text-[12.5px] text-faint">Weekdays: nudges wait and arrive together after</div>
+              </div>
+              <Switch on={reminders.officeHours !== false} onChange={(v) => setReminders({ officeHours: v })} label="Office hours" />
+            </div>
+            {reminders.officeHours !== false && (
+              <div className="mt-2 flex items-center gap-2 text-[14px] text-muted">
+                <input
+                  type="time"
+                  value={reminders.officeStart ?? '10:00'}
+                  onChange={(e) => e.target.value && setReminders({ officeStart: e.target.value })}
+                  className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] text-text outline-none"
+                  aria-label="Office hours start"
+                />
+                to
+                <input
+                  type="time"
+                  value={reminders.officeEnd ?? '17:00'}
+                  onChange={(e) => e.target.value && setReminders({ officeEnd: e.target.value })}
+                  className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] text-text outline-none"
+                  aria-label="Office hours end"
+                />
+              </div>
+            )}
+            <p className="mt-2 text-[12.5px] text-faint">Quiet hours follow your sleep time (Me → Settings → Your day).</p>
+          </div>
           <div className="flex items-center gap-3 py-3">
             <div className="min-w-0 flex-1">
               <div className={`text-[15px] font-medium ${reminders.badge ? '' : 'text-muted'}`}>Number on app icon</div>

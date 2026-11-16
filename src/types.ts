@@ -101,6 +101,15 @@ export interface Reminders {
   paused: string[];
   /** Show the number of open promises on the app icon */
   badge?: boolean;
+  /** Circle: get a notification when a friend nudges / cheers you */
+  nudges?: boolean;
+  cheers?: boolean;
+  /** Hold nudges during office hours (weekdays) and deliver them after */
+  officeHours?: boolean;
+  officeStart?: string;
+  officeEnd?: string;
+  /** Circles you don't want notifications from */
+  mutedCircles?: string[];
 }
 
 export const DEFAULT_REMINDERS: Reminders = {
