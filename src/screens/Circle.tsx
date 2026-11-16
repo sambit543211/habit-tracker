@@ -22,7 +22,7 @@ const AVATAR = ['#3ddc97', '#8b7cff', '#ffb547', '#ff5c6c', '#38bdf8', '#f472b6'
 
 /** Circle: shared goals with up to 6 friends. Only linked habits are visible to them. */
 export function Circle({ today }: { today: string }) {
-  const { data, loading, error, refresh } = useCircle();
+  const { data, loading, error, refresh, select } = useCircle();
   const habits = useStore((s) => s.habits);
   const logs = useStore((s) => s.logs[today]);
   const showToast = useUI((s) => s.showToast);
@@ -30,6 +30,7 @@ export function Circle({ today }: { today: string }) {
   const [goalSheet, setGoalSheet] = useState(false);
   const [linking, setLinking] = useState<CircleGoal | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [newCircle, setNewCircle] = useState(false);
 
   // Refresh on open, when my own ticks change (after sync has had a moment), and every 30 s.
   useEffect(() => {
@@ -54,6 +55,8 @@ export function Circle({ today }: { today: string }) {
   };
 
   const circle = data?.circle;
+  const circles = data?.circles ?? [];
+  const invites = data?.invites ?? [];
   const me = data?.me;
   const members = circle?.members ?? [];
   const active = members.filter((m) => m.status === 'active');
@@ -80,36 +83,74 @@ export function Circle({ today }: { today: string }) {
         )}
       </header>
 
+      {/* Switch between circles, or start another */}
+      {circles.length > 0 && (
+        <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 no-scrollbar" aria-label="Your circles">
+          {circles.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => {
+                haptic(6);
+                select(c.id);
+                setConfirmLeave(false);
+              }}
+              aria-current={c.id === circle?.id}
+              className={`min-h-10 shrink-0 rounded-full border px-3.5 text-[13.5px] font-semibold ${
+                c.id === circle?.id ? 'border-plan bg-plan/15 text-text' : 'border-line bg-surface text-muted'
+              }`}
+            >
+              {c.name}
+              <span className="ml-1.5 text-[12px] font-medium text-faint">{c.members.filter((m) => m.status === 'active').length}</span>
+            </button>
+          ))}
+          {circles.length < 5 && (
+            <button onClick={() => setNewCircle(true)} className="min-h-10 shrink-0 rounded-full border border-dashed border-line-strong/60 px-3.5 text-[13.5px] font-semibold text-muted">
+              + New circle
+            </button>
+          )}
+        </nav>
+      )}
+
       {error && <p className="rounded-2xl border border-miss/30 bg-miss/10 px-4 py-3 text-[13.5px]">Couldn't load your circle. Check your connection.</p>}
 
-      {/* Pending request for me */}
-      {data?.invite && (
-        <section className="card hero px-4 py-4">
-          <div className="text-[12px] font-semibold tracking-[0.1em] text-plan uppercase">Request</div>
+      {/* Pending requests for me — one card each */}
+      {invites.map((inv) => (
+        <section key={inv.circle_id} className="card hero px-4 py-4">
+          <div className="text-[12px] font-semibold tracking-[0.1em] text-plan uppercase">Circle request</div>
           <p className="mt-1 text-[16px] font-semibold">
-            {data.invite.from} invited you to “{data.invite.circle}”
+            {inv.from} invited you to “{inv.circle}”
           </p>
           <p className="mt-1 text-[13px] text-muted">
-            {data.invite.size} {data.invite.size === 1 ? 'person' : 'people'} inside. They'll only see the habits you choose to link — never your plans or reasons.
+            {inv.size} {inv.size === 1 ? 'person' : 'people'} inside. They'll only see the habits you choose to link — never your plans or reasons.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button onClick={() => void act(() => circleApi.respond(true), 'You joined the circle')} className="min-h-12 rounded-2xl bg-text text-[15px] font-semibold text-bg">
+            <button
+              onClick={() =>
+                void act(async () => {
+                  const r = await circleApi.respond(inv.circle_id, true);
+                  if (r === 'too_many') throw new Error("You're already in 5 circles — leave one first");
+                  select(inv.circle_id);
+                  useStore.getState().setProfile({ circle: true });
+                }, `You joined “${inv.circle}”`)
+              }
+              className="min-h-12 rounded-2xl bg-text text-[15px] font-semibold text-bg"
+            >
               Accept
             </button>
-            <button onClick={() => void act(() => circleApi.respond(false))} className="min-h-12 rounded-2xl border border-line text-[15px] font-medium text-muted">
+            <button onClick={() => void act(() => circleApi.respond(inv.circle_id, false))} className="min-h-12 rounded-2xl border border-line text-[15px] font-medium text-muted">
               Decline
             </button>
           </div>
         </section>
-      )}
+      ))}
 
       {/* Empty state */}
-      {data && !circle && !data.invite && (
+      {data && !circle && invites.length === 0 && (
         <section className="card px-5 py-8 text-center">
           <div className="text-[40px]">👥</div>
           <h2 className="mt-2 text-[20px] font-bold tracking-[-0.02em]">Start your circle</h2>
           <p className="mx-auto mt-1.5 max-w-xs text-[14px] text-muted">
-            Add up to 5 friends who use Keep. Pick a shared goal like “Gym”, link your own habit to it, and keep each other going.
+            Add up to 5 friends who use Keep. Pick a shared goal like “Gym”, link your own habit to it, and keep each other going. You can be in up to 5 circles.
           </p>
           <button onClick={() => setAdding(true)} className="mt-5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white">
             Find a friend
@@ -229,12 +270,12 @@ export function Circle({ today }: { today: string }) {
           <button
             onClick={() => {
               if (!confirmLeave) return setConfirmLeave(true);
-              void act(() => circleApi.remove(null), 'You left the circle');
+              void act(() => circleApi.remove(circle.id, null), `You left “${circle.name}”`);
               setConfirmLeave(false);
             }}
             className={`min-h-11 text-[14px] font-medium ${confirmLeave ? 'text-miss' : 'text-faint'}`}
           >
-            {confirmLeave ? 'Tap again to leave the circle' : 'Leave circle'}
+            {confirmLeave ? `Tap again to leave “${circle.name}”` : 'Leave this circle'}
           </button>
         </>
       )}
@@ -244,13 +285,26 @@ export function Circle({ today }: { today: string }) {
         onClose={() => setAdding(false)}
         members={members}
         onInvite={async (id) => {
-          const r = (await act(() => circleApi.invite(id))) as string | undefined;
+          const r = (await act(() => circleApi.invite(circle?.id ?? null, id))) as string | undefined;
           if (r) showToast(INVITE_MESSAGES[r] ?? r, { tone: r === 'invited' ? 'habit' : 'miss' });
           if (r === 'invited') setAdding(false);
         }}
       />
 
-      <GoalSheet open={goalSheet} onClose={() => setGoalSheet(false)} onAdd={async (name, emoji) => { await act(() => circleApi.addGoal(name, emoji), 'Goal added'); setGoalSheet(false); }} />
+      <GoalSheet open={goalSheet} onClose={() => setGoalSheet(false)} onAdd={async (name, emoji) => { if (circle) await act(() => circleApi.addGoal(circle.id, name, emoji), 'Goal added'); setGoalSheet(false); }} />
+
+      <NewCircleSheet
+        open={newCircle}
+        onClose={() => setNewCircle(false)}
+        onCreate={async (name) => {
+          setNewCircle(false);
+          const id = (await act(() => circleApi.create(name), `Created “${name}”`)) as string | undefined;
+          if (id) {
+            select(id);
+            setAdding(true);
+          }
+        }}
+      />
 
       {/* Link picker */}
       <Sheet open={!!linking} onClose={() => setLinking(null)}>
@@ -414,6 +468,38 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
         </AnimatePresence>
       </div>
       <p className="mt-2 text-[12.5px] text-faint">Check the email matches before sending — names can repeat.</p>
+    </Sheet>
+  );
+}
+
+function NewCircleSheet({ open, onClose, onCreate }: { open: boolean; onClose: () => void; onCreate: (name: string) => void }) {
+  const [name, setName] = useState('');
+  useEffect(() => {
+    if (open) setName('');
+  }, [open]);
+  return (
+    <Sheet open={open} onClose={onClose}>
+      <h2 className="text-[22px] font-semibold tracking-[-0.02em]">New circle</h2>
+      <p className="mt-1 text-[14px] text-muted">A separate group — e.g. gym friends, family, a book club. Each has its own people and shared goals.</p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onCreate(name.trim());
+        }}
+      >
+        <input
+          ref={focusNoScroll}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Gym buddies"
+          maxLength={40}
+          enterKeyHint="done"
+          className="mt-4 w-full rounded-2xl border border-line bg-surface-2 px-4 py-3.5 outline-none placeholder:text-faint focus:border-line-strong"
+        />
+        <button type="submit" disabled={!name.trim()} className="mt-4 min-h-12 w-full rounded-2xl bg-text text-[16px] font-semibold text-bg disabled:opacity-30">
+          Create and add friends
+        </button>
+      </form>
     </Sheet>
   );
 }

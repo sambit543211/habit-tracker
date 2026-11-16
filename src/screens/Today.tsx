@@ -15,7 +15,7 @@ import { reviewWeekFor } from '../components/WeeklyReviewSheet';
 import { greeting, sinceWake, toMin } from '../lib/time';
 import { pace } from '../lib/game';
 import { fmtElapsed, quitStats } from '../lib/quit';
-import { circleScore, groupStreak, useCircle } from '../lib/circle';
+import { bestGroupStreak, circleScore, nudgesForMe, useCircle } from '../lib/circle';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
   const data = useData();
@@ -69,16 +69,17 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const circleData = useCircle((s) => s.data);
   const refreshCircle = useCircle((s) => s.refresh);
   const circleOn = !!profile.circle;
+  // Always check (cheap): circle requests must show up even before Circle mode is switched on.
   useEffect(() => {
-    if (!circleOn) return;
     const t = setTimeout(() => void refreshCircle(today), 1200); // after my ticks have synced
     return () => clearTimeout(t);
-  }, [circleOn, today, logs, refreshCircle]);
+  }, [today, logs, refreshCircle]);
   const cs = circleOn ? circleScore(circleData) : null;
-  const activeMembers = circleData?.circle?.members.filter((m) => m.status === 'active').length ?? 0;
-  const bestGroup = Math.max(0, ...(circleData?.circle?.goals ?? []).map((g) => groupStreak(g, activeMembers)));
-  const pendingInvite = circleOn && !!circleData?.invite;
-  const nudges = circleData?.circle?.reactions.filter((r) => r.to === circleData.me && r.kind === 'nudge').length ?? 0;
+  const bestGroup = bestGroupStreak(circleData);
+  // Invites show even when Circle mode is off — otherwise a request would be invisible.
+  const invites = circleData?.invites.length ?? 0;
+  const pendingInvite = invites > 0;
+  const nudges = nudgesForMe(circleData);
   const addPlan = () => {
     haptic(8);
     editPlan({ day: today });
@@ -195,7 +196,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       </motion.section>
 
       {(() => {
-        const showCircle = circleOn && (!!cs || pendingInvite);
+        const showCircle = pendingInvite || (circleOn && !!cs);
         const both = showCircle && !!qs;
         const tone = (v: number) => (v === 1 ? 'var(--habit)' : v >= 0.5 ? 'var(--gold)' : 'var(--muted)');
         const cell = 'flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-3 py-2 text-left';
@@ -211,7 +212,9 @@ export function Today({ today, hour }: { today: string; hour: number }) {
                 <span className="min-w-0 truncate text-[13px] font-medium">
                   <span aria-hidden>👥 </span>
                   {pendingInvite
-                    ? 'Circle request'
+                    ? invites > 1
+                      ? `${invites} circle requests`
+                      : 'Circle request'
                     : both
                       ? `Circle ${cs!.done}/${cs!.total}${nudges ? ` · 👋${nudges}` : bestGroup > 0 ? ` · 🔥${bestGroup}` : ''}`
                       : `Circle · ${cs!.done} of ${cs!.total} done${bestGroup > 0 ? ` · 🔥 ${bestGroup} together` : ''}${nudges ? ` · 👋 ${nudges}` : ''}`}

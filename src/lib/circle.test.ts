@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { circleScore, groupStreak, linkStreak, todayStatus, type CircleData, type CircleGoal } from './circle';
 
-const link = (user_id: string, days: string) => ({ user_id, habit_id: user_id, habit: 'H', days });
+let n = 0;
+const link = (user_id: string, days: string) => ({ user_id, habit_id: `${user_id}-${n++}`, habit: 'H', days });
 
 describe('circle helpers', () => {
   it('reads today and streaks from the day string', () => {
@@ -20,7 +21,7 @@ describe('circle helpers', () => {
   });
   it('scores my linked goals for today', () => {
     const data: CircleData = {
-      me: 'a', invite: null,
+      me: 'a', invites: [], circles: [],
       circle: { id: 'c', name: 'c', owner: 'a', members: [], reactions: [], goals: [
         { id: '1', name: 'Gym', emoji: '', created_by: null, links: [link('a', 'dd'), link('b', 'd-')] },
         { id: '2', name: 'Diet', emoji: '', created_by: null, links: [link('a', 'd-')] },
@@ -29,5 +30,20 @@ describe('circle helpers', () => {
     };
     expect(circleScore(data)).toEqual({ done: 1, total: 2, score: 0.5 });
     expect(circleScore({ ...data, me: 'z' })).toBeNull();
+  });
+});
+
+describe('several circles', () => {
+  const goal = (id: string, habit: string, day: string) =>
+    ({ id, name: id, emoji: '', created_by: 'a', links: [{ user_id: 'a', habit_id: habit, habit, days: day }] }) as CircleGoal;
+  const circ = (id: string, goals: CircleGoal[]) => ({ id, name: id, owner: 'a', members: [], reactions: [], goals });
+  it('scores across circles and counts a habit shared twice once', () => {
+    const data: CircleData = {
+      me: 'a',
+      invites: [],
+      circles: [circ('c1', [goal('g1', 'h1', 'd'), goal('g2', 'h2', '-')]), circ('c2', [goal('g3', 'h1', 'd')])],
+      circle: null,
+    };
+    expect(circleScore(data)).toEqual({ done: 1, total: 2, score: 0.5 });
   });
 });
