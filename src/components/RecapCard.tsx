@@ -16,7 +16,7 @@ export function RecapCard({ recap }: { recap: Recap }) {
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
         <Num value={pct === null ? '–' : `${pct}%`} label="Avg score" />
-        <Num value={`${recap.plans.done}/${recap.plans.of}`} label="Plans done" />
+        <Num value={recap.plans.of ? `${recap.plans.done}/${recap.plans.of}` : "–"} label="Plans done" />
         <Num value={String(recap.days)} label="Days tracked" />
       </div>
       <ul className="mt-3 flex flex-col gap-2 text-[13.5px]">

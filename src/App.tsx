@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from './store';
 import { useToday, isEvening } from './lib/useToday';
 import { addDays } from './lib/date';
 import { Today } from './screens/Today';
-import { Quick } from './screens/Quick';
-import { PlanTomorrow } from './screens/PlanTomorrow';
-import { Insights } from './screens/Insights';
+const Quick = lazy(() => import('./screens/Quick').then((m) => ({ default: m.Quick })));
+const PlanTomorrow = lazy(() => import('./screens/PlanTomorrow').then((m) => ({ default: m.PlanTomorrow })));
+const Insights = lazy(() => import('./screens/Insights').then((m) => ({ default: m.Insights })));
 import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
@@ -15,9 +15,9 @@ import { HabitEditor } from './components/HabitEditor';
 import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
 import { Celebrations } from './components/Celebrations';
-import { Profile } from './screens/Profile';
-import { Quit } from './screens/Quit';
-import { Circle } from './screens/Circle';
+const Profile = lazy(() => import('./screens/Profile').then((m) => ({ default: m.Profile })));
+const Quit = lazy(() => import('./screens/Quit').then((m) => ({ default: m.Quit })));
+const Circle = lazy(() => import('./screens/Circle').then((m) => ({ default: m.Circle })));
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
 import { CloseDaySheet } from './components/CloseDaySheet';
@@ -61,7 +61,9 @@ export default function App() {
   if (quick)
     return (
       <>
-        <Quick today={today} />
+        <Suspense fallback={<Splash />}>
+          <Quick today={today} />
+        </Suspense>
         <PlanEditor />
         <ReasonSheet />
         <WaterSheet />
@@ -80,12 +82,14 @@ export default function App() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
-            {tab === 'today' && <Today today={today} hour={hour} />}
-            {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
-            {tab === 'insights' && <Insights today={today} />}
-            {tab === 'profile' && <Profile today={today} />}
-            {tab === 'quit' && <Quit today={today} />}
-            {tab === 'circle' && <Circle today={today} />}
+            <Suspense fallback={<div className="min-h-[60dvh]" />}>
+              {tab === 'today' && <Today today={today} hour={hour} />}
+              {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
+              {tab === 'insights' && <Insights today={today} />}
+              {tab === 'profile' && <Profile today={today} />}
+              {tab === 'quit' && <Quit today={today} />}
+              {tab === 'circle' && <Circle today={today} />}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

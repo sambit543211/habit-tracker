@@ -35,6 +35,7 @@ export function HabitRows({
       <AnimatePresence initial={false}>
         {habits.map((h) => {
           const log = logs?.[h.id] as HabitLog | undefined;
+          const skipped = log?.miss?.reason === 'skip';
           const status: 'pending' | 'done' | 'missed' = log?.status ?? 'pending';
           const base = [
             h.perWeek ? `${weekCount(data, h, day)} of ${h.perWeek} this week` : null,
@@ -44,7 +45,8 @@ export function HabitRows({
             .filter(Boolean)
             .join(' · ');
           let subtitle: ReactNode = base || undefined;
-          if (status === 'missed')
+          if (skipped) subtitle = <span className="text-muted">🛌 Skipped today</span>;
+          else if (status === 'missed')
             subtitle = (
               <span>
                 <span className="text-miss">{reasonLabel(log?.miss?.reason)}</span>
@@ -72,7 +74,7 @@ export function HabitRows({
               accent="habit"
               title={h.name}
               subtitle={subtitle}
-              status={status}
+              status={skipped ? 'carried' : status}
               onDone={() => {
                 markHabit(day, h.id);
                 showToast(`${h.name} — done`, { tone: 'habit', undo: () => clearHabit(day, h.id) });
