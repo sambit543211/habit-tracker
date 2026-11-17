@@ -15,6 +15,7 @@ export function HabitEditor() {
   const [cue, setCue] = useState('');
   const [tiny, setTiny] = useState('');
   const [remindAt, setRemindAt] = useState('');
+  const [perWeek, setPerWeek] = useState<number | undefined>(undefined);
   const [pairWith, setPairWith] = useState('');
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -25,6 +26,7 @@ export function HabitEditor() {
     setCue(habit?.cue ?? '');
     setTiny(habit?.tiny ?? '');
     setRemindAt(habit?.remindAt ?? '');
+    setPerWeek(habit?.perWeek);
     setPairWith(habit?.pairWith ?? '');
     setMore(!!(habit?.cue || habit?.tiny || habit?.pairWith));
     setConfirm(false);
@@ -40,7 +42,7 @@ export function HabitEditor() {
   const save = () => {
     const n = name.trim();
     if (!n) return;
-    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined, pairWith: pairWith.trim() || undefined };
+    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined, pairWith: pairWith.trim() || undefined, perWeek };
     if (habit) updateHabit(habit.id, data);
     else addHabit(data);
     close();
@@ -60,6 +62,22 @@ export function HabitEditor() {
           💧 Tracked in sips: target {fmtWater(waterTarget({ name })!)} — put the amount in the name to change it (e.g. “Drink 3L water”).
         </p>
       )}
+
+      <label className="mt-4 block text-[13px] font-medium text-muted">How often</label>
+      <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="How often">
+        {[undefined, 1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n ?? 'daily'}
+            role="radio"
+            aria-checked={perWeek === n}
+            onClick={() => setPerWeek(n)}
+            className={`min-h-10 rounded-full border px-3 text-[13.5px] font-medium ${perWeek === n ? 'border-habit bg-habit/15 text-text' : 'border-line bg-surface-2 text-muted'}`}
+          >
+            {n === undefined ? 'Every day' : `${n}× a week`}
+          </button>
+        ))}
+      </div>
+      {perWeek && <p className="mt-1.5 text-[12.5px] text-faint">Do it any {perWeek} days of the week. Days you don't do it never count as missed.</p>}
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">

@@ -69,8 +69,8 @@ interface Store extends Data {
   completeOnboarding: (habits: { name: string; cue?: string }[]) => void;
   /** Start fresh on `day`: wipes history on this device (the cloud is wiped by the start_fresh RPC). */
   startFreshLocal: (day: string, dataToo: boolean) => void;
-  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string }) => void;
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith'>>) => void;
+  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string; perWeek?: number }) => void;
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith' | 'perWeek'>>) => void;
   archiveHabit: (id: string) => void;
   /** Save a new order: ids top to bottom */
   reorderHabits: (ids: string[]) => void;
@@ -179,13 +179,13 @@ export const useStore = create<Store>()(
         }));
       },
 
-      addHabit: ({ name, cue, tiny, remindAt, pairWith }) => {
+      addHabit: ({ name, cue, tiny, remindAt, pairWith, perWeek }) => {
         const today = dayKeyAt();
         set((s) => ({
           startDay: s.startDay ?? today,
           habits: [
             ...s.habits,
-            { id: uid(), name, cue, tiny, remindAt, pairWith, createdDay: today, position: Math.max(0, ...s.habits.map((h) => h.position ?? 0)) + 1 },
+            { id: uid(), name, cue, tiny, remindAt, pairWith, perWeek, createdDay: today, position: Math.max(0, ...s.habits.map((h) => h.position ?? 0)) + 1 },
           ],
         }));
       },

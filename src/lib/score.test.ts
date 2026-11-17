@@ -99,3 +99,25 @@ describe('streak rule', () => {
     expect(streakDay(base(0, 0), 'most')).toBe(false);
   });
 });
+
+describe('skip days, weekly habits and water credit', () => {
+  const d = '2026-11-18';
+  const H = (id: string, x = {}) => ({ id, name: id, createdDay: '2026-11-01', ...x });
+  it('skipped habits are not counted and keep the day perfect', () => {
+    const data: Data = {
+      habits: [H('a'), H('b')],
+      plans: [],
+      logs: { [d]: { a: { status: 'done', at: 1 }, b: { status: 'missed', at: 1, miss: { reason: 'skip' } } } },
+      startDay: '2026-11-01',
+    };
+    expect(dayStats(data, d)).toMatchObject({ habitsTotal: 1, habitsDone: 1, perfectHabits: true, pending: 0 });
+  });
+  it('a weekly habit only counts on days it is done', () => {
+    const data: Data = { habits: [H('a'), H('w', { perWeek: 3 })], plans: [], logs: { [d]: { a: { status: 'done', at: 1 } } }, startDay: '2026-11-01' };
+    expect(dayStats(data, d)).toMatchObject({ habitsTotal: 1, perfectHabits: true });
+  });
+  it('water in progress earns partial credit', () => {
+    const data: Data = { habits: [H('w', { name: 'Drink 2L water' })], plans: [], logs: {}, startDay: '2026-11-01', amounts: { [d]: { w: 1000 } } };
+    expect(dayStats(data, d).habitPct).toBeCloseTo(0.5);
+  });
+});

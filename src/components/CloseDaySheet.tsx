@@ -29,7 +29,7 @@ export function CloseDaySheet({ today }: { today: string }) {
   const st = useMemo(() => streakFor(data, today, profile), [data, today, profile]);
   const level = useMemo(() => levelFor(promisesKept(data, today)), [data, today]);
 
-  const openHabits = habitsOn(data, today).filter((h) => !logs[today]?.[h.id]);
+  const openHabits = habitsOn(data, today).filter((h) => !logs[today]?.[h.id] && !h.perWeek);
   const openPlans = plansOn(data, today).filter((p) => p.status === 'pending');
   const closed = stats.pending === 0;
   const tomorrowPlanned = plansOn(data, addDays(today, 1)).length;
