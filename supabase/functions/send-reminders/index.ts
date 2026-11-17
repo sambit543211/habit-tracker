@@ -166,23 +166,29 @@ Deno.serve(async (req) => {
 
     const [{ data: habits }, { data: logs }, { data: plans }] = await Promise.all([
       db.from('habits').select('*').eq('user_id', p.user_id),
-      db.from('habit_logs').select('day,habit_id,status').eq('user_id', p.user_id).gte('day', addDays(today, -120)),
+      db.from('habit_logs').select('day,habit_id,status,miss').eq('user_id', p.user_id).gte('day', addDays(today, -120)),
       db.from('plans').select('*').eq('user_id', p.user_id).in('day', [yesterday, today, tomorrow]),
     ]);
     const logSet = new Map<string, string>();
-    for (const l of logs ?? []) logSet.set(`${l.day}:${l.habit_id}`, l.status);
+    const skipped = new Set<string>();
+    for (const l of logs ?? []) {
+      logSet.set(`${l.day}:${l.habit_id}`, l.status);
+      if (l.miss?.reason === 'skip') skipped.add(`${l.day}:${l.habit_id}`);
+    }
     const hs = habits ?? [];
     const ps = plans ?? [];
     // A day counts toward the streak by the user's rule: every habit ('all') or at least 80% ('most').
     const most = p.streak_rule === 'most';
     const kept = (d: string) => {
-      const active = hs.filter((h) => activeOn(h, d));
+      // Weekly habits only count on days they're done; skipped days don't count at all (same as the app).
+      const active = hs.filter((h) => activeOn(h, d) && !skipped.has(`${d}:${h.id}`) && (!h.per_week || logSet.get(`${d}:${h.id}`) === 'done'));
       const done = active.filter((h) => logSet.get(`${d}:${h.id}`) === 'done').length;
       return active.length > 0 && (most ? done / active.length >= 0.8 : done === active.length);
     };
 
     const todayHabits = hs.filter((h) => activeOn(h, today));
-    const left = todayHabits.filter((h) => !logSet.has(`${today}:${h.id}`)).length;
+    // Weekly habits are never "left" on a given day.
+    const left = todayHabits.filter((h) => !h.per_week && !logSet.has(`${today}:${h.id}`)).length;
     const todayPlans = ps.filter((x) => x.day === today);
     const pendingPlans = todayPlans.filter((x) => x.status === 'pending');
     const badge = left + pendingPlans.length;

@@ -6,6 +6,7 @@ import { HabitList } from '../components/HabitList';
 import { useData } from '../lib/useData';
 import { addDays, formatDay, range } from '../lib/date';
 import { RemindersCard } from '../components/RemindersCard';
+import { ShortcutsCard } from '../components/ShortcutsCard';
 import { AccountCard } from '../components/AccountCard';
 import { StartFreshCard } from '../components/StartFreshCard';
 import { FlameIcon, PlusIcon } from '../components/icons';
@@ -255,7 +256,7 @@ export function Profile({ today }: { today: string }) {
         </button>
       </section>
 
-      <Group title="Settings" hint="Streak rule, modes, reminders, your day, appearance">
+      <Group title="Settings" hint="Streak rule, reminders, Siri & Quick page, your day, appearance">
         <section className="card px-4 py-4">
           <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Streak</h2>
           <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1" role="radiogroup" aria-label="Streak rule">
@@ -326,6 +327,7 @@ export function Profile({ today }: { today: string }) {
         </section>
 
         <RemindersCard />
+        <ShortcutsCard />
         <section className="card px-4 py-4">
           <h2 className="text-[13px] font-semibold tracking-wide text-muted uppercase">Appearance</h2>
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-surface-2 p-1" role="radiogroup" aria-label="Theme">
