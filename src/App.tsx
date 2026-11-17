@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from './store';
 import { useToday, isEvening } from './lib/useToday';
 import { addDays } from './lib/date';
 import { Today } from './screens/Today';
+import { Quick } from './screens/Quick';
 import { PlanTomorrow } from './screens/PlanTomorrow';
 import { Insights } from './screens/Insights';
 import { Onboarding } from './screens/Onboarding';
@@ -29,6 +30,13 @@ import { CLOUD_ENABLED } from './config';
 export default function App() {
   const onboarded = useStore((s) => s.onboarded);
   const tab = useUI((s) => s.tab);
+  // #quick → the one-screen Quick page (save it to the Home Screen as a second icon).
+  const [quick, setQuick] = useState(() => location.hash === '#quick');
+  useEffect(() => {
+    const on = () => setQuick(location.hash === '#quick');
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
   const { today, hour } = useToday();
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
@@ -49,6 +57,17 @@ export default function App() {
   if (CLOUD_ENABLED && !session) return <Login />;
   if (CLOUD_ENABLED && !hasName) return <NamePrompt />;
   if (!onboarded) return <Onboarding />;
+
+  if (quick)
+    return (
+      <>
+        <Quick today={today} />
+        <PlanEditor />
+        <ReasonSheet />
+        <WaterSheet />
+        <Toast />
+      </>
+    );
 
   return (
     <>

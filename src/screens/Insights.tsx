@@ -9,12 +9,15 @@ import type { Habit } from '../types';
 import { weekStart } from '../lib/time';
 import { AnimatedNumber } from '../components/Ring';
 import { HabitGrid } from '../components/HabitGrid';
+import { RecapCard } from '../components/RecapCard';
+import { lastWeekRecap } from '../lib/game';
 
 const WEEKS = 15;
 
 export function Insights({ today }: { today: string }) {
   const data = useData();
   const { startDay } = data;
+  const recap = lastWeekRecap(data, today);
 
   const [history, setHistory] = useState<Habit | null>(null);
   const [showMore, setShowMore] = useState(false);
@@ -56,6 +59,8 @@ export function Insights({ today }: { today: string }) {
       )}
 
       <WeekCompare thisWeek={thisWeek} lastWeek={lastWeek} />
+
+      {recap && <RecapCard recap={recap} />}
 
       <HabitHistorySheet habit={history} today={today} onClose={() => setHistory(null)} />
       <HabitGrid data={data} today={today} onOpen={setHistory} />
