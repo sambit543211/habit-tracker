@@ -157,6 +157,8 @@ export interface Plan {
   remindAt?: string;
   /** First day this plan was meant for (set when it rolls over) */
   originDay?: string;
+  /** Repeating plan: weekdays it comes back on (0 = Sunday … 6 = Saturday) */
+  repeat?: number[];
 }
 
 export interface Data {

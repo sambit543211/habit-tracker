@@ -73,3 +73,19 @@ describe('startFreshLocal', () => {
     expect(st.badgesSeen).toEqual([]);
   });
 });
+
+describe('repeating plans', () => {
+  beforeEach(() => useStore.setState({ plans: [] }));
+  it('makes one copy per matching day and does not pile up missed ones', () => {
+    // 2026-11-16 is a Monday
+    useStore.setState({ plans: [plan(A, '2026-11-16', 'pending', { title: 'Physio', start: '18:00', duration: 60, repeat: [1, 3, 5] })] });
+    useStore.getState().makeRepeats(['2026-11-17', '2026-11-18']); // Tue, Wed
+    useStore.getState().makeRepeats(['2026-11-18']); // again: no duplicate
+    const copies = useStore.getState().plans.filter((p) => p.id !== A);
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatchObject({ day: '2026-11-18', title: 'Physio', start: '18:00', status: 'pending' });
+    // Next day starts: the missed template is closed, not carried forward
+    expect(useStore.getState().rollOverPlans('2026-11-17')).toBe(0);
+    expect(useStore.getState().plans.find((p) => p.id === A)!.status).toBe('missed');
+  });
+});

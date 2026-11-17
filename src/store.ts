@@ -18,6 +18,26 @@ import { addDays, dayKeyAt } from './lib/date';
 import { waterTarget } from './lib/water';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
+/** Copies of a repeating plan get a stable id per day, so two devices never make it twice. */
+export const repeatId = (templateId: string, day: string) => templateId.slice(0, 24) + `cafe${day.replace(/-/g, '')}`;
+export const isRepeatCopy = (id: string) => id.length === 36 && id.slice(24, 28) === 'cafe' && /^\d{8}$/.test(id.slice(28));
+// Copies already made on this device (so deleting one doesn't bring it back).
+const REPEATS_KEY = 'keep-repeats-made';
+const repeatsMade = new Set<string>((() => {
+  try {
+    return JSON.parse(localStorage.getItem(REPEATS_KEY) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+})());
+const saveRepeatsMade = () => {
+  try {
+    localStorage.setItem(REPEATS_KEY, JSON.stringify([...repeatsMade].slice(-500)));
+  } catch {
+    /* storage unavailable */
+  }
+};
+
 /** After 8 pm (or before the 2 am cutoff) a brand-new day 1 starts tomorrow. */
 export const lateStart = (d = new Date()) => d.getHours() >= 20 || d.getHours() < 2;
 
@@ -33,7 +53,7 @@ const uid = (): string => {
 
 /** Editable plan details (everything except identity and status). */
 export type PlanDetails = Partial<
-  Pick<Plan, 'title' | 'must' | 'note' | 'start' | 'duration' | 'remindOffset' | 'remindAt'>
+  Pick<Plan, 'title' | 'must' | 'note' | 'start' | 'duration' | 'remindOffset' | 'remindAt' | 'repeat'>
 >;
 
 interface Store extends Data {
@@ -93,6 +113,8 @@ interface Store extends Data {
   clearPlan: (id: string) => void;
   /** Move every unfinished plan from earlier days onto `today` (runs when a new day starts). */
   rollOverPlans: (today: string) => number;
+  /** Create today's / tomorrow's copies of repeating plans (once each). */
+  makeRepeats: (days: string[]) => void;
 
   dismissFreshStart: (day: string) => void;
 
@@ -295,7 +317,43 @@ export const useStore = create<Store>()(
           };
         }),
 
+      makeRepeats: (days) => {
+        const plans = get().plans;
+        const ids = new Set(plans.map((p) => p.id));
+        const add: Plan[] = [];
+        for (const t of plans.filter((p) => p.repeat?.length)) {
+          for (const day of days) {
+            if (day <= t.day || !t.repeat!.includes(new Date(`${day}T12:00:00`).getDay())) continue;
+            const id = repeatId(t.id, day);
+            if (ids.has(id) || repeatsMade.has(id)) continue;
+            repeatsMade.add(id);
+            add.push({
+              id,
+              title: t.title,
+              day,
+              must: t.must,
+              status: 'pending',
+              carryCount: 0,
+              createdAt: Date.now(),
+              note: t.note,
+              start: t.start,
+              duration: t.duration,
+              remindOffset: t.remindOffset,
+              remindAt: t.remindAt,
+            });
+          }
+        }
+        saveRepeatsMade();
+        if (add.length) set((s) => ({ plans: [...s.plans, ...add] }));
+      },
+
       rollOverPlans: (today) => {
+        // A missed repeating plan doesn't pile up — the next one is already coming.
+        const missedRepeats = get().plans.filter((p) => p.day < today && p.status === 'pending' && (p.repeat?.length || isRepeatCopy(p.id)));
+        if (missedRepeats.length) {
+          const ids = new Set(missedRepeats.map((p) => p.id));
+          set((s) => ({ plans: s.plans.map((p) => (ids.has(p.id) ? { ...p, status: 'missed' as const } : p)) }));
+        }
         const past = get().plans.filter((p) => p.day < today && p.status === 'pending');
         if (!past.length) return 0;
         // Deterministic id per (plan, day) so two devices rolling over the same plan don't duplicate it.

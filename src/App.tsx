@@ -39,6 +39,7 @@ export default function App() {
   useEffect(() => {
     if (!ready) return;
     const n = useStore.getState().rollOverPlans(today);
+    useStore.getState().makeRepeats([today, addDays(today, 1)]);
     if (n) useUI.getState().showToast(`${n} unfinished plan${n > 1 ? 's' : ''} moved to today`, { tone: 'plan' });
   }, [today, ready, planCount]);
   const hasName = useStore((s) => !!s.profile.name);
