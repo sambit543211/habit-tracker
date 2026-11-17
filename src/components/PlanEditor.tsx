@@ -7,6 +7,7 @@ import { StarIcon } from './icons';
 import { fmtDuration, fmtTime, fromMin, toMin } from '../lib/time';
 import { addDays, dayKeyAt, formatDay } from '../lib/date';
 import { parsePlan } from '../lib/parsePlan';
+import { repeatLabel } from '../lib/planMeta';
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
 const OFFSETS: { v: number | undefined; label: string }[] = [
@@ -42,6 +43,7 @@ export function PlanEditor() {
   const [customDur, setCustomDur] = useState(false);
   const [offset, setOffset] = useState<number | undefined>(undefined);
   const [remindAt, setRemindAt] = useState('');
+  const [repeat, setRepeat] = useState<number[]>([]);
 
   useEffect(() => {
     if (!target) return;
@@ -56,12 +58,13 @@ export function PlanEditor() {
     setCustomDur(!!p?.duration && !DURATIONS.includes(p.duration));
     setOffset(p?.remindOffset);
     setRemindAt(p?.remindAt ?? '');
+    setRepeat(p?.repeat ?? []);
     // Late at night a new plan is almost always for tomorrow — and adding it to today would only drag today's score down.
     const h = new Date().getHours();
     const asked = 'day' in target ? target.day : today;
     setDay(p?.day ?? (asked === today && !('start' in target && target.start) && (h >= 21 || h < 2) ? tomorrow : asked));
     // Details open when editing a plan that already has some, or when a time slot was tapped.
-    setDetails(!!(p?.start || p?.note || p?.remindAt || presetStart));
+    setDetails(!!(p?.start || p?.note || p?.remindAt || p?.repeat?.length || presetStart));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
@@ -97,6 +100,7 @@ export function PlanEditor() {
       duration: useTimed ? Math.max(15, d) : undefined,
       remindOffset: useTimed ? offset : undefined,
       remindAt: !useTimed && remindAt ? remindAt : undefined,
+      repeat: repeat.length ? repeat : undefined,
     };
     const target = typedDay ?? (day || today);
     // Same plan already waiting that day (e.g. carried over from yesterday)? Update it instead of adding a twin.
@@ -108,6 +112,8 @@ export function PlanEditor() {
       updatePlan(twin.id, { ...details, must: must || twin.must, note: details.note ?? twin.note });
       useUI.getState().showToast(`“${twin.title}” was already on the list — updated it`, { tone: 'plan' });
     } else addPlan(target, t, must, details);
+    // Repeating: make the next copies right away (today / tomorrow).
+    if (repeat.length) useStore.getState().makeRepeats([today, tomorrow]);
     close();
   };
 
@@ -121,6 +127,7 @@ export function PlanEditor() {
   const canSwitchDay = isNew && (day === today || day === tomorrow);
   const detailSummary = [
     timed ? `${fmtTime(start)}–${fmtTime(end)}` : remindAt ? `⏰ ${fmtTime(remindAt)}` : null,
+    repeat.length ? `🔁 ${repeatLabel(repeat)}` : null,
     note.trim() ? 'note' : null,
   ]
     .filter(Boolean)
@@ -210,7 +217,7 @@ export function PlanEditor() {
       >
         <span>
           <span className="block text-[14.5px] font-semibold">{details ? 'Details' : 'Add details'}</span>
-          <span className="block text-[12.5px] text-muted">{detailSummary || 'Time on your calendar, note, reminder'}</span>
+          <span className="block text-[12.5px] text-muted">{detailSummary || 'Time, reminder, repeat, note'}</span>
         </span>
         <motion.span animate={{ rotate: details ? 90 : 0 }} className="text-[18px] text-muted" aria-hidden>
           ›
@@ -288,6 +295,28 @@ export function PlanEditor() {
                 </div>
               </div>
             )}
+
+            <label className="mt-4 block text-[13px] font-medium text-muted">Repeat</label>
+            <div className="mt-1.5 flex gap-1.5" role="group" aria-label="Repeat on">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                const on = repeat.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]}
+                    onClick={() => setRepeat((r) => (on ? r.filter((x) => x !== d) : [...r, d]))}
+                    className={`size-10 rounded-full border text-[13px] font-semibold ${on ? 'border-plan bg-plan text-white' : 'border-line bg-surface-2 text-muted'}`}
+                  >
+                    {'SMTWTFS'[d]}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[12.5px] text-faint">
+              {repeat.length ? `Comes back every ${repeatLabel(repeat).toLowerCase() === 'daily' ? 'day' : repeatLabel(repeat)} with the same time and reminder.` : 'Off — tap days to repeat this plan.'}
+            </p>
 
             <label className="mt-4 block text-[13px] font-medium text-muted">Note</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Anything to remember…" className={`${field} resize-none`} />

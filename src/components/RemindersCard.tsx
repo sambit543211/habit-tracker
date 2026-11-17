@@ -5,6 +5,7 @@ import { useSync } from '../sync';
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push';
 import { Switch } from './Switch';
 import { clearNotifications } from '../lib/useAppBadge';
+import { APP_NAME } from '../config';
 
 /** Notification permission + nudge settings (Habits tab). */
 export function RemindersCard() {
@@ -40,7 +41,7 @@ export function RemindersCard() {
       {state === 'needs-install' && (
         <p className="mt-2 text-[14px] leading-relaxed text-muted">
           On iPhone, notifications only work from the Home Screen app. In Safari tap <b className="text-text">Share</b> →{' '}
-          <b className="text-text">Add to Home Screen</b>, then open Keep from its icon.
+          <b className="text-text">Add to Home Screen</b>, then open {APP_NAME} from its icon.
         </p>
       )}
       {state === 'unsupported' && (
@@ -48,7 +49,7 @@ export function RemindersCard() {
       )}
       {state === 'denied' && (
         <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          Notifications are blocked. Turn them on in <b className="text-text">Settings → Notifications → Keep</b>, then come back.
+          Notifications are blocked. Turn them on in <b className="text-text">Settings → Notifications → {APP_NAME}</b>, then come back.
         </p>
       )}
       {(state === 'on' || state === 'off') && (

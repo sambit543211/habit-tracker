@@ -16,6 +16,7 @@ export interface HabitRow {
   remind_at: string | null;
   pair_with: string | null;
   position?: number | null;
+  per_week?: number | null;
 }
 
 export interface PlanRow {
@@ -35,6 +36,7 @@ export interface PlanRow {
   remind_offset: number | null;
   remind_at: string | null;
   origin_day: string | null;
+  repeat_days?: string | null;
 }
 
 export interface ReflectionRow {
@@ -188,6 +190,7 @@ export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
   remind_at: h.remindAt ?? null,
   pair_with: h.pairWith ?? null,
   position: h.position ?? null,
+  per_week: h.perWeek ?? null,
 });
 
 export const rowToHabit = (r: HabitRow): Habit => ({
@@ -200,6 +203,7 @@ export const rowToHabit = (r: HabitRow): Habit => ({
   remindAt: hhmm(r.remind_at) ?? undefined,
   pairWith: r.pair_with ?? undefined,
   position: r.position ?? undefined,
+  perWeek: r.per_week ?? undefined,
 });
 
 export const planToRow = (p: Plan, user_id: string): PlanRow => ({
@@ -219,6 +223,7 @@ export const planToRow = (p: Plan, user_id: string): PlanRow => ({
   remind_offset: p.remindOffset ?? null,
   remind_at: p.remindAt ?? null,
   origin_day: p.originDay ?? null,
+  repeat_days: p.repeat?.length ? p.repeat.join(',') : null,
 });
 
 export const rowToPlan = (r: PlanRow): Plan => ({
@@ -237,6 +242,7 @@ export const rowToPlan = (r: PlanRow): Plan => ({
   remindOffset: r.remind_offset ?? undefined,
   remindAt: hhmm(r.remind_at) ?? undefined,
   originDay: r.origin_day ?? undefined,
+  repeat: r.repeat_days ? r.repeat_days.split(',').map(Number) : undefined,
 });
 
 export const rowsToReflections = (rows: ReflectionRow[]) =>

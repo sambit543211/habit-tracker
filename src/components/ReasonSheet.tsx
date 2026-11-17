@@ -53,7 +53,10 @@ export function ReasonSheet() {
       missHabit(target.day, target.id, miss);
       if (makeCue && miss.nextTime) updateHabit(target.id, { cue: miss.nextTime });
       const t = target;
-      showToast('Logged as not done', { tone: 'miss', undo: () => clearHabit(t.day, t.id) });
+      showToast(picked === 'skip' ? 'Skipped today — streak safe' : 'Logged as not done', {
+        tone: picked === 'skip' ? 'plan' : 'miss',
+        undo: () => clearHabit(t.day, t.id),
+      });
     }
     close();
   };
@@ -152,6 +155,16 @@ export function ReasonSheet() {
         })}
       </div>
 
+      <button
+        onClick={() => submit('skip')}
+        className="mt-3 flex min-h-12 w-full items-center gap-3 rounded-2xl border border-line bg-surface-2 px-4 text-left"
+      >
+        <span className="text-[18px]" aria-hidden>🛌</span>
+        <span>
+          <span className="block text-[14.5px] font-semibold">Skip today</span>
+          <span className="block text-[12.5px] text-muted">Sick, travelling or a rest day — not counted, streak safe</span>
+        </span>
+      </button>
       {!detailed && (
         <button onClick={() => setDetailed(true)} className="mt-3 min-h-11 w-full text-[13.5px] font-medium text-muted">
           Tap a reason to log it · <span className="underline underline-offset-2">add a note first</span>

@@ -4,6 +4,8 @@ import { useStore, useUI } from '../store';
 import type { Habit, HabitLog } from '../types';
 import { ItemRow } from './ItemRow';
 import { reasonLabel } from '../lib/reasons';
+import { useData } from '../lib/useData';
+import { weekCount } from '../lib/score';
 import { WATER_STEP, fmtWater, waterTarget } from '../lib/water';
 import { haptic } from '../lib/feedback';
 
@@ -20,6 +22,7 @@ export function HabitRows({
   compact?: boolean;
 }) {
   const logs = useStore((s) => s.logs[day]);
+  const data = useData();
   const amounts = useStore((s) => s.amounts[day]);
   const addWater = useStore((s) => s.addWater);
   const openWater = useUI((s) => s.openWater);
@@ -32,10 +35,18 @@ export function HabitRows({
       <AnimatePresence initial={false}>
         {habits.map((h) => {
           const log = logs?.[h.id] as HabitLog | undefined;
+          const skipped = log?.miss?.reason === 'skip';
           const status: 'pending' | 'done' | 'missed' = log?.status ?? 'pending';
-          const base = [h.cue ? `After I ${h.cue}` : null, h.pairWith ? `🎧 with ${h.pairWith}` : null].filter(Boolean).join(' · ');
+          const base = [
+            h.perWeek ? `${weekCount(data, h, day)} of ${h.perWeek} this week` : null,
+            h.cue ? `After I ${h.cue}` : null,
+            h.pairWith ? `🎧 with ${h.pairWith}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ');
           let subtitle: ReactNode = base || undefined;
-          if (status === 'missed')
+          if (skipped) subtitle = <span className="text-muted">🛌 Skipped today</span>;
+          else if (status === 'missed')
             subtitle = (
               <span>
                 <span className="text-miss">{reasonLabel(log?.miss?.reason)}</span>
@@ -63,7 +74,7 @@ export function HabitRows({
               accent="habit"
               title={h.name}
               subtitle={subtitle}
-              status={status}
+              status={skipped ? 'carried' : status}
               onDone={() => {
                 markHabit(day, h.id);
                 showToast(`${h.name} — done`, { tone: 'habit', undo: () => clearHabit(day, h.id) });

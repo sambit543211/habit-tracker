@@ -20,6 +20,8 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
     if (d < h.createdDay || (h.archivedDay && d >= h.archivedDay)) return 'off';
     const s = data.logs[d]?.[h.id]?.status;
     if (s === 'done') return 'done';
+    if (data.logs[d]?.[h.id]?.miss?.reason === 'skip') return 'off';
+    if (h.perWeek) return d === today ? 'today' : 'off'; // weekly: a day without it isn't a miss
     if (s === 'missed') return 'missed';
     return d === today ? 'today' : 'unchecked';
   };
@@ -31,7 +33,10 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
       const past = cells.slice(0, -1);
       const counted = past.filter((c) => c === 'done' || c === 'missed' || c === 'unchecked').length;
       const done = past.filter((c) => c === 'done').length;
-      return { h, cells, done, counted, rate: counted >= MIN_DAYS ? done / counted : null };
+      // Weekly habits: done vs. what the target asks for in these days (3× a week over 14 days → 6).
+      const due = h.perWeek ? Math.max(1, Math.round((h.perWeek * past.filter((c) => c !== 'off' || h.perWeek).length) / 7)) : counted;
+      const enough = h.perWeek ? past.length >= 7 : counted >= MIN_DAYS;
+      return { h, cells, done, counted: due, rate: enough ? Math.min(1, done / due) : null };
     })
     .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
 

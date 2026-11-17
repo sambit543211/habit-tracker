@@ -8,5 +8,6 @@ export function useData(): Data {
   const plans = useStore((s) => s.plans);
   const logs = useStore((s) => s.logs);
   const startDay = useStore((s) => s.startDay);
-  return useMemo(() => ({ habits, plans, logs, startDay }), [habits, plans, logs, startDay]);
+  const amounts = useStore((s) => s.amounts);
+  return useMemo(() => ({ habits, plans, logs, startDay, amounts }), [habits, plans, logs, startDay, amounts]);
 }

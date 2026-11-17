@@ -94,7 +94,7 @@ describe('week summary', () => {
     const d = base('2026-11-01');
     fill(d, '2026-11-02', '2026-11-10');
     const t = weekSummary(d, addDays('2026-11-10', 1), 'Sambit', 'phone outside bedroom');
-    expect(t).toContain("Sambit's week on Keep");
+    expect(t).toContain("Sambit's week on Sky");
     expect(t).toContain('Habits kept: 2/3');
     expect(t).toContain('phone outside bedroom');
   });

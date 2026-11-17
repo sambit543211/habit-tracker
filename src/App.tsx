@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useUI } from './store';
 import { useToday, isEvening } from './lib/useToday';
 import { addDays } from './lib/date';
 import { Today } from './screens/Today';
-import { PlanTomorrow } from './screens/PlanTomorrow';
-import { Insights } from './screens/Insights';
+const Quick = lazy(() => import('./screens/Quick').then((m) => ({ default: m.Quick })));
+const PlanTomorrow = lazy(() => import('./screens/PlanTomorrow').then((m) => ({ default: m.PlanTomorrow })));
+const Insights = lazy(() => import('./screens/Insights').then((m) => ({ default: m.Insights })));
 import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
@@ -14,9 +15,9 @@ import { HabitEditor } from './components/HabitEditor';
 import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
 import { Celebrations } from './components/Celebrations';
-import { Profile } from './screens/Profile';
-import { Quit } from './screens/Quit';
-import { Circle } from './screens/Circle';
+const Profile = lazy(() => import('./screens/Profile').then((m) => ({ default: m.Profile })));
+const Quit = lazy(() => import('./screens/Quit').then((m) => ({ default: m.Quit })));
+const Circle = lazy(() => import('./screens/Circle').then((m) => ({ default: m.Circle })));
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
 import { CloseDaySheet } from './components/CloseDaySheet';
@@ -29,6 +30,13 @@ import { CLOUD_ENABLED } from './config';
 export default function App() {
   const onboarded = useStore((s) => s.onboarded);
   const tab = useUI((s) => s.tab);
+  // #quick → the one-screen Quick page (save it to the Home Screen as a second icon).
+  const [quick, setQuick] = useState(() => location.hash === '#quick');
+  useEffect(() => {
+    const on = () => setQuick(location.hash === '#quick');
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
   const { today, hour } = useToday();
   const tomorrowEmpty = useStore((s) => !s.plans.some((p) => p.day === addDays(today, 1)));
 
@@ -39,6 +47,7 @@ export default function App() {
   useEffect(() => {
     if (!ready) return;
     const n = useStore.getState().rollOverPlans(today);
+    useStore.getState().makeRepeats([today, addDays(today, 1)]);
     if (n) useUI.getState().showToast(`${n} unfinished plan${n > 1 ? 's' : ''} moved to today`, { tone: 'plan' });
   }, [today, ready, planCount]);
   const hasName = useStore((s) => !!s.profile.name);
@@ -48,6 +57,19 @@ export default function App() {
   if (CLOUD_ENABLED && !session) return <Login />;
   if (CLOUD_ENABLED && !hasName) return <NamePrompt />;
   if (!onboarded) return <Onboarding />;
+
+  if (quick)
+    return (
+      <>
+        <Suspense fallback={<Splash />}>
+          <Quick today={today} />
+        </Suspense>
+        <PlanEditor />
+        <ReasonSheet />
+        <WaterSheet />
+        <Toast />
+      </>
+    );
 
   return (
     <>
@@ -60,12 +82,14 @@ export default function App() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
-            {tab === 'today' && <Today today={today} hour={hour} />}
-            {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
-            {tab === 'insights' && <Insights today={today} />}
-            {tab === 'profile' && <Profile today={today} />}
-            {tab === 'quit' && <Quit today={today} />}
-            {tab === 'circle' && <Circle today={today} />}
+            <Suspense fallback={<div className="min-h-[60dvh]" />}>
+              {tab === 'today' && <Today today={today} hour={hour} />}
+              {tab === 'plan' && <PlanTomorrow today={today} hour={hour} />}
+              {tab === 'insights' && <Insights today={today} />}
+              {tab === 'profile' && <Profile today={today} />}
+              {tab === 'quit' && <Quit today={today} />}
+              {tab === 'circle' && <Circle today={today} />}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

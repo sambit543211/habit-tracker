@@ -5,8 +5,9 @@
 import type { Data, ReasonCode } from '../types';
 import { addDays, range } from './date';
 import { dayStats, reasonCounts, streak } from './score';
-import { reasonLabel } from './reasons';
+import { REASON_TIPS, reasonLabel } from './reasons';
 import { weekStart } from './time';
+import { APP_NAME } from '../config';
 
 // ---------- Reliability level ----------
 
@@ -215,7 +216,7 @@ export function weekSummary(data: Data, today: string, name: string | undefined,
   const st = streak(data, today);
   const fmt = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const lines = [
-    `${name ? `${name}'s` : 'My'} week on Keep (${fmt(mon)} – ${fmt(today)})`,
+    `${name ? `${name}'s` : 'My'} week on ${APP_NAME} (${fmt(mon)} – ${fmt(today)})`,
     avg !== null ? `Efficacy: ${avg}%${prevAvg !== null ? ` (${avg >= prevAvg ? '↑' : '↓'}${Math.abs(avg - prevAvg)} vs last week)` : ''}` : null,
     `Habits kept: ${hd}/${ht}`,
     `Plans done: ${pd}/${pt}`,
@@ -225,4 +226,55 @@ export function weekSummary(data: Data, today: string, name: string | undefined,
     'Hold me to it.',
   ];
   return lines.filter(Boolean).join('\n');
+}
+
+// ---------- Weekly recap (last Monday–Sunday) ----------
+
+export interface Recap {
+  from: string;
+  to: string;
+  days: number;
+  avg: number | null;
+  best: { name: string; done: number; of: number } | null;
+  worst: { name: string; done: number; of: number; reason?: ReasonCode } | null;
+  plans: { done: number; of: number };
+  tip: string;
+}
+
+/** Last full week, or null when there were fewer than 3 tracked days. */
+export function lastWeekRecap(data: Data, today: string): Recap | null {
+  const from = addDays(weekStart(today), -7);
+  const to = addDays(from, 6);
+  const days = range(from, to).filter((d) => !!data.startDay && d >= data.startDay && d < today);
+  if (days.length < 3) return null;
+  const scores = days.map((d) => dayStats(data, d).score).filter((x): x is number => x !== null);
+  const per = data.habits
+    .filter((h) => !h.perWeek && h.createdDay <= to && (!h.archivedDay || h.archivedDay > from))
+    .map((h) => {
+      const counted = days.filter((d) => d >= h.createdDay && data.logs[d]?.[h.id]?.miss?.reason !== 'skip');
+      const done = counted.filter((d) => data.logs[d]?.[h.id]?.status === 'done').length;
+      const reasons = counted.map((d) => data.logs[d]?.[h.id]?.miss?.reason).filter((r): r is ReasonCode => !!r && r !== 'skip');
+      const top = reasons.sort((a, b) => reasons.filter((x) => x === b).length - reasons.filter((x) => x === a).length)[0];
+      return { name: h.name, done, of: counted.length, rate: counted.length ? done / counted.length : 0, reason: top };
+    })
+    .filter((x) => x.of > 0)
+    .sort((a, b) => b.rate - a.rate);
+  const plans = data.plans.filter((p) => p.day >= from && p.day <= to);
+  const best = per[0] ?? null;
+  const worst = per.length > 1 && per[per.length - 1].rate < best!.rate ? per[per.length - 1] : null;
+  const tip = worst?.reason
+    ? REASON_TIPS[worst.reason]
+    : worst
+      ? `Make “${worst.name}” smaller this week — a 2-minute version still counts.`
+      : 'Steady week. Keep the same plan and protect your streak.';
+  return {
+    from,
+    to,
+    days: days.length,
+    avg: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+    best: best && { name: best.name, done: best.done, of: best.of },
+    worst: worst && { name: worst.name, done: worst.done, of: worst.of, reason: worst.reason },
+    plans: { done: plans.filter((p) => p.status === 'done').length, of: plans.filter((p) => p.status !== 'carried').length },
+    tip,
+  };
 }

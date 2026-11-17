@@ -384,7 +384,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         </section>
       </div>
 
-      {/* Circle is the social part of Keep — offer it from day 2 to people who haven't tried it */}
+      {/* Circle is the social part of the app — offer it from day 2 to people who haven't tried it */}
       {!circleOn && !pendingInvite && !!startDay && startDay < today && !promoHidden && (
         <Banner
           key="circle-promo"

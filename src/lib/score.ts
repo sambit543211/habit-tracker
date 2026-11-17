@@ -1,3 +1,4 @@
+import { waterTarget } from './water';
 import type { Data, Habit, Plan, ReasonCode } from '../types';
 import { addDays, range, weekday } from './date';
 
@@ -26,21 +27,52 @@ export interface DayStats {
   perfectHabits: boolean;
 }
 
+/**
+ * Habits that count on a day. Left out: ones skipped (sick / travel / rest day), and weekly
+ * habits ("3× a week") unless done that day — a weekly habit is never "missed" on a single day.
+ */
+export const countedHabits = (data: Data, day: string): Habit[] => {
+  const log = data.logs[day] ?? {};
+  return habitsOn(data, day).filter((h) => log[h.id]?.miss?.reason !== 'skip' && (!h.perWeek || log[h.id]?.status === 'done'));
+};
+
+/** Times a weekly habit was done in the Monday–Sunday week containing `day`. */
+export const weekCount = (data: Data, h: Habit, day: string) => {
+  const d = new Date(`${day}T12:00:00`);
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(mon);
+    x.setDate(mon.getDate() + i);
+    const k = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    if (data.logs[k]?.[h.id]?.status === 'done') n++;
+  }
+  return n;
+};
+
 export function dayStats(data: Data, day: string): DayStats {
-  const habits = habitsOn(data, day);
+  const habits = countedHabits(data, day);
   const log = data.logs[day] ?? {};
   let habitsDone = 0;
   let habitsMissed = 0;
+  let credit = 0; // done = 1, water in progress = the share drunk so far
   for (const h of habits) {
     const s = log[h.id]?.status;
-    if (s === 'done') habitsDone++;
-    else if (s === 'missed') habitsMissed++;
+    if (s === 'done') {
+      habitsDone++;
+      credit++;
+    } else if (s === 'missed') habitsMissed++;
+    else {
+      const goal = waterTarget(h);
+      if (goal) credit += Math.min(0.99, (data.amounts?.[day]?.[h.id] ?? 0) / goal);
+    }
   }
   const plans = plansOn(data, day);
   const plansDone = plans.filter((p) => p.status === 'done').length;
   const plansMissed = plans.filter((p) => p.status === 'missed' || p.status === 'carried').length;
 
-  const habitPct = habits.length ? habitsDone / habits.length : null;
+  const habitPct = habits.length ? credit / habits.length : null;
   const planPct = plans.length ? plansDone / plans.length : null;
   const score =
     habitPct !== null && planPct !== null ? (habitPct + planPct) / 2 : (habitPct ?? planPct);

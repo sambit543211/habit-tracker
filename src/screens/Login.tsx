@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Ring } from '../components/Ring';
 import { ChevronLeftIcon } from '../components/icons';
+import { APP_NAME, APP_TAGLINE } from '../config';
 
 type Mode = 'signin' | 'signup' | 'code-email' | 'code-verify';
 
@@ -121,8 +122,8 @@ export function Login() {
         </div>
       </div>
       <div className="mt-3 text-center">
-        <div className="text-[22px] font-bold tracking-[-0.02em]">Keep</div>
-        <div className="text-[13.5px] text-muted">Daily habits, plans, and friends who keep you going.</div>
+        <div className="text-[22px] font-bold tracking-[-0.02em]">{APP_NAME}</div>
+        <div className="text-[13.5px] text-muted">{APP_TAGLINE}</div>
       </div>
 
       <AnimatePresence mode="wait">

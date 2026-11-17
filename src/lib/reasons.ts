@@ -12,7 +12,7 @@ export const REASONS: { code: ReasonCode; label: string; emoji: string }[] = [
 ];
 
 export const reasonLabel = (code?: ReasonCode) =>
-  REASONS.find((r) => r.code === code)?.label ?? 'Missed';
+  code === 'skip' ? 'Skipped today' : (REASONS.find((r) => r.code === code)?.label ?? 'Missed');
 
 /** A gentle, research-backed suggestion for each kind of miss. */
 export const REASON_TIPS: Record<ReasonCode, string> = {
@@ -24,4 +24,5 @@ export const REASON_TIPS: Record<ReasonCode, string> = {
   overplanned: 'Plan fewer things. 3 must-dos beats 10 maybes.',
   blocked: 'Write down the first concrete step to unblock it.',
   chose_not: 'Fine — but if this keeps happening, is it still a priority?',
+  skip: 'Rest days are part of the plan. See you tomorrow.',
 };

@@ -6,7 +6,9 @@ export type ReasonCode =
   | 'other_priority'
   | 'overplanned'
   | 'blocked'
-  | 'chose_not';
+  | 'chose_not'
+  /** Sick / travelling / rest day: not counted, doesn't break the streak */
+  | 'skip';
 
 export interface Miss {
   reason: ReasonCode;
@@ -31,6 +33,8 @@ export interface Habit {
   pairWith?: string;
   /** Your order in lists (lower = higher up) */
   position?: number;
+  /** Weekly habit: this many times a week instead of every day (1–6) */
+  perWeek?: number;
 }
 
 /** Name + day shape, shown on Profile and used for the calendar. */
@@ -153,6 +157,8 @@ export interface Plan {
   remindAt?: string;
   /** First day this plan was meant for (set when it rolls over) */
   originDay?: string;
+  /** Repeating plan: weekdays it comes back on (0 = Sunday … 6 = Saturday) */
+  repeat?: number[];
 }
 
 export interface Data {
