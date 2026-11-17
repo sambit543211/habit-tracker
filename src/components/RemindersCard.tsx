@@ -101,7 +101,7 @@ export function RemindersCard() {
             <div className="mt-2 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className={`text-[15px] font-medium ${reminders.nudges !== false ? '' : 'text-muted'}`}>👋 Nudges</div>
-                <div className="text-[12.5px] text-faint">Up to 4 a day · never 12 am – 8 am</div>
+                <div className="text-[12.5px] text-faint">Every nudge, any time except 12 am – 8 am</div>
               </div>
               <Switch on={reminders.nudges !== false} onChange={(v) => setReminders({ nudges: v })} label="Nudges" />
             </div>

@@ -100,7 +100,8 @@ const CHEER_BODY: Record<string, string> = {
 };
 const names = (xs: string[]) => (xs.length <= 1 ? xs[0] ?? 'A friend' : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const inRange = (m: number, a: number, b: number) => (a <= b ? m >= a && m < b : m >= a || m < b);
-const NUDGE_CAP = 4;
+// No daily limit on nudge notifications for now (testing). Set a number here to cap them again.
+const NUDGE_CAP = Infinity;
 // Nobody gets nudged between midnight and 8 am (their local time). Any other time is fine.
 const QUIET_START = 0;
 const QUIET_END = 8 * 60;
