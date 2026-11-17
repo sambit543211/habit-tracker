@@ -271,6 +271,19 @@ export const rowsToLogs = (rows: LogRow[]): Data['logs'] => {
   return logs;
 };
 
+export interface AmountRow {
+  user_id: string;
+  day: string;
+  habit_id: string;
+  amount: number;
+}
+
+export const rowsToAmounts = (rows: AmountRow[]): NonNullable<Data['amounts']> => {
+  const out: NonNullable<Data['amounts']> = {};
+  for (const r of rows) (out[r.day] ??= {})[r.habit_id] = r.amount;
+  return out;
+};
+
 // ---------- Outbox operations ----------
 
 export type Op =
@@ -281,6 +294,8 @@ export type Op =
   | { table: 'plans'; kind: 'delete'; key: string; id: string }
   | { table: 'habit_logs'; kind: 'upsert'; key: string; row: LogRow }
   | { table: 'habit_logs'; kind: 'delete'; key: string; day: string; habit_id: string }
+  | { table: 'habit_amounts'; kind: 'upsert'; key: string; row: AmountRow }
+  | { table: 'habit_amounts'; kind: 'delete'; key: string; day: string; habit_id: string }
   | { table: 'reflections'; kind: 'upsert'; key: string; row: ReflectionRow }
   | { table: 'reflections'; kind: 'delete'; key: string; day: string }
   | { table: 'weekly_reviews'; kind: 'upsert'; key: string; row: ReviewRow }
@@ -329,6 +344,21 @@ export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: 
         if (!b[habit_id]) ops.push({ table: 'habit_logs', kind: 'delete', key, day, habit_id });
         else if (a[habit_id] !== b[habit_id])
           ops.push({ table: 'habit_logs', kind: 'upsert', key, row: logToRow(day, habit_id, b[habit_id], user_id) });
+      }
+    }
+  }
+
+  if (prev.amounts !== next.amounts) {
+    const pa = prev.amounts ?? {};
+    const na = next.amounts ?? {};
+    for (const day of new Set([...Object.keys(pa), ...Object.keys(na)])) {
+      const a = pa[day] ?? {};
+      const b = na[day] ?? {};
+      if (a === b) continue;
+      for (const habit_id of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        const key = `habit_amounts:${day}:${habit_id}`;
+        if (b[habit_id] === undefined) ops.push({ table: 'habit_amounts', kind: 'delete', key, day, habit_id });
+        else if (a[habit_id] !== b[habit_id]) ops.push({ table: 'habit_amounts', kind: 'upsert', key, row: { user_id, day, habit_id, amount: b[habit_id] } });
       }
     }
   }

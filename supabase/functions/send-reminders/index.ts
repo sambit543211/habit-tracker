@@ -7,8 +7,8 @@
 // - Wording rotates day to day and uses your name. Duolingo's research on
 //   recurring notifications found rotating/resting templates keeps people
 //   responding (Yancey & Settles, KDD 2020).
-// - Back-off: a reminder ignored 3 times in a row pauses itself; the app
-//   then offers a different time.
+// - Just two daily reminders: a morning summary at wake-up and an evening
+//   check-in. Each is skipped when there's nothing to say.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
@@ -19,7 +19,6 @@ const APP_URL = Deno.env.get('APP_URL') ?? 'https://habit-tracker-inky-pi.vercel
 
 const CUTOFF_HOUR = 2;
 const WINDOW_MIN = 15; // send if the reminder time passed within the last 15 minutes
-const PAUSABLE = ['brief', 'morning', 'evening', 'streak', 'lastcall'];
 const SHIELD_EVERY = 7;
 const SHIELD_MAX = 2;
 
@@ -163,7 +162,6 @@ Deno.serve(async (req) => {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);
     const name = (p.display_name ?? '').trim().split(/\s+/)[0] || '';
-    const paused: string[] = p.paused_reminders ?? [];
 
     const [{ data: habits }, { data: logs }, { data: plans }] = await Promise.all([
       db.from('habits').select('*').eq('user_id', p.user_id),
@@ -215,11 +213,13 @@ Deno.serve(async (req) => {
       return out.charAt(0).toUpperCase() + out.slice(1);
     };
 
-    // Morning brief at wake-up: must-dos and the first time block.
+    // Morning summary at wake-up: carried-over plans, must-dos, the first time block, habits.
     if (p.brief_reminder !== false && isDue(p.wake_time, now.minutes)) {
+      const late = pendingPlans.filter((x) => x.origin_day && x.origin_day < today).length;
       const musts = pendingPlans.filter((x) => x.must).length;
       const firstBlock = pendingPlans.filter((x) => x.start_time).sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
-      const parts = [];
+      const parts: string[] = [];
+      if (late > 0) parts.push(`${plural(late, 'plan')} carried over from earlier.`);
       if (musts > 0) parts.push(`${plural(musts, 'must-do')} today.`);
       else if (!todayPlans.length) parts.push('No plans yet — pick your 3 must-dos.');
       if (firstBlock) parts.push(`First: ${firstBlock.title} at ${fmt(firstBlock.start_time)}.`);
@@ -232,50 +232,25 @@ Deno.serve(async (req) => {
         });
     }
 
-    // Morning: unfinished plans from earlier days roll onto today.
-    if (isDue(p.morning_reminder, now.minutes)) {
-      const late = ps.filter((x) => x.day === yesterday && x.status === 'pending').length + pendingPlans.filter((x) => x.origin_day && x.origin_day < today).length;
-      if (late > 0)
+    // Evening check-in: what's still open today, and tomorrow if it's empty. Skipped when all is done and planned.
+    if (isDue(p.evening_reminder, now.minutes)) {
+      const tomorrowEmpty = !ps.some((x) => x.day === tomorrow);
+      const parts: string[] = [];
+      if (left > 0) parts.push(`${plural(left, 'habit')} still open`);
+      if (pendingPlans.length > 0) parts.push(`${plural(pendingPlans.length, 'plan')} left`);
+      if (tomorrowEmpty) parts.push('tomorrow is empty — 2 minutes to plan it');
+      if (parts.length) {
+        const atRisk = streak > 0 && left > 0 && !kept(today);
         candidates.push({
-          kind: 'morning',
-          title: withName(pick(['Carried over', 'Unfinished business', '{N}, finish these first'], seed('morning'))),
-          body: `${plural(late, 'plan')} from earlier ${late > 1 ? 'are' : 'is'} on today's list. Clear ${late > 1 ? 'them' : 'it'} first.`,
+          kind: 'evening',
+          title: atRisk
+            ? withName(pick([`🔥 ${streak}-day streak at risk`, `{N}, your ${streak}-day streak needs you`], seed('evening')))
+            : left > 0 || pendingPlans.length > 0
+              ? withName(pick(['Evening check-in', '{N}, how did today go?', 'Still time today'], seed('evening')))
+              : withName(pick(['Plan tomorrow 🌙', 'Tomorrow starts tonight'], seed('evening'))),
+          body: parts.join(' · ').replace(/^./, (c) => c.toUpperCase()) + '.',
         });
-    }
-
-    // Evening: plan tomorrow (only if nothing planned yet).
-    if (isDue(p.evening_reminder, now.minutes) && !ps.some((x) => x.day === tomorrow)) {
-      candidates.push({
-        kind: 'evening',
-        title: withName(pick(['Plan tomorrow 🌙', 'Tomorrow starts tonight', '{N}, 2 minutes for tomorrow'], seed('evening'))),
-        body: pick(
-          ['Two minutes now — then let your brain switch off.', 'Pick your 3 must-dos and sleep easier.', 'Decide tonight so morning-you just starts.'],
-          seed('evening-body'),
-        ),
-      });
-    }
-
-    // Late evening: streak at risk.
-    if (isDue(p.streak_reminder, now.minutes) && left > 0) {
-      const bed = p.sleep_time ? fmt(p.sleep_time) : '2 am';
-      candidates.push({
-        kind: 'streak',
-        title:
-          streak > 0 && !kept(today)
-            ? withName(pick([`🔥 ${streak}-day streak at risk`, `{N}, your ${streak}-day streak needs you`, `Don't let day ${streak + 1} slip`], seed('streak')))
-            : 'Habits still open',
-        body: `${plural(left, 'habit')} left — your day ends at ${bed}.${shields > 0 ? ` (🛡 ${shields} shield ready — save it.)` : ''}`,
-      });
-    }
-
-    // Last call: one hour before bed.
-    const sleepMin = toMin(p.sleep_time);
-    if (p.lastcall_reminder !== false && sleepMin !== null && dueAt((sleepMin - 60 + 1440) % 1440, now.minutes) && left > 0) {
-      candidates.push({
-        kind: 'lastcall',
-        title: withName(pick(['Last call, {N}', 'One hour to bed', 'Still time, {N}'], seed('lastcall'))),
-        body: `${plural(left, 'habit')} open. Even the tiny version counts.`,
-      });
+      }
     }
 
     // Per-habit reminders at their trigger time.
@@ -473,25 +448,6 @@ Deno.serve(async (req) => {
 
     const userSubs = subs.filter((s) => s.user_id === p.user_id);
     for (const c of candidates) {
-      if (PAUSABLE.includes(c.kind)) {
-        if (paused.includes(c.kind)) continue;
-        // Back-off: the last 3 sends of this kind were all ignored → pause it.
-        const { data: recent } = await db
-          .from('notification_log')
-          .select('acted,sent_at')
-          .eq('user_id', p.user_id)
-          .eq('kind', c.kind)
-          .lt('day', today)
-          .order('sent_at', { ascending: false })
-          .limit(3);
-        const weekAgo = Date.now() - 7 * 86400_000;
-        if (recent?.length === 3 && recent.every((r) => !r.acted && new Date(r.sent_at).getTime() > weekAgo)) {
-          paused.push(c.kind);
-          await db.from('profiles').update({ paused_reminders: paused }).eq('user_id', p.user_id);
-          continue;
-        }
-      }
-
       // Claim the (user, kind, day) slot first so a nudge is never sent twice.
       const { data: claimed } = await db
         .from('notification_log')

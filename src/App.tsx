@@ -9,6 +9,7 @@ import { Insights } from './screens/Insights';
 import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
+import { WaterSheet } from './components/WaterSheet';
 import { HabitEditor } from './components/HabitEditor';
 import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
@@ -75,6 +76,7 @@ export default function App() {
       <CloseDaySheet today={today} />
       <Celebrations today={today} />
       <ReasonSheet />
+      <WaterSheet />
       <Toast />
     </>
   );

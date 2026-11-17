@@ -4,6 +4,8 @@ import { useStore, useUI } from '../store';
 import type { Habit, HabitLog } from '../types';
 import { ItemRow } from './ItemRow';
 import { reasonLabel } from '../lib/reasons';
+import { WATER_STEP, fmtWater, waterTarget } from '../lib/water';
+import { haptic } from '../lib/feedback';
 
 /** Trackable habit rows for a given day. */
 export function HabitRows({
@@ -18,6 +20,9 @@ export function HabitRows({
   compact?: boolean;
 }) {
   const logs = useStore((s) => s.logs[day]);
+  const amounts = useStore((s) => s.amounts[day]);
+  const addWater = useStore((s) => s.addWater);
+  const openWater = useUI((s) => s.openWater);
   const { markHabit, clearHabit } = useStore();
   const openMiss = useUI((s) => s.openMiss);
   const showToast = useUI((s) => s.showToast);
@@ -37,7 +42,20 @@ export function HabitRows({
                 {log?.miss?.nextTime ? ` · Next: ${log.miss.nextTime}` : log?.miss?.note ? ` · ${log.miss.note}` : ''}
               </span>
             );
-          else if (status === 'pending' && showTiny && h.tiny)
+          const goal = waterTarget(h);
+          if (goal && status !== 'missed') {
+            const ml = amounts?.[h.id] ?? 0;
+            subtitle = (
+              <span className="block">
+                <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-2">
+                  <span className="block h-full rounded-full bg-sky-400 transition-[width] duration-500" style={{ width: `${Math.min(100, (ml / goal) * 100)}%` }} />
+                </span>
+                <span className="mt-0.5 block tabular text-sky-400">
+                  {fmtWater(ml)} / {fmtWater(goal)}
+                </span>
+              </span>
+            );
+          } else if (status === 'pending' && showTiny && h.tiny)
             subtitle = <span className="text-gold">{compact ? `Or just: ${h.tiny}` : `Short on time? Just: ${h.tiny}`}</span>;
           return (
             <ItemRow
@@ -52,6 +70,22 @@ export function HabitRows({
               }}
               onMiss={() => openMiss({ kind: 'habit', id: h.id, day })}
               onUndo={() => clearHabit(day, h.id)}
+              onOpen={goal ? () => openWater({ id: h.id, day }) : undefined}
+              trailing={
+                goal && status === 'pending' ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptic(8);
+                      addWater(day, h.id, WATER_STEP);
+                    }}
+                    aria-label={`Add ${WATER_STEP} ml`}
+                    className={`shrink-0 rounded-full bg-sky-400/15 font-bold text-sky-400 ${compact ? 'self-center px-2 py-1.5 text-[12px]' : 'px-3 py-2 text-[13px]'}`}
+                  >
+                    +{WATER_STEP}
+                  </button>
+                ) : undefined
+              }
               compact={compact}
             />
           );

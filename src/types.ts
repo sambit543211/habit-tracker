@@ -162,6 +162,8 @@ export interface Data {
   plans: Plan[];
   /** First day the user started tracking */
   startDay?: string;
+  /** amounts[day][habitId] = ml logged so far (water habits) */
+  amounts?: Record<string, Record<string, number>>;
   /** reflections[day] = one line before bed */
   reflections?: Record<string, string>;
   /** weeklyReviews[weekStart (Monday)] */

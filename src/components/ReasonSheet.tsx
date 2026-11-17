@@ -25,6 +25,7 @@ export function ReasonSheet() {
   const [makeCue, setMakeCue] = useState(false);
   // One tap logs it. "Add a note" first switches to pick-then-save.
   const [detailed, setDetailed] = useState(false);
+  const [showWhy, setShowWhy] = useState(false);
 
   useEffect(() => {
     if (target) {
@@ -33,6 +34,7 @@ export function ReasonSheet() {
       setNextTime('');
       setMakeCue(false);
       setDetailed(false);
+      setShowWhy(false);
     }
   }, [target]);
 
@@ -61,60 +63,68 @@ export function ReasonSheet() {
       {plan && (
         <>
           <h2 className="text-[22px] leading-tight font-semibold tracking-[-0.02em]">{title}</h2>
-          <p className="mt-1.5 text-[14px] text-muted">
-            Not happening? Drop it, or keep it — unfinished plans move to the next day on their own.
-          </p>
-          <div className="mt-4 text-[13px] font-medium text-muted">Why? <span className="text-faint">(optional)</span></div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {REASONS.map((r) => (
-              <button
-                key={r.code}
-                onClick={() => setReason(reason === r.code ? null : r.code)}
-                aria-pressed={reason === r.code}
-                className={`min-h-10 rounded-full border px-3 text-[13.5px] font-medium ${
-                  reason === r.code ? 'border-miss bg-miss/10 text-text' : 'border-line bg-surface-2 text-muted'
-                }`}
-              >
-                {r.emoji} {r.label}
-              </button>
-            ))}
-          </div>
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              const id = plan.id;
-              missPlan(id, reason ? { reason } : undefined);
-              close();
-              useUI.getState().showToast('Plan dropped', { tone: 'miss', undo: () => useStore.getState().clearPlan(id) });
-            }}
-            className="mt-5 min-h-12 w-full rounded-2xl bg-text text-[16px] font-semibold text-bg"
-          >
-            Drop plan
-          </motion.button>
-          {canCarry && (
-            <button
+          <p className="mt-1 text-[14px] text-muted">What happened with this plan?</p>
+          {!showWhy ? (
+            <button onClick={() => setShowWhy(true)} className="mt-2 min-h-10 text-[13.5px] font-medium text-muted underline underline-offset-2">
+              {reason ? `Reason: ${REASONS.find((r) => r.code === reason)?.label}` : 'Add a reason (optional)'}
+            </button>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {REASONS.map((r) => (
+                <button
+                  key={r.code}
+                  onClick={() => {
+                    setReason(reason === r.code ? null : r.code);
+                    setShowWhy(false);
+                  }}
+                  aria-pressed={reason === r.code}
+                  className={`min-h-10 rounded-full border px-3 text-[13.5px] font-medium ${
+                    reason === r.code ? 'border-miss bg-miss/10 text-text' : 'border-line bg-surface-2 text-muted'
+                  }`}
+                >
+                  {r.emoji} {r.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 flex flex-col gap-2">
+            {canCarry && (
+              <Choice
+                emoji="↪"
+                title={`Move to ${plan.day < dayKeyAt() ? 'today' : 'tomorrow'}`}
+                text={plan.start ? 'Still want to do it — pick a new time there. Counts as not done today.' : 'Still want to do it. Counts as not done today.'}
+                onClick={() => {
+                  const id = plan.id;
+                  carryPlan(id, reason ? { reason } : undefined);
+                  close();
+                  useUI.getState().showToast(`Moved to ${plan.day < dayKeyAt() ? 'today' : 'tomorrow'}`, { tone: 'plan', undo: () => useStore.getState().clearPlan(id) });
+                }}
+              />
+            )}
+            <Choice
+              emoji="✕"
+              tone="miss"
+              title="I didn't do it"
+              text="Counts as missed today, and it won't come back tomorrow."
               onClick={() => {
                 const id = plan.id;
-                carryPlan(id, reason ? { reason } : undefined);
+                missPlan(id, reason ? { reason } : undefined);
                 close();
-                useUI.getState().showToast('Moved forward', { tone: 'plan', undo: () => useStore.getState().clearPlan(id) });
+                useUI.getState().showToast('Marked as not done', { tone: 'miss', undo: () => useStore.getState().clearPlan(id) });
               }}
-              className="mt-2 min-h-12 w-full rounded-2xl bg-surface-2 text-[15px] font-semibold"
-            >
-              Move to {plan.day < dayKeyAt() ? 'today' : 'tomorrow'}
-            </button>
-          )}
-          <button
-            onClick={() => {
-              const copy = plan;
-              deletePlan(plan.id);
-              close();
-              useUI.getState().showToast('Plan deleted', { tone: 'miss', undo: () => useStore.getState().restorePlan(copy) });
-            }}
-            className="mt-1 min-h-11 w-full text-[13px] text-faint"
-          >
-            Added by mistake? Delete it
-          </button>
+            />
+            <Choice
+              emoji="🗑"
+              title="Not needed any more"
+              text="Plans change. It's removed and doesn't count against you."
+              onClick={() => {
+                const copy = plan;
+                deletePlan(plan.id);
+                close();
+                useUI.getState().showToast('Plan removed', { tone: 'plan', undo: () => useStore.getState().restorePlan(copy) });
+              }}
+            />
+          </div>
         </>
       )}
       {!plan && (
@@ -201,5 +211,23 @@ export function ReasonSheet() {
         </>
       )}
     </Sheet>
+  );
+}
+
+function Choice({ emoji, title, text, tone, onClick }: { emoji: string; title: string; text: string; tone?: 'miss'; onClick: () => void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={`flex min-h-16 w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left ${tone === 'miss' ? 'border-miss/35 bg-miss/5' : 'border-line bg-surface-2'}`}
+    >
+      <span className={`grid size-9 shrink-0 place-items-center rounded-full text-[17px] font-bold ${tone === 'miss' ? 'bg-miss/15 text-miss' : 'bg-surface text-text'}`} aria-hidden>
+        {emoji}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[15.5px] font-semibold">{title}</span>
+        <span className="block text-[12.5px] leading-snug text-muted">{text}</span>
+      </span>
+    </motion.button>
   );
 }

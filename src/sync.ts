@@ -20,6 +20,8 @@ import {
   rowsToReflections,
   rowsToReviews,
   type ReflectionRow,
+  type AmountRow,
+  rowsToAmounts,
   type ReviewRow,
   type SmokeRow,
   rowToSmoke,
@@ -111,6 +113,7 @@ const snap = (s: Snapshot): Snapshot => ({
   reminders: s.reminders,
   profile: s.profile,
   reflections: s.reflections,
+  amounts: s.amounts,
   weeklyReviews: s.weeklyReviews,
   smokes: s.smokes,
 });
@@ -136,12 +139,14 @@ const ORDER: [Op['table'], Op['kind']][] = [
   ['habits', 'upsert'],
   ['plans', 'upsert'],
   ['habit_logs', 'upsert'],
+  ['habit_amounts', 'upsert'],
   ['reflections', 'upsert'],
   ['weekly_reviews', 'upsert'],
   ['smoke_events', 'upsert'],
   ['smoke_events', 'delete'],
   ['reflections', 'delete'],
   ['habit_logs', 'delete'],
+  ['habit_amounts', 'delete'],
   ['plans', 'delete'],
   ['habits', 'delete'],
 ];
@@ -151,6 +156,7 @@ const CONFLICT: Record<Op['table'], string> = {
   habits: 'id',
   plans: 'id',
   habit_logs: 'user_id,day,habit_id',
+  habit_amounts: 'user_id,day,habit_id',
   reflections: 'user_id,day',
   weekly_reviews: 'user_id,week_start',
   smoke_events: 'id',
@@ -176,6 +182,14 @@ async function run(table: Op['table'], kind: Op['kind'], ops: Op[]): Promise<Res
   if (table === 'habit_logs') {
     for (const o of ops as Extract<Op, { table: 'habit_logs'; kind: 'delete' }>[]) {
       const { error, status } = await sb.from('habit_logs').delete().eq('day', o.day).eq('habit_id', o.habit_id);
+      const r = classify(error, status);
+      if (r === 'retry') return r;
+    }
+    return 'ok';
+  }
+  if (table === 'habit_amounts') {
+    for (const o of ops as Extract<Op, { table: 'habit_amounts'; kind: 'delete' }>[]) {
+      const { error, status } = await sb.from('habit_amounts').delete().eq('day', o.day).eq('habit_id', o.habit_id);
       const r = classify(error, status);
       if (r === 'retry') return r;
     }
@@ -240,7 +254,7 @@ async function fetchAll<T>(table: string): Promise<T[]> {
 }
 
 async function fetchRemote(): Promise<Snapshot> {
-  const [profile, habits, plans, logs, reflections, reviews, smokes] = await Promise.all([
+  const [profile, habits, plans, logs, reflections, reviews, smokes, amounts] = await Promise.all([
     supabase!.from('profiles').select('*').eq('user_id', userId!).maybeSingle(),
     fetchAll<HabitRow>('habits'),
     fetchAll<PlanRow>('plans'),
@@ -248,6 +262,8 @@ async function fetchRemote(): Promise<Snapshot> {
     fetchAll<ReflectionRow>('reflections'),
     fetchAll<ReviewRow>('weekly_reviews'),
     fetchAll<SmokeRow>('smoke_events'),
+    // Water amounts: optional table — if it isn't there yet, keep this device's amounts.
+    fetchAll<AmountRow>('habit_amounts').then(rowsToAmounts, () => useStore.getState().amounts),
   ]);
   if (profile.error) throw profile.error;
   const p = profile.data as ProfileRow | null;
@@ -262,6 +278,7 @@ async function fetchRemote(): Promise<Snapshot> {
     reflections: rowsToReflections(reflections),
     weeklyReviews: rowsToReviews(reviews),
     smokes: smokes.map(rowToSmoke),
+    amounts,
   };
 }
 

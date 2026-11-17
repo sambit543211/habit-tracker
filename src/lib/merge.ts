@@ -32,6 +32,7 @@ export function mergeSnapshots(local: Snapshot, remote: Snapshot): Snapshot {
     reminders: remote.reminders ?? local.reminders,
     profile: remote.profile ? { ...remote.profile, name: remote.profile.name ?? local.profile?.name } : local.profile,
     reflections: { ...local.reflections, ...remote.reflections },
+    amounts: { ...local.amounts, ...remote.amounts },
     weeklyReviews: { ...local.weeklyReviews, ...remote.weeklyReviews },
     smokes: [...(remote.smokes ?? []), ...(local.smokes ?? []).filter((e) => !(remote.smokes ?? []).some((r) => r.id === e.id))],
   };
