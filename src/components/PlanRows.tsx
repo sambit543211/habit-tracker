@@ -5,6 +5,8 @@ import { ItemRow } from './ItemRow';
 import { StarIcon } from './icons';
 import { reasonLabel } from '../lib/reasons';
 import { planMetaText } from '../lib/planMeta';
+import { toMin } from '../lib/time';
+import { dayKeyAt } from '../lib/date';
 
 /** Trackable plan rows (today / past days). Must-dos first. */
 export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean }) {
@@ -26,7 +28,34 @@ export function PlanRows({ plans, compact }: { plans: Plan[]; compact?: boolean 
             status={p.status}
             leading={p.must ? <StarIcon size={14} filled className="shrink-0 text-gold" /> : undefined}
             subtitle={planSubtitle(p)}
-            badge={carryBadge(p)}
+            badge={
+              overdue(p) ? (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[12px] font-semibold text-gold">⏰ Did it happen?</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markPlan(p.id);
+                      showToast(`${p.title} — done`, { tone: 'plan', undo: () => clearPlan(p.id) });
+                    }}
+                    className="min-h-8 rounded-full bg-plan/20 px-2.5 text-[12px] font-semibold text-plan"
+                  >
+                    Yes ✓
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openMiss({ kind: 'plan', id: p.id });
+                    }}
+                    className="min-h-8 rounded-full bg-surface-2 px-2.5 text-[12px] font-semibold text-muted"
+                  >
+                    No
+                  </button>
+                </span>
+              ) : (
+                carryBadge(p)
+              )
+            }
             tint={lateColor(p)}
             onDone={() => {
               markPlan(p.id);
@@ -56,6 +85,15 @@ export function planSubtitle(p: Plan) {
   }
   return planMetaText(p, false) ?? undefined;
 }
+
+/** A timed plan for today whose time is over and that's still open. */
+const overdue = (p: Plan) => {
+  if (p.status !== 'pending' || !p.start || p.day !== dayKeyAt()) return false;
+  const now = new Date();
+  const end = toMin(p.start) + Math.max(15, p.duration ?? 30);
+  const nowMin = now.getHours() * 60 + now.getMinutes() + (now.getHours() < 2 ? 1440 : 0);
+  return nowMin > end;
+};
 
 /** Whole days a plan is overdue (0 = planned for this day). */
 export const lateDays = (p: Plan) =>

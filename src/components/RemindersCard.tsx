@@ -6,21 +6,6 @@ import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 import { Switch } from './Switch';
 import { clearNotifications } from '../lib/useAppBadge';
 
-type TimeKey = 'morning' | 'evening' | 'streak';
-type FlagKey = 'brief' | 'lastCall';
-type Row =
-  | { key: TimeKey; kind: string; title: string; text: string; fallback: string }
-  | { key: FlagKey; kind: string; title: string; text: string; fallback?: undefined };
-
-/** `kind` is the server's name for the reminder (used for pausing). */
-const ROWS: Row[] = [
-  { key: 'brief', kind: 'brief', title: 'Morning brief', text: 'At wake-up: your must-dos and first time block' },
-  { key: 'morning', kind: 'morning', title: 'Carried-over plans', text: 'Only if unfinished plans rolled onto today', fallback: '08:30' },
-  { key: 'evening', kind: 'evening', title: 'Plan tomorrow', text: 'Only if tomorrow is still empty', fallback: '21:00' },
-  { key: 'streak', kind: 'streak', title: 'Streak at risk', text: 'Only if habits are still open', fallback: '22:30' },
-  { key: 'lastCall', kind: 'lastcall', title: 'Last call', text: '1 hour before bed, only if habits are open' },
-];
-
 /** Notification permission + nudge settings (Habits tab). */
 export function RemindersCard() {
   const session = useSync((s) => s.session);
@@ -85,45 +70,31 @@ export function RemindersCard() {
 
       {state === 'on' && (
         <div className="mt-3 divide-y divide-line">
-          {ROWS.map((r) => {
-            const paused = (reminders.paused ?? []).includes(r.kind);
-            const unpause = () => ({ paused: (reminders.paused ?? []).filter((k) => k !== r.kind) });
-            const isTime = r.fallback !== undefined;
-            const value = isTime ? reminders[r.key as TimeKey] : null;
-            const on = isTime ? !!value : reminders[r.key as FlagKey] !== false;
-            return (
-              <div key={r.key} className="py-3">
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-[15px] font-medium ${on ? '' : 'text-muted'}`}>{r.title}</div>
-                    <div className="text-[12.5px] text-faint">{r.text}</div>
-                  </div>
-                  {isTime && value && (
-                    <input
-                      type="time"
-                      value={value}
-                      onChange={(e) => e.target.value && setReminders({ [r.key]: e.target.value, ...unpause() })}
-                      className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] outline-none"
-                      aria-label={`${r.title} time`}
-                    />
-                  )}
-                  <Switch
-                    on={on}
-                    onChange={(v) => setReminders({ [r.key]: isTime ? (v ? r.fallback : null) : v, ...unpause() })}
-                    label={r.title}
-                  />
-                </div>
-                {paused && on && (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-gold/10 px-3 py-2 text-[12.5px]">
-                    <span className="text-gold">Paused — ignored 3 days in a row.{isTime ? ' Try a different time?' : ''}</span>
-                    <button onClick={() => setReminders(unpause())} className="shrink-0 font-semibold text-text underline underline-offset-2">
-                      Resume
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {/* Your two daily reminders — each one only fires when there's something to say */}
+          <div className="flex items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <div className={`text-[15px] font-medium ${reminders.brief !== false ? '' : 'text-muted'}`}>🌅 Morning summary</div>
+              <div className="text-[12.5px] text-faint">When you wake up: today's must-dos and first plan</div>
+            </div>
+            <Switch on={reminders.brief !== false} onChange={(v) => setReminders({ brief: v })} label="Morning summary" />
+          </div>
+          <div className="flex items-center gap-3 py-3">
+            <div className="min-w-0 flex-1">
+              <div className={`text-[15px] font-medium ${reminders.evening ? '' : 'text-muted'}`}>🌙 Evening check-in</div>
+              <div className="text-[12.5px] text-faint">What's still open, and a nudge to plan tomorrow</div>
+            </div>
+            {reminders.evening && (
+              <input
+                type="time"
+                value={reminders.evening}
+                onChange={(e) => e.target.value && setReminders({ evening: e.target.value })}
+                className="tabular rounded-xl bg-surface-2 px-2.5 py-1.5 text-[15px] outline-none"
+                aria-label="Evening check-in time"
+              />
+            )}
+            <Switch on={!!reminders.evening} onChange={(v) => setReminders({ evening: v ? '21:00' : null })} label="Evening check-in" />
+          </div>
+          <p className="py-3 text-[12.5px] text-faint">⏰ Habits and plans can have their own reminder time — set it when you add or edit them.</p>
           {/* Circle */}
           <div className="py-3">
             <div className="text-[12px] font-semibold tracking-[0.08em] text-muted uppercase">From your circles</div>
@@ -161,7 +132,7 @@ export function RemindersCard() {
               Clear notifications
             </button>
           </div>
-          <p className="pt-3 text-[12.5px] text-faint">Wording rotates so it stays fresh. Nudges are skipped when you're on track, and pause themselves if you keep ignoring them.</p>
+
         </div>
       )}
     </section>

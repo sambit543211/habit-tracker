@@ -98,8 +98,16 @@ export function PlanEditor() {
       remindOffset: useTimed ? offset : undefined,
       remindAt: !useTimed && remindAt ? remindAt : undefined,
     };
+    const target = typedDay ?? (day || today);
+    // Same plan already waiting that day (e.g. carried over from yesterday)? Update it instead of adding a twin.
+    const twin = existing
+      ? undefined
+      : useStore.getState().plans.find((x) => x.day === target && x.status === 'pending' && x.title.trim().toLowerCase() === t.toLowerCase());
     if (existing) updatePlan(existing.id, details);
-    else addPlan(typedDay ?? (day || today), t, must, details);
+    else if (twin) {
+      updatePlan(twin.id, { ...details, must: must || twin.must, note: details.note ?? twin.note });
+      useUI.getState().showToast(`“${twin.title}” was already on the list — updated it`, { tone: 'plan' });
+    } else addPlan(target, t, must, details);
     close();
   };
 

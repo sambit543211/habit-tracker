@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { Sheet } from './Sheet';
+import { fmtWater, waterTarget } from '../lib/water';
 
 export function HabitEditor() {
   const editing = useUI((s) => s.editingHabit);
@@ -54,6 +55,11 @@ export function HabitEditor() {
 
       <label className="mt-5 block text-[13px] font-medium text-muted">I will…</label>
       <input ref={nameRef} value={name} enterKeyHint="done" onKeyDown={(e) => e.key === 'Enter' && save()} onChange={(e) => setName(e.target.value)} placeholder="Read 10 pages" className={field} />
+      {waterTarget({ name }) && (
+        <p className="mt-1.5 text-[12.5px] text-sky-400">
+          💧 Tracked in sips: target {fmtWater(waterTarget({ name })!)} — put the amount in the name to change it (e.g. “Drink 3L water”).
+        </p>
+      )}
 
       <label className="mt-4 block text-[13px] font-medium text-muted">Remind me at <span className="text-faint">(optional)</span></label>
       <div className="mt-1.5 flex items-center gap-2">

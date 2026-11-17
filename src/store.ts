@@ -15,6 +15,7 @@ import {
   type WeeklyReview,
 } from './types';
 import { addDays, dayKeyAt } from './lib/date';
+import { waterTarget } from './lib/water';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
 /** After 8 pm (or before the 2 am cutoff) a brand-new day 1 starts tomorrow. */
@@ -44,6 +45,9 @@ interface Store extends Data {
   reflections: Record<string, string>;
   weeklyReviews: Record<string, WeeklyReview>;
   setReflection: (day: string, text: string) => void;
+  amounts: Record<string, Record<string, number>>;
+  /** Log water (ml, negative to undo). Reaching the target ticks the habit; dropping below un-ticks it. */
+  addWater: (day: string, habitId: string, ml: number) => void;
   setWeeklyReview: (weekStart: string, review: WeeklyReview) => void;
   smokes: SmokeEvent[];
   logSmoke: (kind: SmokeEvent['kind'], trigger?: SmokeTrigger) => string;
@@ -111,6 +115,7 @@ export const useStore = create<Store>()(
       reminders: DEFAULT_REMINDERS,
       profile: DEFAULT_PROFILE,
       reflections: {},
+      amounts: {},
       weeklyReviews: {},
       smokes: [],
       logSmoke: (kind, trigger) => {
@@ -129,6 +134,26 @@ export const useStore = create<Store>()(
 
       setReminders: (patch) => set((s) => ({ reminders: { ...s.reminders, ...patch } })),
       setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
+      addWater: (day, habitId, ml) => {
+        const habit = get().habits.find((h) => h.id === habitId);
+        if (!habit) return;
+        const target = waterTarget(habit) ?? 2000;
+        set((s) => {
+          const now = Math.max(0, (s.amounts[day]?.[habitId] ?? 0) + ml);
+          const log = s.logs[day]?.[habitId];
+          let dayLogs = s.logs[day] ?? {};
+          if (now >= target && log?.status !== 'done') dayLogs = { ...dayLogs, [habitId]: { status: 'done', at: Date.now() } };
+          if (now < target && log?.status === 'done') {
+            const { [habitId]: _, ...rest } = dayLogs; // eslint-disable-line @typescript-eslint/no-unused-vars
+            dayLogs = rest;
+          }
+          return {
+            amounts: { ...s.amounts, [day]: { ...s.amounts[day], [habitId]: now } },
+            logs: dayLogs === s.logs[day] ? s.logs : { ...s.logs, [day]: dayLogs },
+          };
+        });
+      },
+
       setReflection: (day, text) =>
         set((s) => {
           const reflections = { ...s.reflections };
@@ -252,10 +277,7 @@ export const useStore = create<Store>()(
           createdAt: Date.now(),
           originDay: plan.originDay ?? plan.day,
           note: plan.note,
-          start: plan.start,
-          duration: plan.duration,
-          remindOffset: plan.remindOffset,
-          remindAt: plan.remindAt,
+          // A new day isn't the same schedule: the moved plan drops its old time slot.
         };
         set((s) => ({
           plans: [...updatePlan(s.plans, id, { status: 'carried', miss, carriedTo: copy.id }), copy],
@@ -285,7 +307,21 @@ export const useStore = create<Store>()(
           for (const p of past) {
             const id = rollId(p.id);
             if (ids.has(id)) continue;
-            copies.push({ ...p, id, day: today, status: 'pending', miss: undefined, carriedTo: undefined, carryCount: p.carryCount + 1, originDay: p.originDay ?? p.day });
+            // Carried plans lose their old time slot — you'll pick a new time (or none) for the new day.
+            copies.push({
+              ...p,
+              id,
+              day: today,
+              status: 'pending',
+              miss: undefined,
+              carriedTo: undefined,
+              carryCount: p.carryCount + 1,
+              originDay: p.originDay ?? p.day,
+              start: undefined,
+              duration: undefined,
+              remindOffset: undefined,
+              remindAt: undefined,
+            });
           }
           return {
             plans: [...s.plans.map((p) => (stale.has(p.id) ? { ...p, status: 'carried' as const, carriedTo: rollId(p.id) } : p)), ...copies],
@@ -303,6 +339,7 @@ export const useStore = create<Store>()(
                 logs: {},
                 plans: s.plans.filter((p) => p.day >= day),
                 reflections: {},
+                amounts: {},
                 weeklyReviews: {},
                 smokes: [],
                 habits: s.habits.filter((h) => !h.archivedDay).map((h) => ({ ...h, createdDay: day })),
@@ -329,6 +366,7 @@ export const useStore = create<Store>()(
           reminders: data.reminders ?? DEFAULT_REMINDERS,
           profile: data.profile ?? DEFAULT_PROFILE,
           reflections: data.reflections ?? {},
+          amounts: data.amounts ?? {},
           weeklyReviews: data.weeklyReviews ?? {},
           smokes: data.smokes ?? [],
         }),
@@ -344,6 +382,7 @@ export const useStore = create<Store>()(
           reminders: DEFAULT_REMINDERS,
           profile: DEFAULT_PROFILE,
           reflections: {},
+          amounts: {},
           weeklyReviews: {},
           smokes: [],
           milestonesSeen: [],
@@ -376,6 +415,9 @@ interface UI {
   showToast: (message: string, opts?: { undo?: () => void; tone?: Toast['tone'] }) => void;
   hideToast: () => void;
   missTarget: MissTarget | null;
+  /** Water sheet: which habit/day is open */
+  water: { id: string; day: string } | null;
+  openWater: (w: { id: string; day: string } | null) => void;
   reviewOpen: boolean;
   editingHabit: string | 'new' | null;
   setTab: (t: UI['tab']) => void;
@@ -396,6 +438,8 @@ export const useUI = create<UI>()((set) => ({
   showToast: (message, opts) => set({ toast: { id: Date.now(), message, ...opts } }),
   hideToast: () => set({ toast: null }),
   missTarget: null,
+  water: null,
+  openWater: (water) => set({ water }),
   reviewOpen: false,
   editingHabit: null,
   setTab: (tab) => set({ tab }),
