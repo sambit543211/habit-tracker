@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
               : e.kind === 'accepted' ? `🎉 ${actor} joined your Circle`
               : `${actor} declined your Circle invite`,
             body:
-              e.kind === 'invited' ? 'Open Keep to accept and share habits together.'
+              e.kind === 'invited' ? 'Open Sky to accept and share habits together.'
               : e.kind === 'accepted' ? 'Your invite was accepted. Add a shared goal to start a group streak.'
               : 'You can invite someone else any time.',
           });

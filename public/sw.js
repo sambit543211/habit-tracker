@@ -1,5 +1,5 @@
 // Minimal offline cache: network-first for pages, cache-first for hashed assets.
-const CACHE = 'keep-v3';
+const CACHE = 'sky-v4';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
@@ -44,13 +44,13 @@ self.addEventListener('push', (e) => {
   try {
     data = e.data ? e.data.json() : {};
   } catch {
-    data = { title: 'Keep', body: e.data ? e.data.text() : '' };
+    data = { title: 'Sky', body: e.data ? e.data.text() : '' };
   }
   if (typeof data.badge === 'number' && self.navigator && self.navigator.setAppBadge) {
     (data.badge > 0 ? self.navigator.setAppBadge(data.badge) : self.navigator.clearAppBadge()).catch(() => {});
   }
   e.waitUntil(
-    self.registration.showNotification(data.title || 'Keep', {
+    self.registration.showNotification(data.title || 'Sky', {
       body: data.body || '',
       icon: './icon-192.png',
       badge: './icon-192.png',

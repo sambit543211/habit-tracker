@@ -4,7 +4,7 @@ import { useSync } from '../sync';
 import { supabase } from './supabase';
 import { dayStats } from './score';
 
-/** Remove every Keep notification still showing in Notification Centre. Returns how many were cleared. */
+/** Remove every app notification still showing in Notification Centre. Returns how many were cleared. */
 export async function clearNotifications(): Promise<number> {
   try {
     const reg = await navigator.serviceWorker?.getRegistration();

@@ -7,6 +7,7 @@ import { addDays, range } from './date';
 import { dayStats, reasonCounts, streak } from './score';
 import { reasonLabel } from './reasons';
 import { weekStart } from './time';
+import { APP_NAME } from '../config';
 
 // ---------- Reliability level ----------
 
@@ -215,7 +216,7 @@ export function weekSummary(data: Data, today: string, name: string | undefined,
   const st = streak(data, today);
   const fmt = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const lines = [
-    `${name ? `${name}'s` : 'My'} week on Keep (${fmt(mon)} – ${fmt(today)})`,
+    `${name ? `${name}'s` : 'My'} week on ${APP_NAME} (${fmt(mon)} – ${fmt(today)})`,
     avg !== null ? `Efficacy: ${avg}%${prevAvg !== null ? ` (${avg >= prevAvg ? '↑' : '↓'}${Math.abs(avg - prevAvg)} vs last week)` : ''}` : null,
     `Habits kept: ${hd}/${ht}`,
     `Plans done: ${pd}/${pt}`,

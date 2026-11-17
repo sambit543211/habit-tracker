@@ -7,6 +7,7 @@ import { SMOKE_TRIGGERS, type QuitSettings, type SmokeTrigger } from '../types';
 import { Sheet } from '../components/Sheet';
 import { Ring } from '../components/Ring';
 import { haptic } from '../lib/feedback';
+import { APP_NAME } from '../config';
 
 const defaultCurrency = () => (/Calcutta|Kolkata/.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? '₹' : '$');
 const money = (n: number, cur: string) => `${cur}${Math.round(n).toLocaleString()}`;
@@ -187,7 +188,7 @@ function QuitDashboard({ today, q, onEdit }: { today: string; q: QuitSettings; o
       </section>
 
       <p className="px-1 pb-2 text-[12.5px] leading-relaxed text-faint">
-        Keep is a tracker, not treatment. Nicotine replacement or a doctor's support makes quitting more likely to stick — worth asking about.
+        {APP_NAME} is a tracker, not treatment. Nicotine replacement or a doctor's support makes quitting more likely to stick — worth asking about.
       </p>
 
       {/* Trigger picker */}

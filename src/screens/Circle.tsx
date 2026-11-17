@@ -20,6 +20,7 @@ import { Switch } from '../components/Switch';
 import { enablePush, pushState, type PushState } from '../lib/push';
 import { shareText } from './Profile';
 import { NUDGE_LINES, activityOf } from '../lib/nudgeLines';
+import { APP_NAME } from '../config';
 
 const QUICK_GOALS: [string, string][] = [
   ['💧', 'Water'],
@@ -171,7 +172,7 @@ export function Circle({ today }: { today: string }) {
           <div className="text-[40px]">👥</div>
           <h2 className="mt-2 text-[20px] font-bold tracking-[-0.02em]">Start your circle</h2>
           <p className="mx-auto mt-1.5 max-w-xs text-[14px] text-muted">
-            Add up to 5 friends who use Keep. Pick a shared goal like “Gym”, link your own habit to it, and keep each other going. You can be in up to 5 circles.
+            Add up to 5 friends who use {APP_NAME}. Pick a shared goal like “Gym”, link your own habit to it, and keep each other going. You can be in up to 5 circles.
           </p>
           <button onClick={() => setNewCircle(true)} className="mt-5 min-h-12 w-full rounded-2xl bg-plan text-[15px] font-semibold text-white">
             Start a circle
@@ -233,7 +234,7 @@ export function Circle({ today }: { today: string }) {
           )}
           {push === 'needs-install' && (
             <p className="rounded-2xl border border-line px-4 py-3 text-[13px] text-muted">
-              🔔 To get nudges as notifications, add Keep to your Home Screen (Share → Add to Home Screen) and open it from there.
+              🔔 To get nudges as notifications, add {APP_NAME} to your Home Screen (Share → Add to Home Screen) and open it from there.
             </p>
           )}
 
@@ -442,7 +443,7 @@ export function Circle({ today }: { today: string }) {
             return;
           }
           const r = (await act(() => circleApi.react(t.to!, t.goal.id, today, 'nudge', msg))) as string | undefined;
-          if (r === 'ok') showToast(t.notify === false ? `👋 Nudged ${t.name} — they'll see it when they open Keep` : `👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
+          if (r === 'ok') showToast(t.notify === false ? `👋 Nudged ${t.name} — they'll see it when they open ${APP_NAME}` : `👋 Nudged ${t.name} — they'll get a notification`, { tone: 'plan' });
           else if (r === 'already_done') showToast(`${t.name} already did it — send a 👏 instead`, { tone: 'habit' });
           else if (r === 'already_sent' || r === 'too_soon') showToast(`You just nudged ${t.name} — you can nudge again in 10 minutes`, { tone: 'plan' });
         }}
@@ -578,7 +579,7 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
   return (
     <Sheet open={open} onClose={onClose}>
       <h2 className="text-[22px] font-semibold tracking-[-0.02em]">Add a friend</h2>
-      <p className="mt-1 text-[14px] text-muted">Search people who use Keep by name, or type their full email.</p>
+      <p className="mt-1 text-[14px] text-muted">Search people who use {APP_NAME} by name, or type their full email.</p>
       <input
         ref={focusNoScroll}
         value={q}
@@ -591,7 +592,7 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
       <div className="mt-3 flex min-h-24 flex-col gap-2">
         {q.trim().length < 3 && <p className="text-[13px] text-faint">Type at least 3 letters.</p>}
         {busy && <p className="text-[13px] text-faint">Searching…</p>}
-        {results?.length === 0 && !busy && <p className="text-[13px] text-muted">No one found. They need to create a Keep account first.</p>}
+        {results?.length === 0 && !busy && <p className="text-[13px] text-muted">No one found. They need to create a {APP_NAME} account first.</p>}
         <AnimatePresence>
           {results?.map((r) => {
             const already = members.some((m) => m.user_id === r.user_id);
@@ -615,13 +616,13 @@ function AddFriendSheet({ open, onClose, members, onInvite }: { open: boolean; o
         onClick={async () => {
           const me = useStore.getState().profile.name?.trim().split(/\s+/)[0] ?? 'me';
           const r = await shareText(
-            `Join me on Keep — we can keep each other going on our daily habits 💪\n${location.origin}/\nSign up, then search “${me}” in Circle (or I'll add you).`,
+            `Join me on ${APP_NAME} — we can keep each other going on our daily habits 💪\n${location.origin}/\nSign up, then search “${me}” in Circle (or I'll add you).`,
           );
           if (r === 'copied') useUI.getState().showToast('Invite copied — paste it in WhatsApp', { tone: 'plan' });
         }}
         className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-surface-2 text-[14.5px] font-semibold"
       >
-        Not on Keep yet? Send them an invite
+        Not on {APP_NAME} yet? Send them an invite
       </button>
     </Sheet>
   );
@@ -652,7 +653,7 @@ function NudgeSheet({
             {target.goal.emoji} {target.goal.name}
             {target.habit ? ` · ${target.habit}` : ''} —{' '}
             {target.notify === false
-              ? `${target.name} hasn't turned on notifications yet, so they'll see it next time they open Keep.`
+              ? `${target.name} hasn't turned on notifications yet, so they'll see it next time they open ${APP_NAME}.`
               : "they'll get a notification now (or at 8 am if it's past midnight for them)."}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">

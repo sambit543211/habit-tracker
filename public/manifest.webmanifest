@@ -1,6 +1,6 @@
 {
-  "name": "Keep — Habit Tracker",
-  "short_name": "Keep",
+  "name": "Sky — your habit & planning agent",
+  "short_name": "Sky",
   "description": "Daily habits, nightly plans and an honest efficacy score.",
   "start_url": "./",
   "scope": "./",
