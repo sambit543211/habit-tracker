@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useSync } from '../sync';
 import { useUI } from '../store';
-import { APP_NAME, SUPABASE_URL } from '../config';
+import { APP_NAME } from '../config';
+import { SIRI_EXAMPLES, SiriGuide } from './SiriGuide';
 
 const b64url = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const sha256 = async (s: string) =>
@@ -14,7 +15,7 @@ export function ShortcutsCard() {
   const showToast = useUI((s) => s.showToast);
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const endpoint = `${SUPABASE_URL}/functions/v1/quick-add`;
+  const [guide, setGuide] = useState(false);
   const quickUrl = `${location.origin}${location.pathname}#quick`;
 
   const copy = async (text: string, what: string) => {
@@ -59,50 +60,25 @@ export function ShortcutsCard() {
 
       <div className="mt-4 border-t border-line pt-3">
         <div className="text-[15px] font-semibold">🎙 Hey Siri, {APP_NAME}</div>
-        <p className="mt-0.5 text-[12.5px] text-muted">
-          Say “Gym tomorrow 7pm 1h”, “done reading” or “drank 500 ml” — Siri adds it and reads back what it did.
-        </p>
+        <p className="mt-0.5 text-[12.5px] text-muted">Talk normally — Siri adds it to {APP_NAME} and reads back what it did:</p>
+        <ul className="mt-2 flex flex-col gap-1 text-[12.5px]">
+          {SIRI_EXAMPLES.slice(0, 4).map(([e, say, does]) => (
+            <li key={say} className="flex gap-2">
+              <span aria-hidden>{e}</span>
+              <span className="text-text">“{say}”</span>
+              <span className="ml-auto shrink-0 text-faint">{does}</span>
+            </li>
+          ))}
+        </ul>
         {!session ? (
           <p className="mt-2 text-[12.5px] text-faint">Sign in to set up Siri.</p>
-        ) : !key ? (
-          <button disabled={busy} onClick={() => void makeKey()} className="mt-2 min-h-11 w-full rounded-2xl bg-plan text-[14px] font-semibold text-white disabled:opacity-50">
-            {busy ? 'Creating…' : 'Set up Siri'}
-          </button>
         ) : (
-          <div className="mt-2 rounded-2xl bg-surface-2 px-3 py-3 text-[12.5px] leading-relaxed">
-            <div className="font-semibold text-text">Your key (shown once — keep it private):</div>
-            <div className="mt-1 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-lg bg-bg px-2 py-1.5 text-[12px]">{key}</code>
-              <button onClick={() => void copy(key, 'Key')} className="shrink-0 rounded-lg bg-plan px-3 py-1.5 font-semibold text-white">
-                Copy
-              </button>
-            </div>
-            <ol className="mt-3 list-decimal pl-5 text-muted">
-              <li>
-                Open the <b className="text-text">Shortcuts</b> app → <b className="text-text">+</b> → name it “{APP_NAME}”.
-              </li>
-              <li>
-                Add <b className="text-text">Dictate Text</b>.
-              </li>
-              <li>
-                Add <b className="text-text">Get Contents of URL</b>: URL{' '}
-                <button onClick={() => void copy(endpoint, 'Address')} className="font-semibold text-plan underline">
-                  copy address
-                </button>
-                , Method <b className="text-text">POST</b>, Header <b className="text-text">x-sky-key</b> = your key, Request Body{' '}
-                <b className="text-text">JSON</b> with <b className="text-text">text</b> = Dictated Text.
-              </li>
-              <li>
-                Add <b className="text-text">Speak Text</b> (Contents of URL).
-              </li>
-              <li>Say “Hey Siri, {APP_NAME}”.</li>
-            </ol>
-            <button onClick={() => void makeKey()} className="mt-2 text-[12px] font-medium text-faint underline">
-              Lost it? Make a new key (the old one stops working)
-            </button>
-          </div>
+          <button onClick={() => setGuide(true)} className="mt-3 min-h-11 w-full rounded-2xl bg-plan text-[14px] font-semibold text-white">
+            Set up Siri — step by step
+          </button>
         )}
       </div>
+      <SiriGuide open={guide} onClose={() => setGuide(false)} siriKey={key} onMakeKey={() => void makeKey()} busy={busy} />
     </section>
   );
 }

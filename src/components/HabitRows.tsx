@@ -6,7 +6,7 @@ import { ItemRow } from './ItemRow';
 import { reasonLabel } from '../lib/reasons';
 import { useData } from '../lib/useData';
 import { weekCount } from '../lib/score';
-import { WATER_STEP, fmtWater, waterTarget } from '../lib/water';
+import { WATER_STEP, fmtWaterPair, waterTarget } from '../lib/water';
 import { haptic } from '../lib/feedback';
 
 /** Trackable habit rows for a given day. */
@@ -62,7 +62,7 @@ export function HabitRows({
                   <span className="block h-full rounded-full bg-sky-400 transition-[width] duration-500" style={{ width: `${Math.min(100, (ml / goal) * 100)}%` }} />
                 </span>
                 <span className="mt-0.5 block tabular text-sky-400">
-                  {fmtWater(ml)} / {fmtWater(goal)}
+                  {fmtWaterPair(ml, goal)}
                 </span>
               </span>
             );

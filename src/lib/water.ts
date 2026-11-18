@@ -23,3 +23,10 @@ export function waterTarget(h: Pick<Habit, 'name'>): number | null {
 
 /** 1200 → "1.2 L", 800 → "800 ml" */
 export const fmtWater = (ml: number) => (ml >= 1000 ? `${(ml / 1000).toFixed(ml % 1000 === 0 ? 0 : 1)} L` : `${ml} ml`);
+
+/** Short "done / target" that fits a narrow row: 400 of 3000 → "0.4 / 3 L", 600 of 800 → "600 / 800 ml". */
+export const fmtWaterPair = (ml: number, goal: number) => {
+  if (goal < 1000) return `${ml} / ${goal} ml`;
+  const l = (n: number) => String(+(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1));
+  return `${l(ml)} / ${l(goal)} L`;
+};
