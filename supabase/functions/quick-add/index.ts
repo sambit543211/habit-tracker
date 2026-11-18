@@ -1,12 +1,14 @@
 // Supabase Edge Function: "Hey Siri, Sky …" quick-add, called by an Apple Shortcut.
 // Auth: the person's own key (header x-sky-key), stored only as a SHA-256 hash in profiles.shortcut_key_hash.
-// Understands:
-//   "done reading" / "did stretch"          → ticks the matching habit for today
-//   "drank 500 ml" / "water 300"            → adds water (ticks it at the target)
-//   anything else, e.g. "Gym tomorrow 7pm 1h" → adds a plan (time, duration, today/tomorrow understood)
+// Understanding lives in intent.ts (a copy of src/lib/intent.ts, which has the tests):
+//   "drank 1 litre", "two glasses of water"         → adds water (ticks it at the target)
+//   "I meditated", "went to the gym", "done reading" → ticks the matching habit
+//   "skip gym today"                                 → skips it, streak safe
+//   anything else, e.g. "Gym tomorrow at 7pm 1h"     → adds a plan
 // Replies with one short sentence for Siri to read out.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { parsePlan } from './parsePlan.ts';
+import { detectIntent } from './intent.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 const CUTOFF_HOUR = 2;
@@ -40,8 +42,6 @@ const fmt = (t: string) => {
   return `${h % 12 === 0 ? 12 : h % 12}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'am' : 'pm'}`;
 };
 
-const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
-
 /** Water target in ml from the habit's name (same rule as the app). */
 const waterTarget = (name: string) => {
   const n = name.toLowerCase();
@@ -72,39 +72,40 @@ Deno.serve(async (req) => {
   const user = profile.user_id as string;
   const today = todayIn(profile.timezone || 'UTC');
 
-  // Water: "drank 500 ml", "water 300", "add 250 ml water"
-  const water = text.match(/(\d{2,4})\s*(?:ml|millilit)/i) ?? (/\bwater\b/i.test(text) ? text.match(/(\d{2,4})/) : null);
-  if (water && /water|drank|drink|ml/i.test(text)) {
-    const ml = Math.min(3000, +water[1]);
-    const { data: habits } = await db.from('habits').select('id,name').eq('user_id', user).is('archived_day', null);
-    const h = (habits ?? []).find((x) => waterTarget(x.name));
+  const { data: habitRows } = await db.from('habits').select('id,name').eq('user_id', user).is('archived_day', null);
+  const habits = habitRows ?? [];
+  const intent = detectIntent(text, habits);
+
+  // Water: "drank 1 litre", "two glasses", "half a litre", "water 300"
+  if (intent.kind === 'water') {
+    const ml = Math.min(5000, intent.ml);
+    const h = habits.find((x) => waterTarget(x.name));
     if (!h) return say("You don't have a water habit yet — add one like “Drink 3L water”.");
     const target = waterTarget(h.name)!;
     const { data: cur, error } = await db.from('habit_amounts').select('amount').eq('user_id', user).eq('habit_id', h.id).eq('day', today).maybeSingle();
-    if (error) return say('Water tracking needs one more setup step in Supabase (round8_water.sql).');
+    if (error) return say("Sorry, I couldn't log water right now.");
     const total = (cur?.amount ?? 0) + ml;
-    await db.from('habit_amounts').upsert({ user_id: user, day: today, habit_id: h.id, amount: total }, { onConflict: 'user_id,day,habit_id' });
+    await db.from('habit_amounts').upsert({ user_id: user, day: today, habit_id: h.id, amount: total, updated_at: new Date().toISOString() }, { onConflict: 'user_id,day,habit_id' });
     if (total >= target) await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'done', at: new Date().toISOString() }, { onConflict: 'user_id,day,habit_id' });
-    const left = target - total;
-    return say(left > 0 ? `Added ${ml} ml. ${(total / 1000).toFixed(1)} of ${(target / 1000).toFixed(1)} litres.` : `Added ${ml} ml — water done for today!`);
+    const L = (n: number) => String(+(n / 1000).toFixed(1));
+    return say(total >= target ? `Added ${ml} ml — water done for today! 💧` : `Added ${ml} ml. ${L(total)} of ${L(target)} litres, ${Math.round((total / target) * 100)} percent.`);
   }
 
-  // Habit check-in: "done reading", "did stretch", "finished workout"
-  const done = text.match(/^(?:done|did|finished|completed|mark(?:ed)?(?: as done)?)\s+(.+)$/i) ?? text.match(/^(.+?)\s+(?:done|finished)$/i);
-  if (done) {
-    const want = words(done[1]);
-    const { data: habits } = await db.from('habits').select('id,name').eq('user_id', user).is('archived_day', null);
-    const best = (habits ?? [])
-      .map((h) => ({ h, score: words(h.name).filter((w) => want.some((x) => w.startsWith(x) || x.startsWith(w))).length }))
-      .sort((a, b) => b.score - a.score)[0];
-    if (!best || best.score === 0) return say(`I couldn't find a habit called “${done[1]}”.`);
-    await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: best.h.id, status: 'done', at: new Date().toISOString() }, { onConflict: 'user_id,day,habit_id' });
-    return say(`Nice — ${best.h.name} ticked for today.`);
+  // Habit: "I meditated", "went to the gym", "skip gym today"
+  if (intent.kind === 'habit') {
+    const h = intent.habit;
+    if (intent.action === 'skip') {
+      await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'missed', at: new Date().toISOString(), miss: { reason: 'skip' } }, { onConflict: 'user_id,day,habit_id' });
+      return say(`Okay, ${h.name} skipped today. Your streak is safe.`);
+    }
+    await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'done', at: new Date().toISOString(), miss: null }, { onConflict: 'user_id,day,habit_id' });
+    const { count } = await db.from('habit_logs').select('habit_id', { count: 'exact', head: true }).eq('user_id', user).eq('day', today).eq('status', 'done');
+    return say(`Nice — ${h.name} ticked. ${count ?? 1} of ${habits.length} habits done today.`);
   }
 
   // Otherwise: a plan.
   const wake = profile.wake_time ? Number(String(profile.wake_time).slice(0, 2)) : 8;
-  const p = parsePlan(text.replace(/^(?:add|plan|remind me to)\s+/i, ''), wake);
+  const p = parsePlan(intent.text, wake);
   const day = p.when === 'tomorrow' ? addDays(today, 1) : today;
   const { error } = await db.from('plans').insert({
     id: crypto.randomUUID(),

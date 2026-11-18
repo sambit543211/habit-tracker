@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { fmtWater, fmtWaterPair, waterTarget } from '../lib/water';
 import { useEffect, useState } from 'react';
 import { useStore, useUI } from '../store';
 import { habitsOn } from '../lib/score';
@@ -311,7 +312,10 @@ export function Circle({ today }: { today: string }) {
                             {isMe && nudgedMe && nudgedMe.length > 0 && <span className="text-gold"> · 👋 {nudgedMe.map((r) => nameOf(r.from)).join(', ')} nudged you</span>}
                             {isMe && cheeredMe && cheeredMe.length > 0 && <span className="text-habit"> · 👏 from {cheeredMe.map((r) => nameOf(r.from)).join(', ')}</span>}
                           </div>
-                          <Week days={l.days} />
+                          {(() => {
+                            const goal = waterTarget({ name: l.habit });
+                            return goal ? <WaterBar ml={st === 'done' ? Math.max(l.amount ?? 0, goal) : (l.amount ?? 0)} goal={goal} /> : <Week days={l.days} />;
+                          })()}
                         </div>
                         {!isMe &&
                           (st === 'done' ? (
@@ -525,6 +529,33 @@ function Avatar({ name, color, size, status }: { name: string; color: string; si
 }
 
 /** Last 7 days as dots. */
+/** Friend's water today: a little glass that fills up + a bar with "0.6 of 3 L". */
+function WaterBar({ ml, goal }: { ml: number; goal: number }) {
+  const pct = Math.min(1, ml / goal);
+  const h = 22 * pct;
+  return (
+    <div className="mt-1.5 flex items-center gap-2" aria-label={`${fmtWater(ml)} of ${fmtWater(goal)} water today`}>
+      <svg width="16" height="24" viewBox="0 0 16 24" aria-hidden className="shrink-0">
+        <defs>
+          <clipPath id="cw-glass">
+            <path d="M1.5 1h13l-1.6 21.2a1.2 1.2 0 0 1-1.2 1.1H4.3a1.2 1.2 0 0 1-1.2-1.1z" />
+          </clipPath>
+        </defs>
+        <rect x="0" y={23 - h} width="16" height={h + 1} fill="#38bdf8" clipPath="url(#cw-glass)" style={{ transition: 'y .6s, height .6s' }} />
+        <path d="M1.5 1h13l-1.6 21.2a1.2 1.2 0 0 1-1.2 1.1H4.3a1.2 1.2 0 0 1-1.2-1.1z" fill="none" stroke="var(--line-strong)" strokeWidth="1.2" />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <div className="h-2 overflow-hidden rounded-full bg-surface-3">
+          <div className="h-full rounded-full bg-sky-400 transition-[width] duration-700" style={{ width: `${pct * 100}%` }} />
+        </div>
+        <div className="mt-0.5 tabular text-[11.5px] font-medium text-sky-400">
+          {pct >= 1 ? `💧 ${fmtWater(ml)} — goal hit` : `${fmtWaterPair(ml, goal)} · ${Math.round(pct * 100)}%`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Week({ days }: { days: string }) {
   return (
     <div className="mt-1.5 flex gap-1" aria-hidden>

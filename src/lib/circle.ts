@@ -13,6 +13,8 @@ export interface CircleLink {
   habit: string;
   /** Last 30 days, oldest first: d = done, m = missed, - = open */
   days: string;
+  /** Water drunk today in ml (water habits only) */
+  amount?: number | null;
 }
 export interface CircleGoal {
   id: string;
