@@ -53,6 +53,10 @@ describe('what Siri heard', () => {
     ['Add music class at 7 pm', 'plan music class at 7 pm'],
     ['Drink water at 5pm', 'plan Drink water at 5pm'],
     ['Call mom', 'plan Call mom'],
+    ['So make a plan for to meet my house owner at 7pm', 'plan meet my house owner at 7pm'],
+    ['Okay add a reminder to call the bank tomorrow', 'plan call the bank tomorrow'],
+    ['Can you add gym at 6', 'plan gym at 6'],
+    ['I need to buy groceries', 'plan buy groceries'],
   ])('%s → %s', (t, want) => expect(k(t)).toBe(want));
 });
 
