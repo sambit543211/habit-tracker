@@ -132,6 +132,21 @@ export function detectIntent(raw: string, habits: IntentHabit[]): Intent {
   }
 
   // 4) Everything else is a plan. Drop lead-ins Siri users say.
-  const cleaned = text.replace(/^(?:please\s+)?(?:add|plan|create|schedule|put|remind me to|remind me|i need to|i have to|need to|have to)\s+(?:a\s+plan\s+(?:to|for)\s+)?/i, '');
-  return { kind: 'plan', text: cleaned || text };
+  return { kind: 'plan', text: tidyPlan(text) };
+}
+
+/** Drop the filler people say before the actual task: "So, okay, make a plan for to meet …" → "meet …". */
+export function tidyPlan(text: string) {
+  let t = text.trim();
+  for (let i = 0; i < 4; i++) {
+    const before = t;
+    t = t
+      .replace(/^(?:so|ok|okay|um+|uh+|like|hey|and|then|also|please|sky|siri)\b[\s,.]*/i, '')
+      .replace(/^(?:can you|could you|i want to|i'd like to|i would like to|let's|lets)\s+/i, '')
+      .replace(/^(?:add|make|create|put|set|schedule|plan)(?:\s+(?:a|an|the|me|in))?(?:\s+(?:plan|task|reminder|todo|to-do|note))?(?:\s+(?:to|for|of|about))*\s+/i, '')
+      .replace(/^(?:remind me(?:\s+to)?|i need to|i have to|need to|have to|i've got to|i got to|gotta)\s+/i, '')
+      .trim();
+    if (t === before) break;
+  }
+  return t || text.trim();
 }
