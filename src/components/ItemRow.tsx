@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { CheckIcon, XIcon } from './icons';
 import { haptic } from '../lib/feedback';
 
-export type RowStatus = 'pending' | 'done' | 'missed' | 'carried';
+/** 'partial': a combo habit with some parts done — counts for the streak, shown orange. */
+export type RowStatus = 'pending' | 'done' | 'partial' | 'missed' | 'carried';
 
 interface ItemRowProps {
   title: string;
@@ -136,7 +137,7 @@ export function ItemRow({ title, subtitle, status, accent, leading, trailing, on
           <div className={`flex gap-1.5 ${compact ? 'items-start' : 'items-center gap-2'}`}>
             {leading && <span className={compact ? 'mt-[3px]' : ''}>{leading}</span>}
             <motion.span
-              animate={{ opacity: pending ? 1 : 0.55 }}
+              animate={{ opacity: pending || status === 'partial' ? 1 : 0.55 }}
               className={`font-medium tracking-[-0.01em] ${compact ? 'line-clamp-3 text-[13.5px] leading-[1.25]' : 'truncate text-[15.5px]'} ${
                 status === 'done' ? 'line-through decoration-[1.5px] decoration-(--accent)/60' : ''
               }`}
@@ -157,7 +158,9 @@ function StatusButton({ status, onClick, compact }: { status: RowStatus; onClick
   const fill =
     status === 'done'
       ? 'var(--accent)'
-      : status === 'missed'
+      : status === 'partial'
+        ? 'var(--part)'
+        : status === 'missed'
         ? 'var(--miss)'
         : status === 'carried'
           ? 'var(--surface-3)'
@@ -179,7 +182,7 @@ function StatusButton({ status, onClick, compact }: { status: RowStatus; onClick
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       />
       <svg width="20" height="20" viewBox="0 0 24 24" className="relative" fill="none" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round">
-        {status === 'done' && (
+        {(status === 'done' || status === 'partial') && (
           <motion.path
             d="M6 12.5l4 4L18 8.5"
             stroke="rgba(0,0,0,0.78)"

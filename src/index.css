@@ -16,6 +16,7 @@
   --plan: #6e5bff;
   --miss: #e5484d;
   --gold: #d97706;
+  --part: #f97316;
   --track: rgba(17, 17, 20, 0.07);
   --glass: rgba(255, 255, 255, 0.96);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
@@ -38,6 +39,7 @@
     --plan: #8b7cff;
     --miss: #ff5c6c;
     --gold: #ffb547;
+    --part: #fb923c;
     --track: rgba(255, 255, 255, 0.07);
     --glass: rgba(20, 20, 24, 0.96);
     --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.35);
@@ -58,6 +60,7 @@
   --plan: #8b7cff;
   --miss: #ff5c6c;
   --gold: #ffb547;
+  --part: #fb923c;
   --track: rgba(255, 255, 255, 0.07);
   --glass: rgba(20, 20, 24, 0.96);
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.35);
@@ -79,6 +82,7 @@
   --color-plan: var(--plan);
   --color-miss: var(--miss);
   --color-gold: var(--gold);
+  --color-part: var(--part);
 }
 
 html,

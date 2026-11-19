@@ -17,6 +17,7 @@ export interface HabitRow {
   pair_with: string | null;
   position?: number | null;
   per_week?: number | null;
+  parts?: Habit['parts'] | null;
 }
 
 export interface PlanRow {
@@ -60,6 +61,7 @@ export interface LogRow {
   status: HabitLog['status'];
   miss: HabitLog['miss'] | null;
   at: string;
+  parts?: string[] | null;
 }
 
 export interface ProfileRow {
@@ -191,6 +193,7 @@ export const habitToRow = (h: Habit, user_id: string): HabitRow => ({
   pair_with: h.pairWith ?? null,
   position: h.position ?? null,
   per_week: h.perWeek ?? null,
+  parts: h.parts?.length ? h.parts : null,
 });
 
 export const rowToHabit = (r: HabitRow): Habit => ({
@@ -204,6 +207,7 @@ export const rowToHabit = (r: HabitRow): Habit => ({
   pairWith: r.pair_with ?? undefined,
   position: r.position ?? undefined,
   perWeek: r.per_week ?? undefined,
+  parts: Array.isArray(r.parts) && r.parts.length ? r.parts : undefined,
 });
 
 export const planToRow = (p: Plan, user_id: string): PlanRow => ({
@@ -263,6 +267,7 @@ export const logToRow = (day: string, habit_id: string, l: HabitLog, user_id: st
   status: l.status,
   miss: l.miss ?? null,
   at: new Date(l.at || Date.now()).toISOString(),
+  parts: l.parts?.length ? l.parts : null,
 });
 
 export const rowsToLogs = (rows: LogRow[]): Data['logs'] => {
@@ -272,6 +277,7 @@ export const rowsToLogs = (rows: LogRow[]): Data['logs'] => {
       status: r.status,
       miss: r.miss ?? undefined,
       at: new Date(r.at).getTime(),
+      ...(Array.isArray(r.parts) && r.parts.length ? { parts: r.parts } : {}),
     };
   }
   return logs;

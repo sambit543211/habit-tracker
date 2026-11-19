@@ -35,6 +35,17 @@ export interface Habit {
   position?: number;
   /** Weekly habit: this many times a week instead of every day (1–6) */
   perWeek?: number;
+  /** Combo habit: 2–3 parts sharing the credit, weights add up to 100 ("Workout 70 + Stretch 30") */
+  parts?: HabitPart[];
+}
+
+export interface HabitPart {
+  id: string;
+  name: string;
+  /** Share of the habit's credit, 1–99; all parts add up to 100 */
+  weight: number;
+  /** The old habit this part replaced (its history stays visible, read-only) */
+  from?: string;
 }
 
 /** Name + day shape, shown on Profile and used for the calendar. */
@@ -130,6 +141,8 @@ export interface HabitLog {
   status: 'done' | 'missed';
   miss?: Miss;
   at: number;
+  /** Combo habits: ids of the parts done. Any part done = 'done' (streak kept); credit = their weights. */
+  parts?: string[];
 }
 
 export type PlanStatus = 'pending' | 'done' | 'missed' | 'carried';

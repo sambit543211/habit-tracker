@@ -10,7 +10,7 @@
 // Replies with one short sentence for Siri to read out.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { parsePlan } from './parsePlan.ts';
-import { detectIntent } from './intent.ts';
+import { detectIntent, habitScore } from './intent.ts';
 import { understand, type Action } from './ai.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
@@ -96,16 +96,19 @@ Deno.serve(async (req) => {
   const wake = profile.wake_time ? String(profile.wake_time).slice(0, 5) : '08:00';
   const tz = profile.timezone || 'UTC';
   const [{ data: habitRows }, { data: planRows }] = await Promise.all([
-    db.from('habits').select('id,name').eq('user_id', user).is('archived_day', null),
+    db.from('habits').select('id,name,parts').eq('user_id', user).is('archived_day', null),
     db.from('plans').select('id,title,day').eq('user_id', user).eq('status', 'pending').lte('day', addDays(today, 1)).gte('day', addDays(today, -14)),
   ]);
-  const habits = habitRows ?? [];
+  type Part = { id: string; name: string; weight: number };
+  const habits = (habitRows ?? []) as { id: string; name: string; parts: Part[] | null }[];
+  // The AI sees combo parts too: "Workout + Stretch (parts: Workout, Stretch)".
+  const forAi = habits.map((h) => ({ id: h.id, name: h.parts?.length ? `${h.name} (parts: ${h.parts.map((p) => p.name).join(', ')})` : h.name }));
   const plans = planRows ?? [];
 
   // 1) AI (Groq free tier or Claude, whichever secret is set) understands free speech, several things at once.
   // 2) Otherwise, or if it fails, the rules in intent.ts.
-  let actions = await understand(text, { habits, plans, now: nowIn(tz), wake });
-  if (actions === null) actions = fromRules(text, habits, Number(wake.slice(0, 2)));
+  let actions = await understand(text, { habits: forAi, plans, now: nowIn(tz), wake });
+  if (actions === null) actions = fromRules(text, forAi, Number(wake.slice(0, 2)));
   if (!actions.length) return say("I didn't catch anything to add. Try: Gym tomorrow at 7, or I drank a litre of water.");
 
   const said: string[] = [];
@@ -131,6 +134,18 @@ Deno.serve(async (req) => {
       if (a.type === 'habit_skip') {
         await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'missed', at, miss: { reason: 'skip' } }, { onConflict: 'user_id,day,habit_id' });
         return `${h.name} skipped today, streak safe.`;
+      }
+      if (h.parts && h.parts.length >= 2) {
+        // Combo habit: tick the parts that were mentioned ("did my stretches" → Stretch); none named or "both" → all.
+        const named = /\b(both|all|everything|whole)\b/i.test(text) ? [] : h.parts.filter((p) => habitScore(text, p.name) > 0);
+        const ticked = (named.length ? named : h.parts).map((p) => p.id);
+        const { data: cur } = await db.from('habit_logs').select('status,parts').eq('user_id', user).eq('habit_id', h.id).eq('day', today).maybeSingle();
+        const had = cur?.status === 'done' ? ((cur.parts as string[] | null) ?? h.parts.map((p) => p.id)) : [];
+        const now = [...new Set([...had, ...ticked])];
+        await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'done', at, miss: null, parts: now }, { onConflict: 'user_id,day,habit_id' });
+        const pct = h.parts.filter((p) => now.includes(p.id)).reduce((n, p) => n + p.weight, 0);
+        const names = h.parts.filter((p) => ticked.includes(p.id)).map((p) => p.name).join(' and ');
+        return pct >= 100 ? `${h.name} fully done.` : `${names} ticked — ${h.name} is at ${pct} percent, streak kept.`;
       }
       await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'done', at, miss: null }, { onConflict: 'user_id,day,habit_id' });
       return `${h.name} ticked.`;

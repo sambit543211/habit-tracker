@@ -5,6 +5,7 @@ import {
   DEFAULT_REMINDERS,
   type Data,
   type Habit,
+  type HabitPart,
   type Miss,
   type MissTarget,
   type Plan,
@@ -89,8 +90,15 @@ interface Store extends Data {
   completeOnboarding: (habits: { name: string; cue?: string }[]) => void;
   /** Start fresh on `day`: wipes history on this device (the cloud is wiped by the start_fresh RPC). */
   startFreshLocal: (day: string, dataToo: boolean) => void;
-  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string; perWeek?: number }) => void;
-  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith' | 'perWeek'>>) => void;
+  addHabit: (h: { name: string; cue?: string; tiny?: string; remindAt?: string; pairWith?: string; perWeek?: number; parts?: HabitPart[] }) => string;
+  updateHabit: (id: string, patch: Partial<Pick<Habit, 'name' | 'cue' | 'tiny' | 'remindAt' | 'pairWith' | 'perWeek' | 'parts'>>) => void;
+  /**
+   * Fold old habits into a combo: they are archived (their history stays, read-only) and
+   * if one was done today, its part is ticked on the combo. `map` = old habit id → part id.
+   */
+  absorbHabits: (comboId: string, map: Record<string, string>) => void;
+  /** Combo habits: set which parts are done today. None = back to open. */
+  setParts: (day: string, id: string, partIds: string[]) => void;
   archiveHabit: (id: string) => void;
   /** Save a new order: ids top to bottom */
   reorderHabits: (ids: string[]) => void;
@@ -201,16 +209,42 @@ export const useStore = create<Store>()(
         }));
       },
 
-      addHabit: ({ name, cue, tiny, remindAt, pairWith, perWeek }) => {
+      addHabit: ({ name, cue, tiny, remindAt, pairWith, perWeek, parts }) => {
         const today = dayKeyAt();
+        const id = uid();
         set((s) => ({
           startDay: s.startDay ?? today,
           habits: [
             ...s.habits,
-            { id: uid(), name, cue, tiny, remindAt, pairWith, perWeek, createdDay: today, position: Math.max(0, ...s.habits.map((h) => h.position ?? 0)) + 1 },
+            { id, name, cue, tiny, remindAt, pairWith, perWeek, parts, createdDay: today, position: Math.max(0, ...s.habits.map((h) => h.position ?? 0)) + 1 },
           ],
         }));
+        return id;
       },
+
+      absorbHabits: (comboId, map) => {
+        const day = dayKeyAt();
+        const ids = Object.keys(map).filter((id) => id !== comboId);
+        if (!ids.length) return;
+        const doneToday = ids.filter((id) => get().logs[day]?.[id]?.status === 'done').map((id) => map[id]);
+        set((s) => ({
+          // Archived from today: they stop showing, their past days stay in history.
+          habits: s.habits.map((h) => (ids.includes(h.id) ? { ...h, archivedDay: day } : h)),
+        }));
+        if (doneToday.length) {
+          const cur = get().logs[day]?.[comboId];
+          const had = cur?.status === 'done' ? (cur.parts ?? []) : [];
+          get().setParts(day, comboId, [...new Set([...had, ...doneToday])]);
+        }
+      },
+
+      setParts: (day, id, partIds) =>
+        set((s) => {
+          const dayLogs = { ...s.logs[day] };
+          if (partIds.length) dayLogs[id] = { status: 'done', at: Date.now(), parts: partIds };
+          else delete dayLogs[id];
+          return { logs: { ...s.logs, [day]: dayLogs } };
+        }),
 
       reorderHabits: (ids) =>
         set((s) => ({
@@ -476,6 +510,9 @@ interface UI {
   /** Water sheet: which habit/day is open */
   water: { id: string; day: string } | null;
   openWater: (w: { id: string; day: string } | null) => void;
+  /** Combo habit "What did you do?" sheet */
+  parts: { id: string; day: string } | null;
+  openParts: (p: { id: string; day: string } | null) => void;
   reviewOpen: boolean;
   editingHabit: string | 'new' | null;
   setTab: (t: UI['tab']) => void;
@@ -498,6 +535,8 @@ export const useUI = create<UI>()((set) => ({
   missTarget: null,
   water: null,
   openWater: (water) => set({ water }),
+  parts: null,
+  openParts: (parts) => set({ parts }),
   reviewOpen: false,
   editingHabit: null,
   setTab: (tab) => set({ tab }),

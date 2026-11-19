@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { useStore } from '../store';
+import { useStore, useUI } from '../store';
+import { PART_COLORS, isCombo, isPartial } from '../lib/parts';
 import { Sheet } from './Sheet';
 import { addDays, formatDay, range, weekday } from '../lib/date';
 import { habitStreak } from '../lib/score';
@@ -46,6 +47,7 @@ export function HabitHistorySheet({ habit, today, onClose }: { habit: Habit | nu
           const active = tracked.includes(d);
           const status = logs[d]?.[habit.id]?.status;
           const isDone = status === 'done';
+          const part = isDone && isPartial(habit, logs[d]?.[habit.id]);
           const label = `${formatDay(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${isDone ? 'done' : 'not done'}`;
           return (
             <motion.button
@@ -56,13 +58,16 @@ export function HabitHistorySheet({ habit, today, onClose }: { habit: Habit | nu
               aria-pressed={active ? isDone : undefined}
               onClick={() => {
                 haptic(8);
-                if (isDone) clearHabit(d, habit.id);
+                if (isCombo(habit)) useUI.getState().openParts({ id: habit.id, day: d });
+                else if (isDone) clearHabit(d, habit.id);
                 else markHabit(d, habit.id);
               }}
               className={`relative grid aspect-square place-items-center rounded-xl text-[13px] font-semibold ${
                 !active
                   ? 'text-faint opacity-30'
-                  : isDone
+                  : part
+                    ? 'bg-part text-black/80'
+                    : isDone
                     ? 'bg-habit text-black/80'
                     : d === today
                       ? 'border border-line-strong text-text'
@@ -79,11 +84,46 @@ export function HabitHistorySheet({ habit, today, onClose }: { habit: Habit | nu
         <span className="flex items-center gap-1.5">
           <span className="size-3 rounded bg-habit" /> Done
         </span>
+        {isCombo(habit) && (
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded bg-part" /> Part done
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <span className="size-3 rounded bg-miss/30" /> Not done
         </span>
       </div>
       <p className="mt-2 text-[13px] text-muted">Forgot to check in? Tap a day to fix it. Your streak and scores update straight away.</p>
+
+      {/* Old habits folded into this combo: their history, read-only */}
+      {habit.parts
+        ?.map((p, i) => ({ p, i, old: habits.find((h) => h.id === p.from) }))
+        .filter((x) => x.old)
+        .map(({ p, i, old }) => {
+          const end = old!.archivedDay ?? today;
+          const span = range(addDays(end, -28), addDays(end, -1)).filter((d) => d >= old!.createdDay);
+          const kept = span.filter((d) => logs[d]?.[old!.id]?.status === 'done').length;
+          return (
+            <div key={p.id} className="mt-4 rounded-2xl bg-surface-2 px-3 py-3">
+              <div className="flex items-center gap-2 text-[13px] font-medium">
+                <span className="size-2.5 rounded-full" style={{ background: PART_COLORS[i] }} aria-hidden />
+                Before combining: {old!.name}
+                <span className="ml-auto text-faint tabular">
+                  {kept}/{span.length} days
+                </span>
+              </div>
+              <div className="mt-2 flex gap-[3px]" aria-label={`${old!.name}: ${kept} of ${span.length} days done in its last 4 weeks`}>
+                {span.map((d) => (
+                  <span
+                    key={d}
+                    className="h-3 flex-1 rounded-[3px]"
+                    style={{ background: logs[d]?.[old!.id]?.status === 'done' ? PART_COLORS[i] : logs[d]?.[old!.id]?.status === 'missed' ? 'color-mix(in srgb, var(--miss) 45%, transparent)' : 'var(--surface-3)' }}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       <button onClick={onClose} className="mt-5 min-h-12 w-full rounded-2xl bg-surface-2 text-[15px] font-semibold">
         Done
       </button>
