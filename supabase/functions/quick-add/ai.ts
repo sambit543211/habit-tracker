@@ -1,5 +1,7 @@
-// AI understanding for "Hey Siri, Sky …". Used only when the ANTHROPIC_API_KEY secret is set;
-// otherwise (or if the call fails) index.ts falls back to the rules in intent.ts.
+// AI understanding for "Hey Siri, Sky …". Tries, in order, whichever is set up as a Supabase secret:
+//   GROQ_API_KEY       → Groq free tier (GPT-OSS 120B), fast and free
+//   ANTHROPIC_API_KEY  → Claude (paid)
+// If none is set, or every call fails, index.ts falls back to the rules in intent.ts.
 import Anthropic from 'npm:@anthropic-ai/sdk@1.10.0';
 
 export type Action =
@@ -10,9 +12,10 @@ export type Action =
   | { type: 'plan'; title: string; day: 'today' | 'tomorrow'; start: string | null; duration_min: number | null };
 
 const key = Deno.env.get('ANTHROPIC_API_KEY');
+const groqKey = Deno.env.get('GROQ_API_KEY');
 // Siri gives up after a while, so keep it snappy: one retry, 15 s each.
 const client = key ? new Anthropic({ apiKey: key, timeout: 15_000, maxRetries: 1 }) : null;
-export const aiEnabled = !!client;
+export const aiEnabled = !!client || !!groqKey;
 
 const nullable = (t: object) => ({ anyOf: [t, { type: 'null' }] });
 const SCHEMA = {
@@ -41,6 +44,34 @@ const SCHEMA = {
   },
 };
 
+// Groq's strict mode wants nullable fields as type unions.
+const orNull = (t: string) => ({ type: [t, 'null'] });
+const GROQ_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['actions'],
+  properties: {
+    actions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'ml', 'habit_id', 'plan_id', 'title', 'day', 'start', 'duration_min'],
+        properties: {
+          type: { type: 'string', enum: ['water', 'habit_done', 'habit_skip', 'plan_done', 'plan'] },
+          ml: orNull('integer'),
+          habit_id: orNull('string'),
+          plan_id: orNull('string'),
+          title: orNull('string'),
+          day: orNull('string'),
+          start: orNull('string'),
+          duration_min: orNull('integer'),
+        },
+      },
+    },
+  },
+};
+
 const SYSTEM = `You turn one thing a person said to Siri into actions in their habit and planning app, Sky.
 The words come from dictation, so expect filler ("so", "okay", "like"), missing words and mis-heard words. Work out what they meant.
 
@@ -55,38 +86,77 @@ Rules:
 - One sentence can hold several actions ("I meditated and drank half a litre, and add gym tomorrow at 7" -> three actions). Return them in the order said.
 - Only use ids from the lists. If they say they did something that matches no habit or open plan, ignore that part. Never invent habits.
 - If nothing actionable was said, return an empty actions list.
-- Set every field that doesn't apply to an action to null.`;
+- Set every field that doesn't apply to an action to null.
+- day is "today" or "tomorrow"; start is 24h "HH:MM".`;
 
-export async function understand(
-  text: string,
-  ctx: { habits: { id: string; name: string }[]; plans: { id: string; title: string; day: string }[]; now: string; wake: string },
-): Promise<Action[] | null> {
-  if (!client) return null;
+type Ctx = { habits: { id: string; name: string }[]; plans: { id: string; title: string; day: string }[]; now: string; wake: string };
+
+export async function understand(text: string, ctx: Ctx): Promise<Action[] | null> {
+  if (!groqKey && !client) return null;
   const context = [
     `Now: ${ctx.now}`,
     `Habits:\n${ctx.habits.map((h) => `- ${h.id}: ${h.name}`).join('\n') || '(none)'}`,
     `Open plans:\n${ctx.plans.map((p) => `- ${p.id}: ${p.title} (${p.day})`).join('\n') || '(none)'}`,
   ].join('\n\n');
-  try {
-    const res = await client.beta.messages.create({
-      model: 'claude-opus-5-5',
-      max_tokens: 2000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      system: SYSTEM.replace('{WAKE}', ctx.wake),
-      messages: [{ role: 'user', content: `${context}\n\nThey said: "${text}"` }],
-    });
-    const msg = res as unknown as { stop_reason: string; content: { type: string; text?: string }[] };
-    if (msg.stop_reason === 'refusal' || msg.stop_reason === 'max_tokens') return null;
-    const out = msg.content.find((b) => b.type === 'text')?.text;
-    if (!out) return null;
-    const parsed = JSON.parse(out) as { actions: Record<string, unknown>[] };
-    return clean(parsed.actions, ctx);
-  } catch (e) {
-    console.error('AI understanding failed, using rules:', e instanceof Error ? e.message : e);
+  const system = SYSTEM.replace('{WAKE}', ctx.wake);
+  const user = `${context}\n\nThey said: "${text}"`;
+  for (const ask of [groqKey ? askGroq : null, client ? askClaude : null]) {
+    if (!ask) continue;
+    try {
+      const out = await ask(system, user);
+      if (out === null) continue;
+      const parsed = JSON.parse(out) as { actions: Record<string, unknown>[] };
+      return clean(parsed.actions, ctx);
+    } catch (e) {
+      console.error('AI understanding failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  return null;
+}
+
+/** Groq free tier, OpenAI-compatible chat completions. Returns the JSON text, or null. */
+async function askGroq(system: string, user: string): Promise<string | null> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(12_000),
+    body: JSON.stringify({
+      model: 'openai/gpt-oss-120b',
+      reasoning_effort: 'low',
+      include_reasoning: false,
+      temperature: 0,
+      max_completion_tokens: 2000,
+      response_format: { type: 'json_schema', json_schema: { name: 'sky_actions', strict: true, schema: GROQ_SCHEMA } },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    console.error('Groq error', res.status, (await res.text()).slice(0, 300));
     return null;
   }
+  const data = await res.json();
+  const choice = data?.choices?.[0];
+  if (choice?.finish_reason === 'length') return null;
+  return typeof choice?.message?.content === 'string' ? choice.message.content : null;
+}
+
+/** Claude (paid), structured outputs. Returns the JSON text, or null. */
+async function askClaude(system: string, user: string): Promise<string | null> {
+  const res = await client!.beta.messages.create({
+    model: 'claude-opus-5-5',
+    max_tokens: 2000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+    system,
+    messages: [{ role: 'user', content: user }],
+  });
+  const msg = res as unknown as { stop_reason: string; content: { type: string; text?: string }[] };
+  if (msg.stop_reason === 'refusal' || msg.stop_reason === 'max_tokens') return null;
+  return msg.content.find((b) => b.type === 'text')?.text ?? null;
 }
 
 /** Trust nothing: keep only actions that point at real habits/plans and have sane values. */

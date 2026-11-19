@@ -1,6 +1,6 @@
 // Supabase Edge Function: "Hey Siri, Sky …" quick-add, called by an Apple Shortcut.
 // Auth: the person's own key (header x-sky-key), stored only as a SHA-256 hash in profiles.shortcut_key_hash.
-// Understanding: AI (ai.ts) when the ANTHROPIC_API_KEY secret is set — free speech, several things at once,
+// Understanding: AI (ai.ts) when GROQ_API_KEY (free) or ANTHROPIC_API_KEY is set — free speech, several things at once,
 // "paid the gas bill" ticks that plan. Without it, or if it fails, the rules in intent.ts
 // (a copy of src/lib/intent.ts, which has the tests):
 //   "drank 1 litre", "two glasses of water"         → adds water (ticks it at the target)
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
   const habits = habitRows ?? [];
   const plans = planRows ?? [];
 
-  // 1) AI (when the ANTHROPIC_API_KEY secret is set) understands free speech, several things at once.
+  // 1) AI (Groq free tier or Claude, whichever secret is set) understands free speech, several things at once.
   // 2) Otherwise, or if it fails, the rules in intent.ts.
   let actions = await understand(text, { habits, plans, now: nowIn(tz), wake });
   if (actions === null) actions = fromRules(text, habits, Number(wake.slice(0, 2)));
