@@ -563,7 +563,7 @@ function Week({ days }: { days: string }) {
         .slice(-7)
         .split('')
         .map((c, i) => (
-          <span key={i} className="h-1.5 w-4 rounded-full" style={{ background: c === 'd' ? 'var(--habit)' : c === 'm' ? 'var(--miss)' : 'var(--surface-3)' }} />
+          <span key={i} className="h-1.5 w-4 rounded-full" style={{ background: c === 'd' ? 'var(--habit)' : c === 'p' ? 'var(--part)' : c === 'm' ? 'var(--miss)' : 'var(--surface-3)' }} />
         ))}
     </div>
   );

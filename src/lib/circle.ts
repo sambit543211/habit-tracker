@@ -11,7 +11,7 @@ export interface CircleLink {
   user_id: string;
   habit_id: string;
   habit: string;
-  /** Last 30 days, oldest first: d = done, m = missed, - = open */
+  /** Last 30 days, oldest first: d = done, p = part done (combo habit, still keeps the streak), m = missed, - = open */
   days: string;
   /** Water drunk today in ml (water habits only) */
   amount?: number | null;
@@ -67,14 +67,14 @@ export interface CircleData {
 
 export const todayStatus = (l: CircleLink) => {
   const c = l.days[l.days.length - 1];
-  return c === 'd' ? 'done' : c === 'm' ? 'missed' : 'open';
+  return c === 'd' || c === 'p' ? 'done' : c === 'm' ? 'missed' : 'open';
 };
 
 /** Consecutive done days; an open today doesn't break it. */
 export function linkStreak(days: string) {
   let n = 0;
   for (let i = days.length - 1; i >= 0; i--) {
-    if (days[i] === 'd') n++;
+    if (days[i] === 'd' || days[i] === 'p') n++;
     else if (i === days.length - 1 && days[i] === '-') continue;
     else break;
   }
@@ -87,7 +87,7 @@ export function groupStreak(goal: CircleGoal, activeCount: number) {
   const len = Math.min(...goal.links.map((l) => l.days.length));
   let n = 0;
   for (let back = 0; back < len; back++) {
-    const all = goal.links.every((l) => l.days[l.days.length - 1 - back] === 'd');
+    const all = goal.links.every((l) => 'dp'.includes(l.days[l.days.length - 1 - back] ?? '-'));
     if (all) n++;
     else if (back === 0 && goal.links.every((l) => l.days[l.days.length - 1] !== 'm')) continue; // today still open
     else break;

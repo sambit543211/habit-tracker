@@ -1,4 +1,5 @@
 import { waterTarget } from './water';
+import { partCredit } from './parts';
 import type { Data, Habit, Plan, ReasonCode } from '../types';
 import { addDays, range, weekday } from './date';
 
@@ -56,12 +57,12 @@ export function dayStats(data: Data, day: string): DayStats {
   const log = data.logs[day] ?? {};
   let habitsDone = 0;
   let habitsMissed = 0;
-  let credit = 0; // done = 1, water in progress = the share drunk so far
+  let credit = 0; // done = 1, combo = the parts' share, water in progress = the share drunk so far
   for (const h of habits) {
     const s = log[h.id]?.status;
     if (s === 'done') {
       habitsDone++;
-      credit++;
+      credit += partCredit(h, log[h.id]);
     } else if (s === 'missed') habitsMissed++;
     else {
       const goal = waterTarget(h);

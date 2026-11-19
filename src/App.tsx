@@ -11,6 +11,7 @@ import { Onboarding } from './screens/Onboarding';
 import { TabBar } from './components/TabBar';
 import { ReasonSheet } from './components/ReasonSheet';
 import { WaterSheet } from './components/WaterSheet';
+import { PartsSheet } from './components/PartsSheet';
 import { HabitEditor } from './components/HabitEditor';
 import { PlanEditor } from './components/PlanEditor';
 import { WeeklyReviewSheet } from './components/WeeklyReviewSheet';
@@ -67,6 +68,7 @@ export default function App() {
         <PlanEditor />
         <ReasonSheet />
         <WaterSheet />
+        <PartsSheet />
         <Toast />
       </>
     );
@@ -101,6 +103,7 @@ export default function App() {
       <Celebrations today={today} />
       <ReasonSheet />
       <WaterSheet />
+      <PartsSheet />
       <Toast />
     </>
   );

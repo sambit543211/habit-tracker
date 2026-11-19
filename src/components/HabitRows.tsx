@@ -8,6 +8,7 @@ import { useData } from '../lib/useData';
 import { weekCount } from '../lib/score';
 import { WATER_STEP, fmtWaterPair, waterTarget } from '../lib/water';
 import { haptic } from '../lib/feedback';
+import { PART_COLORS, isCombo, partCredit } from '../lib/parts';
 
 /** Trackable habit rows for a given day. */
 export function HabitRows({
@@ -26,7 +27,8 @@ export function HabitRows({
   const amounts = useStore((s) => s.amounts[day]);
   const addWater = useStore((s) => s.addWater);
   const openWater = useUI((s) => s.openWater);
-  const { markHabit, clearHabit } = useStore();
+  const { markHabit, clearHabit, setParts } = useStore();
+  const openParts = useUI((s) => s.openParts);
   const openMiss = useUI((s) => s.openMiss);
   const showToast = useUI((s) => s.showToast);
 
@@ -66,6 +68,47 @@ export function HabitRows({
                 </span>
               </span>
             );
+          } else if (isCombo(h) && status !== 'missed') {
+            // Split bar + one chip per part. Tap a chip to tick just that part.
+            const done = status === 'done' ? (log?.parts ?? h.parts.map((p) => p.id)) : [];
+            const credit = partCredit(h, log);
+            subtitle = (
+              <span className="block">
+                <span className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+                  {h.parts.map((p, i) => (
+                    <span
+                      key={p.id}
+                      className="block h-full transition-opacity duration-300"
+                      style={{ width: `${p.weight}%`, background: PART_COLORS[i], opacity: done.includes(p.id) ? 1 : 0.15 }}
+                    />
+                  ))}
+                </span>
+                <span className="mt-1 flex flex-wrap items-center gap-1">
+                  {h.parts.map((p, i) => {
+                    const on = done.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          haptic(on ? 6 : 10);
+                          setParts(day, h.id, on ? done.filter((x) => x !== p.id) : [...done, p.id]);
+                        }}
+                        aria-pressed={on}
+                        aria-label={`${p.name}, ${p.weight}%${on ? ', done' : ''}`}
+                        className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11.5px] font-medium ${on ? 'text-text' : 'text-faint'}`}
+                        style={{ background: on ? `color-mix(in srgb, ${PART_COLORS[i]} 22%, transparent)` : 'var(--surface-2)' }}
+                      >
+                        <span className="size-1.5 rounded-full" style={{ background: PART_COLORS[i] }} aria-hidden />
+                        {p.name}
+                        {on && ' ✓'}
+                      </button>
+                    );
+                  })}
+                  {credit > 0 && credit < 1 && <span className="text-[11.5px] font-semibold text-part tabular">{Math.round(credit * 100)}%</span>}
+                </span>
+              </span>
+            );
           } else if (status === 'pending' && showTiny && h.tiny)
             subtitle = <span className="text-gold">{compact ? `Or just: ${h.tiny}` : `Short on time? Just: ${h.tiny}`}</span>;
           return (
@@ -74,14 +117,15 @@ export function HabitRows({
               accent="habit"
               title={h.name}
               subtitle={subtitle}
-              status={skipped ? 'carried' : status}
+              status={skipped ? 'carried' : status === 'done' && partCredit(h, log) < 1 ? 'partial' : status}
               onDone={() => {
+                if (isCombo(h)) return openParts({ id: h.id, day });
                 markHabit(day, h.id);
                 showToast(`${h.name} — done`, { tone: 'habit', undo: () => clearHabit(day, h.id) });
               }}
               onMiss={() => openMiss({ kind: 'habit', id: h.id, day })}
-              onUndo={() => clearHabit(day, h.id)}
-              onOpen={goal ? () => openWater({ id: h.id, day }) : undefined}
+              onUndo={() => (isCombo(h) && status === 'done' ? openParts({ id: h.id, day }) : clearHabit(day, h.id))}
+              onOpen={goal ? () => openWater({ id: h.id, day }) : isCombo(h) ? () => openParts({ id: h.id, day }) : undefined}
               trailing={
                 goal && status === 'pending' ? (
                   <button

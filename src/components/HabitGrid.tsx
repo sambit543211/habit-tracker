@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { addDays, formatDay, fromKey, range, WEEKDAYS } from '../lib/date';
 import { habitsOn } from '../lib/score';
 import type { Data, Habit } from '../types';
+import { isPartial, partCredit } from '../lib/parts';
 
 const SPANS = [7, 14, 30] as const;
 const MIN_DAYS = 3;
 type Span = (typeof SPANS)[number];
 
-type Cell = 'done' | 'missed' | 'unchecked' | 'today' | 'off';
+type Cell = 'done' | 'part' | 'missed' | 'unchecked' | 'today' | 'off';
 
 /** One frame: every habit × the last N days. Green kept, red missed. Sorted strongest → weakest. */
 export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; onOpen: (h: Habit) => void }) {
@@ -19,7 +20,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
   const cell = (h: Habit, d: string): Cell => {
     if (d < h.createdDay || (h.archivedDay && d >= h.archivedDay)) return 'off';
     const s = data.logs[d]?.[h.id]?.status;
-    if (s === 'done') return 'done';
+    if (s === 'done') return isPartial(h, data.logs[d]?.[h.id]) ? 'part' : 'done';
     if (data.logs[d]?.[h.id]?.miss?.reason === 'skip') return 'off';
     if (h.perWeek) return d === today ? 'today' : 'off'; // weekly: a day without it isn't a miss
     if (s === 'missed') return 'missed';
@@ -31,8 +32,9 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
       const cells = days.map((d) => cell(h, d));
       // Rates use finished days only (today is still in progress), and need 3 of them to mean anything.
       const past = cells.slice(0, -1);
-      const counted = past.filter((c) => c === 'done' || c === 'missed' || c === 'unchecked').length;
-      const done = past.filter((c) => c === 'done').length;
+      const counted = past.filter((c) => c === 'done' || c === 'part' || c === 'missed' || c === 'unchecked').length;
+      // A part-done day counts by its share (Stretch only = 0.3 of a day).
+      const done = Math.round(past.reduce((n, c, i) => n + (c === 'done' ? 1 : c === 'part' ? partCredit(h, data.logs[days[i]]?.[h.id]) : 0), 0) * 10) / 10;
       // Weekly habits: done vs. what the target asks for in these days (3× a week over 14 days → 6).
       const due = h.perWeek ? Math.max(1, Math.round((h.perWeek * past.filter((c) => c !== 'off' || h.perWeek).length) / 7)) : counted;
       const enough = h.perWeek ? past.length >= 7 : counted >= MIN_DAYS;
@@ -44,7 +46,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
   const daily = days.map((d) => {
     const on = habits.filter((h) => cell(h, d) !== 'off');
     if (!on.length || d === today) return null;
-    return on.filter((h) => cell(h, d) === 'done').length / on.length;
+    return on.reduce((n, h) => n + (cell(h, d) === 'done' ? 1 : cell(h, d) === 'part' ? partCredit(h, data.logs[d]?.[h.id]) : 0), 0) / on.length;
   });
 
   const rated = rows.filter((r) => r.rate !== null);
@@ -144,6 +146,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted">
         <Legend bg={CELL_BG.done} label="Done" />
+        {habits.some((h) => h.parts?.length) && <Legend bg={CELL_BG.part} label="Part done" />}
         <Legend bg={CELL_BG.missed} label="Missed" />
         <Legend bg={CELL_BG.unchecked} label="No check-in" />
         <span className="ml-auto text-faint">
@@ -173,6 +176,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
 
 const CELL_BG: Record<Cell, string> = {
   done: 'var(--habit)',
+  part: 'var(--part)',
   missed: 'var(--miss)',
   unchecked: 'color-mix(in srgb, var(--miss) 35%, var(--surface-2))',
   today: 'var(--surface-2)',

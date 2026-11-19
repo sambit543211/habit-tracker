@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { Sheet } from './Sheet';
 import { fmtWater, waterTarget } from '../lib/water';
+import { PartsEditor, partId, type DraftPart } from './PartsEditor';
+import { comboName } from '../lib/parts';
 
 export function HabitEditor() {
   const editing = useUI((s) => s.editingHabit);
   const editHabit = useUI((s) => s.editHabit);
   const habits = useStore((s) => s.habits);
-  const { addHabit, updateHabit, archiveHabit } = useStore();
+  const { addHabit, updateHabit, archiveHabit, absorbHabits } = useStore();
   const habit = editing && editing !== 'new' ? habits.find((h) => h.id === editing) : undefined;
 
   const [name, setName] = useState('');
@@ -19,6 +21,8 @@ export function HabitEditor() {
   const [pairWith, setPairWith] = useState('');
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [parts, setParts] = useState<DraftPart[]>([]);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     if (!editing) return;
@@ -30,6 +34,8 @@ export function HabitEditor() {
     setPairWith(habit?.pairWith ?? '');
     setMore(!!(habit?.cue || habit?.tiny || habit?.pairWith));
     setConfirm(false);
+    setParts(habit?.parts?.map((p) => ({ ...p })) ?? []);
+    setPicking(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
@@ -39,12 +45,26 @@ export function HabitEditor() {
   }, [editing]);
 
   const close = () => editHabit(null);
+  const combo = parts.length >= 2;
+  const partsOk = !combo || parts.every((p) => p.name.trim());
+  const autoName = combo ? comboName(parts) : '';
+  const finalName = name.trim() || autoName;
+  // Habits that can be folded into this one: active, not water, not already a combo, not this one.
+  const others = habits.filter((h) => h.id !== habit?.id && !h.archivedDay && !waterTarget(h) && !h.parts?.length);
+  const startParts = (from?: (typeof habits)[number]) => {
+    setParts([
+      { id: partId(), name: name.trim(), weight: 50 },
+      { id: partId(), name: from?.name ?? '', weight: 50, from: from?.id },
+    ]);
+    setPicking(false);
+  };
   const save = () => {
-    const n = name.trim();
-    if (!n) return;
-    const data = { name: n, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined, pairWith: pairWith.trim() || undefined, perWeek };
-    if (habit) updateHabit(habit.id, data);
-    else addHabit(data);
+    if (!finalName || !partsOk) return;
+    const cleanParts = combo ? parts.map(({ id, name, weight, from }) => ({ id, name: name.trim(), weight, ...(from ? { from } : {}) })) : undefined;
+    const data = { name: finalName, cue: cue.trim() || undefined, tiny: tiny.trim() || undefined, remindAt: remindAt || undefined, pairWith: pairWith.trim() || undefined, perWeek, parts: cleanParts };
+    const id = habit ? (updateHabit(habit.id, data), habit.id) : addHabit(data);
+    const absorbed = Object.fromEntries(parts.filter((p) => p.from).map((p) => [p.from!, p.id]));
+    if (combo && Object.keys(absorbed).length) absorbHabits(id, absorbed);
     close();
   };
 
@@ -56,11 +76,51 @@ export function HabitEditor() {
       <p className="mt-1 text-[14px] text-muted">A daily non-negotiable. Small and specific wins.</p>
 
       <label className="mt-5 block text-[13px] font-medium text-muted">I will…</label>
-      <input ref={nameRef} value={name} enterKeyHint="done" onKeyDown={(e) => e.key === 'Enter' && save()} onChange={(e) => setName(e.target.value)} placeholder="Read 10 pages" className={field} />
+      <input
+        ref={nameRef}
+        value={name}
+        enterKeyHint="done"
+        onKeyDown={(e) => e.key === 'Enter' && save()}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={autoName || 'Read 10 pages'}
+        className={field}
+      />
       {waterTarget({ name }) && (
         <p className="mt-1.5 text-[12.5px] text-sky-400">
           💧 Tracked in sips: target {fmtWater(waterTarget({ name })!)} — put the amount in the name to change it (e.g. “Drink 3L water”).
         </p>
+      )}
+
+      <label className="mt-4 block text-[13px] font-medium text-muted">
+        Parts <span className="text-faint">(optional — two or three things that count as this habit)</span>
+      </label>
+      {combo ? (
+        <>
+          <PartsEditor parts={parts} setParts={setParts} others={others} />
+          <p className="mt-1.5 text-[12.5px] text-faint">Any part done keeps your streak (shown orange). All parts = full green day.</p>
+        </>
+      ) : waterTarget({ name }) ? null : (
+        <>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            <button onClick={() => startParts()} className="min-h-10 rounded-full border border-dashed border-line-strong/60 px-3 text-[13.5px] font-medium text-muted">
+              ⊕ Split into parts
+            </button>
+            {others.length > 0 && (
+              <button onClick={() => setPicking((v) => !v)} aria-expanded={picking} className="min-h-10 rounded-full border border-dashed border-line-strong/60 px-3 text-[13.5px] font-medium text-muted">
+                ↪ Combine with an existing habit
+              </button>
+            )}
+          </div>
+          {picking && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {others.map((h) => (
+                <button key={h.id} onClick={() => startParts(h)} className="min-h-10 rounded-full bg-surface-2 px-3 text-[13.5px] font-medium">
+                  {h.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <label className="mt-4 block text-[13px] font-medium text-muted">How often</label>
@@ -117,7 +177,7 @@ export function HabitEditor() {
       <motion.button
         whileTap={{ scale: 0.98 }}
         onClick={save}
-        disabled={!name.trim()}
+        disabled={!finalName || !partsOk}
         className="mt-6 w-full rounded-2xl bg-text py-4 text-[16px] font-semibold text-bg disabled:opacity-30"
       >
         {habit ? 'Save' : 'Add habit'}
