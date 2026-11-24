@@ -91,7 +91,8 @@ export function ExpenseSheet({ today }: { today: string }) {
           enterKeyHint="done"
           placeholder="0"
           aria-label="Amount in rupees"
-          className="w-full bg-transparent text-[40px] font-bold tabular outline-none placeholder:text-faint"
+          style={{ fontSize: 40, lineHeight: 1.1 }}
+          className="w-full bg-transparent font-bold tabular outline-none placeholder:text-faint"
         />
       </div>
 
