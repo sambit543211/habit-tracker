@@ -10,7 +10,7 @@
 // Replies with one short sentence for Siri to read out.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { parsePlan } from './parsePlan.ts';
-import { detectIntent, habitScore } from './intent.ts';
+import { detectIntent, habitScore, isSpendTalk, parseBankSms, parseSpends, sortAnswer } from './intent.ts';
 import { understand, type Action } from './ai.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
@@ -57,6 +57,18 @@ const waterTarget = (name: string) => {
   return g ? +g[1] * 250 : 2000;
 };
 
+/** Same ids/names as DEFAULT_CATEGORIES in src/lib/money.ts (used until the person edits their own). */
+const DEFAULT_CATS = [
+  ['rent', 'Rent'], ['groceries', 'Groceries'], ['eating', 'Eating Out'], ['transport', 'Transport & Fuel'], ['bills', 'Bills/Utilities'],
+  ['medical', 'Medical'], ['shopping', 'Shopping'], ['subscriptions', 'Subscriptions'], ['drinks', 'Drinks/Alcohol'], ['trips', 'Trips & Experiences'],
+  ['entertainment', 'Entertainment'], ['grooming', 'Grooming'], ['laundry', 'Laundry'], ['investments', 'Investments'], ['other', 'Other'],
+].map(([id, name]) => ({ id, name }));
+
+const rupees = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+/** Same as merchantKey in src/lib/money.ts */
+const merchantKey = (note?: string | null) =>
+  (note ?? '').toLowerCase().replace(/@.*$/, '').replace(/[^a-z0-9 ]+/g, ' ').trim().split(/\s+/).slice(0, 2).join(' ');
+
 /** "Thursday 2026-11-19 10:13" in the person's time zone, for the AI. */
 function nowIn(tz: string) {
   try {
@@ -79,19 +91,98 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return say('Send a POST with {"text": "…"}', 405);
   const key = req.headers.get('x-sky-key')?.trim();
   if (!key || key.length < 20) return say('Sky key missing. Set it up in Sky → Me → Settings → Siri.', 401);
-  const { data: profile } = await db.from('profiles').select('user_id,timezone,wake_time').eq('shortcut_key_hash', await sha256(key)).maybeSingle();
+  const { data: profile } = await db.from('profiles').select('user_id,timezone,wake_time,money').eq('shortcut_key_hash', await sha256(key)).maybeSingle();
   if (!profile) return say("That Sky key isn't valid any more. Make a new one in Sky → Me → Settings → Siri.", 401);
 
   let text = '';
+  let source = '';
   try {
     const body = await req.json();
     text = String(body?.text ?? '').trim();
+    source = String(body?.source ?? '');
   } catch {
     text = (await req.text().catch(() => '')).trim();
   }
   if (!text) return say("I didn't catch that. Try: Gym tomorrow at 7.");
   const user = profile.user_id as string;
   const today = todayIn(profile.timezone || 'UTC');
+
+  // ---------- Money ----------
+  type Money = { categories?: { id: string; name: string }[]; merchants?: Record<string, string> } | null;
+  const money = (profile.money ?? null) as Money;
+  const categories = money?.categories?.length ? money.categories.map((c) => ({ id: c.id, name: c.name })) : DEFAULT_CATS;
+  const merchants = money?.merchants ?? {};
+  const catName = (id?: string | null) => categories.find((c) => c.id === id)?.name ?? 'Other';
+  const learn = async (note: string | null | undefined, category: string | null | undefined) => {
+    const key = merchantKey(note);
+    if (!key || !category || merchants[key] === category) return;
+    merchants[key] = category;
+    await db.from('profiles').update({ money: { ...(money ?? {}), merchants } }).eq('user_id', user);
+  };
+  const monthTotal = async (category: string) => {
+    const { data } = await db.from('expenses').select('amount').eq('user_id', user).eq('category', category).gte('day', `${today.slice(0, 7)}-01`).lte('day', today);
+    return Math.round((data ?? []).reduce((n, r) => n + Number(r.amount), 0));
+  };
+
+  const HOURS_12 = 12 * 3600 * 1000;
+  type Row = { id: string; amount: number | string; category: string | null; note: string | null; payee: string | null; mode: string | null; source: string; at: string; linked: boolean; excluded: boolean };
+  const recent = async (amount: number) => {
+    const { data } = await db.from('expenses').select('id,amount,category,note,payee,mode,source,at,linked,excluded').eq('user_id', user).eq('amount', amount).gte('at', new Date(Date.now() - HOURS_12).toISOString());
+    return ((data ?? []) as Row[]).filter((r) => !r.excluded).sort((a, b) => (a.at < b.at ? 1 : -1));
+  };
+
+  // A bank / UPI SMS forwarded by an iPhone automation. It never picks a category itself — it asks.
+  const sms = source === 'sms' || /\b(a\/c|acct|account|upi ref|ref no|avl bal|avl lmt)\b/i.test(text) ? parseBankSms(text) : null;
+  if (source === 'sms' && !sms) return say('Not a debit — nothing logged.');
+  if (sms) {
+    const ref = await sha256(text);
+    const { data: seen } = await db.from('expenses').select('id').eq('user_id', user).eq('sms_ref', ref).maybeSingle();
+    if (seen) return say('Already logged.');
+    const day = sms.date && sms.date <= today && sms.date >= addDays(today, -7) ? sms.date : today;
+    const to = sms.merchant ? ` to ${sms.merchant}` : '';
+    // You already logged it yourself (Siri or the app): same amount, last 12 hours, not matched yet → one payment.
+    const mine = (await recent(sms.amount)).find((r) => r.source !== 'sms' && !r.linked);
+    if (mine) {
+      await db.from('expenses').update({ linked: true, sms_ref: ref, payee: sms.merchant ?? null, mode: mine.mode ?? sms.mode ?? null }).eq('user_id', user).eq('id', mine.id);
+      return say(`${rupees(sms.amount)}${to} matches your ${catName(mine.category)} entry ✓`);
+    }
+    const { error } = await db.from('expenses').insert({
+      id: crypto.randomUUID(),
+      user_id: user,
+      day,
+      amount: sms.amount,
+      category: null,
+      mode: sms.mode ?? 'UPI',
+      note: null,
+      payee: sms.merchant ?? null,
+      source: 'sms',
+      sms_ref: ref,
+      at: new Date().toISOString(),
+    });
+    if (error?.code === '23505') return say('Already logged.');
+    if (error) return say("Sorry, I couldn't log that payment.", 500);
+    const hint = merchants[merchantKey(sms.merchant)];
+    return say(`${rupees(sms.amount)}${to} — what was it?${hint ? ` Last time: ${catName(hint)}.` : ''}`);
+  }
+
+  // Your answer to "what was it?" (sent by the SMS shortcut): files the latest bank payment waiting to be sorted.
+  if (source === 'sort') {
+    const { data } = await db.from('expenses').select('id,amount,payee,at,excluded').eq('user_id', user).eq('source', 'sms').is('category', null);
+    const r = ((data ?? []) as Row[]).filter((x) => !x.excluded).sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+    if (!r) return say('Nothing is waiting to be sorted.');
+    const amount = rupees(Number(r.amount));
+    const ans = sortAnswer(text, categories, merchants);
+    if (ans?.kind === 'drop') {
+      await db.from('expenses').update({ excluded: true }).eq('user_id', user).eq('id', r.id);
+      return say(`Okay — ${amount} won't be counted.`);
+    }
+    const hint = merchants[merchantKey(r.payee)];
+    const category = ans?.kind === 'category' ? ans.id : ans?.kind === 'same' ? hint : undefined;
+    if (!category) return say(`I didn't catch a category — ${amount} is waiting in To sort in Sky.`);
+    await db.from('expenses').update({ category }).eq('user_id', user).eq('id', r.id);
+    await learn(r.payee, category);
+    return say(`Filed ${amount} as ${catName(category)}.${r.payee ? ` I'll remember ${r.payee}.` : ''}`);
+  }
 
   const wake = profile.wake_time ? String(profile.wake_time).slice(0, 5) : '08:00';
   const tz = profile.timezone || 'UTC';
@@ -107,8 +198,11 @@ Deno.serve(async (req) => {
 
   // 1) AI (Groq free tier or Claude, whichever secret is set) understands free speech, several things at once.
   // 2) Otherwise, or if it fails, the rules in intent.ts.
-  let actions = await understand(text, { habits: forAi, plans, now: nowIn(tz), wake });
-  if (actions === null) actions = fromRules(text, forAi, Number(wake.slice(0, 2)));
+  let actions = await understand(text, { habits: forAi, plans, categories, now: nowIn(tz), wake });
+  if (actions === null)
+    actions = isSpendTalk(text, categories, merchants)
+      ? parseSpends(text, categories, merchants).map((x) => ({ type: 'expense' as const, amount: x.amount, category: x.category ?? null, note: x.note ?? null, mode: x.mode ?? null, day: x.day }))
+      : fromRules(text, forAi, Number(wake.slice(0, 2)));
   if (!actions.length) return say("I didn't catch anything to add. Try: Gym tomorrow at 7, or I drank a litre of water.");
 
   const said: string[] = [];
@@ -149,6 +243,38 @@ Deno.serve(async (req) => {
       }
       await db.from('habit_logs').upsert({ user_id: user, day: today, habit_id: h.id, status: 'done', at, miss: null }, { onConflict: 'user_id,day,habit_id' });
       return `${h.name} ticked.`;
+    }
+    if (a.type === 'expense') {
+      // Learned shop beats a guess; nothing known → saved as "to sort".
+      const category = (a.note && merchants[merchantKey(a.note)]) || a.category || null;
+      // The bank SMS came first: same amount, last 12 hours → that's this payment. Fill it in, don't add a second one.
+      const bank = a.day === 'today' ? (await recent(a.amount)).find((r) => r.source === 'sms' && !r.linked) : undefined;
+      if (bank) {
+        const had = bank.category;
+        await db.from('expenses').update({ linked: true, ...(category && !had ? { category } : {}), ...(a.note ? { note: a.note } : {}), ...(a.mode ? { mode: a.mode } : {}) }).eq('user_id', user).eq('id', bank.id);
+        if (category && !had) await learn(bank.payee, category);
+        const to = bank.payee ? ` to ${bank.payee}` : '';
+        return had
+          ? `${rupees(a.amount)}${to} was already logged from your bank SMS as ${catName(had)} ✓`
+          : category
+            ? `Filed the ${rupees(a.amount)} bank payment${to} as ${catName(category)}.`
+            : `${rupees(a.amount)}${to} is already logged from your bank SMS — pick a category in Sky.`;
+      }
+      const { error } = await db.from('expenses').insert({
+        id: crypto.randomUUID(),
+        user_id: user,
+        day: a.day === 'yesterday' ? addDays(today, -1) : today,
+        amount: a.amount,
+        category,
+        mode: a.mode,
+        note: a.note,
+        source: 'voice',
+        at,
+      });
+      if (error) return `Sorry, I couldn't save ${rupees(a.amount)}.`;
+      if (!category) return `${rupees(a.amount)}${a.note ? ` for ${a.note}` : ''} saved — pick a category in Sky.`;
+      await learn(a.note, category);
+      return `${rupees(a.amount)} ${catName(category)} added${a.day === 'yesterday' ? ' for yesterday' : ''}. ${rupees(await monthTotal(category))} on ${catName(category).toLowerCase()} this month.`;
     }
     if (a.type === 'plan_done') {
       const p = plans.find((x) => x.id === a.plan_id)!;

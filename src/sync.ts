@@ -25,6 +25,8 @@ import {
   type ReviewRow,
   type SmokeRow,
   rowToSmoke,
+  rowToExpense,
+  type ExpenseRow,
   rowsToLogs,
   type HabitRow,
   type LogRow,
@@ -116,6 +118,7 @@ const snap = (s: Snapshot): Snapshot => ({
   amounts: s.amounts,
   weeklyReviews: s.weeklyReviews,
   smokes: s.smokes,
+  expenses: s.expenses,
 });
 
 useStore.subscribe((next, prev) => {
@@ -143,6 +146,8 @@ const ORDER: [Op['table'], Op['kind']][] = [
   ['reflections', 'upsert'],
   ['weekly_reviews', 'upsert'],
   ['smoke_events', 'upsert'],
+  ['expenses', 'upsert'],
+  ['expenses', 'delete'],
   ['smoke_events', 'delete'],
   ['reflections', 'delete'],
   ['habit_logs', 'delete'],
@@ -160,6 +165,7 @@ const CONFLICT: Record<Op['table'], string> = {
   reflections: 'user_id,day',
   weekly_reviews: 'user_id,week_start',
   smoke_events: 'id',
+  expenses: 'id',
 };
 
 type Result = 'ok' | 'retry' | 'drop';
@@ -254,7 +260,7 @@ async function fetchAll<T>(table: string): Promise<T[]> {
 }
 
 async function fetchRemote(): Promise<Snapshot> {
-  const [profile, habits, plans, logs, reflections, reviews, smokes, amounts] = await Promise.all([
+  const [profile, habits, plans, logs, reflections, reviews, smokes, amounts, expenses] = await Promise.all([
     supabase!.from('profiles').select('*').eq('user_id', userId!).maybeSingle(),
     fetchAll<HabitRow>('habits'),
     fetchAll<PlanRow>('plans'),
@@ -264,6 +270,7 @@ async function fetchRemote(): Promise<Snapshot> {
     fetchAll<SmokeRow>('smoke_events'),
     // Water amounts: optional table — if it isn't there yet, keep this device's amounts.
     fetchAll<AmountRow>('habit_amounts').then(rowsToAmounts, () => useStore.getState().amounts),
+    fetchAll<ExpenseRow>('expenses').then((r) => r.map(rowToExpense), () => useStore.getState().expenses),
   ]);
   if (profile.error) throw profile.error;
   const p = profile.data as ProfileRow | null;
@@ -279,6 +286,7 @@ async function fetchRemote(): Promise<Snapshot> {
     weeklyReviews: rowsToReviews(reviews),
     smokes: smokes.map(rowToSmoke),
     amounts,
+    expenses,
   };
 }
 

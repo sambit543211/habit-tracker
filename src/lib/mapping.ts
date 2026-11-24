@@ -2,7 +2,7 @@
  * Pure mapping + diffing between the local store shape and database rows.
  * Kept free of I/O so it can be unit-tested.
  */
-import { DEFAULT_PROFILE, type Data, type Habit, type HabitLog, type Plan, type Profile, type QuitSettings, type Reminders, type SmokeEvent, type WeeklyReview } from '../types';
+import { DEFAULT_PROFILE, type Data, type Expense, type Habit, type MoneySettings, type HabitLog, type Plan, type Profile, type QuitSettings, type Reminders, type SmokeEvent, type WeeklyReview } from '../types';
 import type { Snapshot } from './merge';
 
 export interface HabitRow {
@@ -91,6 +91,7 @@ export interface ProfileRow {
   streak_rule?: 'all' | 'most';
   quit?: QuitSettings | null;
   circle_enabled?: boolean;
+  money?: MoneySettings | null;
 }
 
 export interface SmokeRow {
@@ -117,6 +118,50 @@ export const rowToSmoke = (r: SmokeRow): SmokeEvent => ({
   at: new Date(r.at).getTime(),
   kind: r.kind,
   trigger: (r.trigger as SmokeEvent['trigger']) ?? undefined,
+});
+
+export interface ExpenseRow {
+  id: string;
+  user_id: string;
+  day: string;
+  amount: number | string;
+  category: string | null;
+  mode: string | null;
+  note: string | null;
+  source: string;
+  payee?: string | null;
+  linked?: boolean;
+  excluded?: boolean;
+  at: string;
+}
+
+export const expenseToRow = (e: Expense, user_id: string): ExpenseRow => ({
+  id: e.id,
+  user_id,
+  day: e.day,
+  amount: e.amount,
+  category: e.category ?? null,
+  mode: e.mode ?? null,
+  note: e.note ?? null,
+  source: e.source ?? 'app',
+  payee: e.payee ?? null,
+  linked: !!e.linked,
+  excluded: !!e.excluded,
+  at: new Date(e.at).toISOString(),
+});
+
+export const rowToExpense = (r: ExpenseRow): Expense => ({
+  id: r.id,
+  day: r.day,
+  amount: Number(r.amount),
+  category: r.category ?? undefined,
+  mode: r.mode ?? undefined,
+  note: r.note ?? undefined,
+  source: (r.source as Expense['source']) ?? 'app',
+  payee: r.payee ?? undefined,
+  linked: r.linked || undefined,
+  excluded: r.excluded || undefined,
+  at: new Date(r.at).getTime(),
 });
 
 /** Postgres returns "HH:MM:SS"; the app uses "HH:MM". */
@@ -149,6 +194,7 @@ export const profileToRow = (s: Snapshot, user_id: string, timezone: string): Pr
     row.streak_rule = s.profile.streakRule ?? 'all';
     row.quit = s.profile.quit ?? null;
     row.circle_enabled = !!s.profile.circle;
+    if (s.profile.money) row.money = s.profile.money;
   }
   return row;
 };
@@ -162,6 +208,7 @@ export const rowToProfile = (r: ProfileRow): Profile => ({
   streakRule: r.streak_rule ?? 'all',
   quit: r.quit ?? undefined,
   circle: r.circle_enabled ?? false,
+  money: r.money ?? undefined,
 });
 
 export const rowToReminders = (r: ProfileRow): Reminders => ({
@@ -312,7 +359,9 @@ export type Op =
   | { table: 'reflections'; kind: 'delete'; key: string; day: string }
   | { table: 'weekly_reviews'; kind: 'upsert'; key: string; row: ReviewRow }
   | { table: 'smoke_events'; kind: 'upsert'; key: string; row: SmokeRow }
-  | { table: 'smoke_events'; kind: 'delete'; key: string; id: string };
+  | { table: 'smoke_events'; kind: 'delete'; key: string; id: string }
+  | { table: 'expenses'; kind: 'upsert'; key: string; row: ExpenseRow }
+  | { table: 'expenses'; kind: 'delete'; key: string; id: string };
 
 /** Compute the database operations needed to go from `prev` to `next`. */
 export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: string): Op[] {
@@ -383,6 +432,15 @@ export function diff(prev: Snapshot, next: Snapshot, user_id: string, timezone: 
       if (!b[day]) ops.push({ table: 'reflections', kind: 'delete', key, day });
       else if (a[day] !== b[day]) ops.push({ table: 'reflections', kind: 'upsert', key, row: { user_id, day, text: b[day] } });
     }
+  }
+
+  if (prev.expenses !== next.expenses) {
+    const before = new Map((prev.expenses ?? []).map((e) => [e.id, e]));
+    for (const e of next.expenses ?? []) {
+      if (before.get(e.id) !== e) ops.push({ table: 'expenses', kind: 'upsert', key: `expenses:${e.id}`, row: expenseToRow(e, user_id) });
+      before.delete(e.id);
+    }
+    for (const id of before.keys()) ops.push({ table: 'expenses', kind: 'delete', key: `expenses:${id}`, id });
   }
 
   if (prev.smokes !== next.smokes) {

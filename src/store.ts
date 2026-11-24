@@ -4,6 +4,8 @@ import {
   DEFAULT_PROFILE,
   DEFAULT_REMINDERS,
   type Data,
+  type Expense,
+  type MoneySettings,
   type Habit,
   type HabitPart,
   type Miss,
@@ -17,6 +19,7 @@ import {
 } from './types';
 import { addDays, dayKeyAt } from './lib/date';
 import { waterTarget } from './lib/water';
+import { moneyOf } from './lib/money';
 
 /** RFC 4122 v4 UUID (the database stores ids as uuid). */
 /** Copies of a repeating plan get a stable id per day, so two devices never make it twice. */
@@ -71,6 +74,12 @@ interface Store extends Data {
   addWater: (day: string, habitId: string, ml: number) => void;
   setWeeklyReview: (weekStart: string, review: WeeklyReview) => void;
   smokes: SmokeEvent[];
+  expenses: Expense[];
+  addExpense: (e: Omit<Expense, 'id' | 'at'> & { at?: number }) => string;
+  updateExpense: (id: string, patch: Partial<Omit<Expense, 'id'>>) => void;
+  removeExpense: (id: string) => void;
+  /** Money settings (categories, budgets, modes, learned shops). */
+  setMoney: (patch: Partial<MoneySettings>) => void;
   logSmoke: (kind: SmokeEvent['kind'], trigger?: SmokeTrigger) => string;
   removeSmoke: (id: string) => void;
   /** Local-only (per device) */
@@ -148,6 +157,15 @@ export const useStore = create<Store>()(
       amounts: {},
       weeklyReviews: {},
       smokes: [],
+      expenses: [],
+      addExpense: (e) => {
+        const id = uid();
+        set((s) => ({ expenses: [...s.expenses, { ...e, id, at: e.at ?? Date.now() }] }));
+        return id;
+      },
+      updateExpense: (id, patch) => set((s) => ({ expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
+      removeExpense: (id) => set((s) => ({ expenses: s.expenses.filter((e) => e.id !== id) })),
+      setMoney: (patch) => set((s) => ({ profile: { ...s.profile, money: { ...moneyOf(s.profile.money), ...patch } } })),
       logSmoke: (kind, trigger) => {
         const id = uid();
         set((s) => ({ smokes: [...s.smokes, { id, day: dayKeyAt(), at: Date.now(), kind, trigger }] }));
@@ -461,6 +479,7 @@ export const useStore = create<Store>()(
           amounts: data.amounts ?? {},
           weeklyReviews: data.weeklyReviews ?? {},
           smokes: data.smokes ?? [],
+          expenses: data.expenses ?? [],
         }),
 
       reset: () =>
@@ -477,6 +496,7 @@ export const useStore = create<Store>()(
           amounts: {},
           weeklyReviews: {},
           smokes: [],
+          expenses: [],
           milestonesSeen: [],
           dayClosedSeen: undefined,
         }),
@@ -496,7 +516,13 @@ export interface Toast {
 }
 
 interface UI {
-  tab: 'today' | 'plan' | 'insights' | 'profile' | 'quit' | 'circle';
+  tab: 'today' | 'plan' | 'insights' | 'profile' | 'quit' | 'circle' | 'money' | 'mstats' | 'budget';
+  /** Habits ⇄ Money switch at the top; remembered on this device */
+  mode: 'habits' | 'money';
+  setMode: (m: 'habits' | 'money') => void;
+  /** Add/edit expense sheet: 'new' or an expense id */
+  expense: string | null;
+  openExpense: (id: string | null) => void;
   editingPlan: PlanEditTarget | null;
   editPlan: (t: PlanEditTarget | null) => void;
   reviewWeekOpen: boolean;
@@ -521,8 +547,27 @@ interface UI {
   editHabit: (id: string | 'new' | null) => void;
 }
 
+const savedMode = (): 'habits' | 'money' => {
+  try {
+    return localStorage.getItem('sky-mode') === 'money' ? 'money' : 'habits';
+  } catch {
+    return 'habits';
+  }
+};
+
 export const useUI = create<UI>()((set) => ({
-  tab: 'today',
+  tab: savedMode() === 'money' ? 'money' : 'today',
+  mode: savedMode(),
+  setMode: (mode) => {
+    try {
+      localStorage.setItem('sky-mode', mode);
+    } catch {
+      /* private mode */
+    }
+    set({ mode, tab: mode === 'money' ? 'money' : 'today' });
+  },
+  expense: null,
+  openExpense: (expense) => set({ expense }),
   editingPlan: null,
   editPlan: (editingPlan) => set({ editingPlan }),
   reviewWeekOpen: false,

@@ -19,6 +19,11 @@ import { Celebrations } from './components/Celebrations';
 const Profile = lazy(() => import('./screens/Profile').then((m) => ({ default: m.Profile })));
 const Quit = lazy(() => import('./screens/Quit').then((m) => ({ default: m.Quit })));
 const Circle = lazy(() => import('./screens/Circle').then((m) => ({ default: m.Circle })));
+const MoneyDaily = lazy(() => import('./screens/Money').then((m) => ({ default: m.MoneyDaily })));
+const MoneyStats = lazy(() => import('./screens/Money').then((m) => ({ default: m.MoneyStats })));
+const MoneyBudget = lazy(() => import('./screens/Money').then((m) => ({ default: m.MoneyBudget })));
+import { ModeSwitch } from './components/ModeSwitch';
+import { ExpenseSheet } from './components/ExpenseSheet';
 import { NamePrompt } from './screens/NamePrompt';
 import { Toast } from './components/Toast';
 import { CloseDaySheet } from './components/CloseDaySheet';
@@ -76,6 +81,7 @@ export default function App() {
   return (
     <>
       <main className="safe-top mx-auto min-h-dvh w-full max-w-md px-4 pb-28">
+        <ModeSwitch />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
@@ -91,6 +97,9 @@ export default function App() {
               {tab === 'profile' && <Profile today={today} />}
               {tab === 'quit' && <Quit today={today} />}
               {tab === 'circle' && <Circle today={today} />}
+              {tab === 'money' && <MoneyDaily today={today} />}
+              {tab === 'mstats' && <MoneyStats today={today} />}
+              {tab === 'budget' && <MoneyBudget today={today} />}
             </Suspense>
           </motion.div>
         </AnimatePresence>
@@ -104,6 +113,7 @@ export default function App() {
       <ReasonSheet />
       <WaterSheet />
       <PartsSheet />
+      <ExpenseSheet today={today} />
       <Toast />
     </>
   );
