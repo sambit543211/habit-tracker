@@ -119,10 +119,6 @@ Deno.serve(async (req) => {
     merchants[key] = category;
     await db.from('profiles').update({ money: { ...(money ?? {}), merchants } }).eq('user_id', user);
   };
-  const monthTotal = async (category: string) => {
-    const { data } = await db.from('expenses').select('amount').eq('user_id', user).eq('category', category).gte('day', `${today.slice(0, 7)}-01`).lte('day', today);
-    return Math.round((data ?? []).reduce((n, r) => n + Number(r.amount), 0));
-  };
 
   const HOURS_12 = 12 * 3600 * 1000;
   type Row = { id: string; amount: number | string; category: string | null; note: string | null; payee: string | null; mode: string | null; source: string; at: string; linked: boolean; excluded: boolean };
@@ -140,12 +136,8 @@ Deno.serve(async (req) => {
     if (seen) return say('Already logged.');
     const day = sms.date && sms.date <= today && sms.date >= addDays(today, -7) ? sms.date : today;
     const to = sms.merchant ? ` to ${sms.merchant}` : '';
-    // You already logged it yourself (Siri or the app): same amount, last 12 hours, not matched yet → one payment.
+    // You may have logged it yourself already (Siri or the app): same amount, last 12 hours → ask, don't assume.
     const mine = (await recent(sms.amount)).find((r) => r.source !== 'sms' && !r.linked);
-    if (mine) {
-      await db.from('expenses').update({ linked: true, sms_ref: ref, payee: sms.merchant ?? null, mode: mine.mode ?? sms.mode ?? null }).eq('user_id', user).eq('id', mine.id);
-      return say(`${rupees(sms.amount)}${to} matches your ${catName(mine.category)} entry ✓`);
-    }
     const { error } = await db.from('expenses').insert({
       id: crypto.randomUUID(),
       user_id: user,
@@ -161,20 +153,29 @@ Deno.serve(async (req) => {
     });
     if (error?.code === '23505') return say('Already logged.');
     if (error) return say("Sorry, I couldn't log that payment.", 500);
+    if (mine)
+      return say(`${rupees(sms.amount)}${to} — has this been recorded already as your ${rupees(sms.amount)} ${catName(mine.category)} entry? Say yes if it's the same, otherwise what was it?`);
     const hint = merchants[merchantKey(sms.merchant)];
     return say(`${rupees(sms.amount)}${to} — what was it?${hint ? ` Last time: ${catName(hint)}.` : ''}`);
   }
 
   // Your answer to "what was it?" (sent by the SMS shortcut): files the latest bank payment waiting to be sorted.
   if (source === 'sort') {
-    const { data } = await db.from('expenses').select('id,amount,payee,at,excluded').eq('user_id', user).eq('source', 'sms').is('category', null);
-    const r = ((data ?? []) as Row[]).filter((x) => !x.excluded).sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+    const { data } = await db.from('expenses').select('id,amount,payee,mode,sms_ref,at,excluded').eq('user_id', user).eq('source', 'sms').is('category', null);
+    const r = ((data ?? []) as unknown as (Row & { sms_ref: string | null })[]).filter((x) => !x.excluded).sort((a, b) => (a.at < b.at ? 1 : -1))[0];
     if (!r) return say('Nothing is waiting to be sorted.');
     const amount = rupees(Number(r.amount));
     const ans = sortAnswer(text, categories, merchants);
     if (ans?.kind === 'drop') {
       await db.from('expenses').update({ excluded: true }).eq('user_id', user).eq('id', r.id);
       return say(`Okay — ${amount} won't be counted.`);
+    }
+    // "Yes" when you'd already logged the same amount → it's one payment: keep yours, drop the bank copy.
+    const mine = ans?.kind === 'same' ? (await recent(Number(r.amount))).find((x) => x.source !== 'sms' && !x.linked) : undefined;
+    if (mine) {
+      await db.from('expenses').delete().eq('user_id', user).eq('id', r.id);
+      await db.from('expenses').update({ linked: true, sms_ref: r.sms_ref, payee: r.payee, mode: mine.mode ?? r.mode }).eq('user_id', user).eq('id', mine.id);
+      return say(`Got it — same payment, kept once as ${catName(mine.category)} ✓`);
     }
     const hint = merchants[merchantKey(r.payee)];
     const category = ans?.kind === 'category' ? ans.id : ans?.kind === 'same' ? hint : undefined;
@@ -247,19 +248,6 @@ Deno.serve(async (req) => {
     if (a.type === 'expense') {
       // Learned shop beats a guess; nothing known → saved as "to sort".
       const category = (a.note && merchants[merchantKey(a.note)]) || a.category || null;
-      // The bank SMS came first: same amount, last 12 hours → that's this payment. Fill it in, don't add a second one.
-      const bank = a.day === 'today' ? (await recent(a.amount)).find((r) => r.source === 'sms' && !r.linked) : undefined;
-      if (bank) {
-        const had = bank.category;
-        await db.from('expenses').update({ linked: true, ...(category && !had ? { category } : {}), ...(a.note ? { note: a.note } : {}), ...(a.mode ? { mode: a.mode } : {}) }).eq('user_id', user).eq('id', bank.id);
-        if (category && !had) await learn(bank.payee, category);
-        const to = bank.payee ? ` to ${bank.payee}` : '';
-        return had
-          ? `${rupees(a.amount)}${to} was already logged from your bank SMS as ${catName(had)} ✓`
-          : category
-            ? `Filed the ${rupees(a.amount)} bank payment${to} as ${catName(category)}.`
-            : `${rupees(a.amount)}${to} is already logged from your bank SMS — pick a category in Sky.`;
-      }
       const { error } = await db.from('expenses').insert({
         id: crypto.randomUUID(),
         user_id: user,
@@ -274,7 +262,7 @@ Deno.serve(async (req) => {
       if (error) return `Sorry, I couldn't save ${rupees(a.amount)}.`;
       if (!category) return `${rupees(a.amount)}${a.note ? ` for ${a.note}` : ''} saved — pick a category in Sky.`;
       await learn(a.note, category);
-      return `${rupees(a.amount)} ${catName(category)} added${a.day === 'yesterday' ? ' for yesterday' : ''}. ${rupees(await monthTotal(category))} on ${catName(category).toLowerCase()} this month.`;
+      return `Added ${rupees(a.amount)} to ${catName(category)}${a.day === 'yesterday' ? ' for yesterday' : ''}.`;
     }
     if (a.type === 'plan_done') {
       const p = plans.find((x) => x.id === a.plan_id)!;

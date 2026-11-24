@@ -99,7 +99,7 @@ export function MoneyDaily({ today }: { today: string }) {
     haptic(12);
     updateExpense(mine.id, { amount: bank.amount, payee: bank.payee, linked: true, mode: mine.mode ?? bank.mode });
     removeExpense(bank.id);
-    useUI.getState().showToast(`Merged into one ${inr(bank.amount)} payment ✓`, { tone: 'plan' });
+    useUI.getState().showToast(`Kept once: ${inr(bank.amount)} ✓`, { tone: 'plan' });
   };
   // Quick picks for sorting: the categories you use most.
   const top = useMemo(() => {
@@ -157,7 +157,7 @@ export function MoneyDaily({ today }: { today: string }) {
 
       {pairs.map(({ mine, bank }) => (
         <section key={`${mine.id}|${bank.id}`} className="card border-plan/40 px-4 py-3">
-          <div className="text-[13px] font-semibold tracking-wide text-plan uppercase">Same payment?</div>
+          <div className="text-[13px] font-semibold tracking-wide text-plan uppercase">Has this been recorded already?</div>
           <div className="mt-1.5 flex flex-col gap-1 text-[13.5px]">
             <span>
               ✍️ You: <b className="tabular">{inr(mine.amount)}</b> · {cat(mine.category)?.name ?? 'To sort'}
@@ -170,7 +170,7 @@ export function MoneyDaily({ today }: { today: string }) {
           </div>
           <div className="mt-2.5 grid grid-cols-2 gap-2">
             <button onClick={() => merge(mine, bank)} className="min-h-10 rounded-xl bg-plan text-[13.5px] font-semibold text-white">
-              Yes, merge
+              Yes, same — keep one
             </button>
             <button onClick={() => notSame(`${mine.id}|${bank.id}`)} className="min-h-10 rounded-xl bg-surface-2 text-[13.5px] font-semibold">
               No, both count
