@@ -251,7 +251,7 @@ export function parseSpends(text: string, categories: SpendCategory[], merchants
  * A bank / UPI SMS: "Rs.475.00 debited from A/c XX1234 on 24-11-26 to VPA blinkit@ybl (UPI Ref 1234)".
  * Returns null for credits, OTPs and anything that isn't a debit.
  */
-export function parseBankSms(sms: string): { amount: number; merchant?: string; mode?: string } | null {
+export function parseBankSms(sms: string): { amount: number; merchant?: string; mode?: string; date?: string } | null {
   const t = sms.replace(/\s+/g, ' ');
   if (!/\b(debited|spent|paid|sent|withdrawn|purchase|debit|txn of|transaction of)\b/i.test(t)) return null;
   if (/\bcredited\b/i.test(t) && !/\bdebited\b/i.test(t)) return null;
@@ -270,5 +270,32 @@ export function parseBankSms(sms: string): { amount: number; merchant?: string; 
     .replace(/[._-]+/g, ' ')
     .replace(/\d{4,}/g, '')
     .trim();
-  return { amount, merchant: clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : undefined, mode: /\b(upi|vpa)\b/i.test(t) ? 'UPI' : /\bcard\b/i.test(t) ? 'Card' : undefined };
+  return {
+    amount,
+    merchant: clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : undefined,
+    mode: /\b(upi|vpa)\b/i.test(t) ? 'UPI' : /\bcard\b/i.test(t) ? 'Card' : undefined,
+    date: smsDate(t),
+  };
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+/** The payment date written in the SMS ("On 23/11/26", "on 24-11-2026", "24-Nov-26") as YYYY-MM-DD. */
+export function smsDate(t: string): string | undefined {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = (y: string) => (y.length === 2 ? 2000 + +y : +y);
+  let m = t.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})\b/);
+  if (m && +m[2] >= 1 && +m[2] <= 12 && +m[1] >= 1 && +m[1] <= 31) return `${year(m[3])}-${pad(+m[2])}-${pad(+m[1])}`;
+  m = t.match(/\b(\d{1,2})[- ]?([a-z]{3})[a-z]*[- ,]?(\d{2}|\d{4})\b/i);
+  const mi = m ? MONTHS.indexOf(m[2].toLowerCase()) : -1;
+  if (m && mi >= 0) return `${year(m[3])}-${pad(mi + 1)}-${pad(+m[1])}`;
+  return undefined;
+}
+
+/** Your answer to "what was it?": a category ("groceries", "chai" → Eating Out), "same" (= the hint), or "not an expense". */
+export function sortAnswer(answer: string, categories: SpendCategory[], merchants: Record<string, string> = {}): { kind: 'category'; id: string } | { kind: 'same' } | { kind: 'drop' } | null {
+  const a = answer.trim().toLowerCase();
+  if (/^(yes|yeah|yep|same|correct|right|ok|okay|haan|ha)\b/.test(a)) return { kind: 'same' };
+  if (/\b(not an expense|ignore|skip|delete|remove|transfer|my own|own account|don'?t count)\b/.test(a)) return { kind: 'drop' };
+  const id = guessCategory(a, categories, merchants);
+  return id ? { kind: 'category', id } : null;
 }

@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { Sheet } from './Sheet';
 import { addDays } from '../lib/date';
-import { inr, merchantKey, moneyOf } from '../lib/money';
+import { inr, merchantKey, moneyOf, sourceLabel, waitingBankMatch } from '../lib/money';
+import { Switch } from './Switch';
 import { haptic } from '../lib/feedback';
 
 /** Add or edit an expense: amount → category → (mode, note, day). Two taps for the usual case. */
@@ -24,6 +25,7 @@ export function ExpenseSheet({ today }: { today: string }) {
   const [day, setDay] = useState(today);
   const [all, setAll] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [count, setCount] = useState(true);
 
   // Most-used categories first (last 60 days), so the usual one is a tap away.
   const ordered = useMemo(() => {
@@ -44,6 +46,7 @@ export function ExpenseSheet({ today }: { today: string }) {
     setDay(editing?.day ?? today);
     setAll(false);
     setConfirm(false);
+    setCount(!editing?.excluded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
@@ -64,13 +67,18 @@ export function ExpenseSheet({ today }: { today: string }) {
 
   const save = () => {
     if (!ok) return;
-    const data = { amount: value, category, mode, note: note.trim() || undefined, day };
+    const data = { amount: value, category, mode, note: note.trim() || undefined, day, excluded: count ? undefined : true };
+    // A bank SMS for this amount is waiting to be sorted → it's the same payment: fill that in instead of adding a second.
+    const bank = !editing && day === today ? waitingBankMatch(expenses, value) : undefined;
     if (editing) updateExpense(editing.id, data);
+    else if (bank) updateExpense(bank.id, { ...data, linked: true });
     else addExpense({ ...data, source: 'app' });
-    const key = merchantKey(note);
-    if (key && money.merchants[key] !== category) setMoney({ merchants: { ...money.merchants, [key]: category! } });
+    // Remember the shop: what you typed, or who the bank says you paid.
+    const learnKeys = [merchantKey(note), merchantKey((editing ?? bank)?.payee)].filter(Boolean);
+    if (learnKeys.some((k) => money.merchants[k] !== category))
+      setMoney({ merchants: { ...money.merchants, ...Object.fromEntries(learnKeys.map((k) => [k, category!])) } });
     haptic(12);
-    showToast(`${inr(value)} · ${cat?.emoji} ${cat?.name}`, { tone: 'plan' });
+    showToast(bank ? `Matched with your bank payment${bank.payee ? ` to ${bank.payee}` : ''} ✓` : `${inr(value)} · ${cat?.emoji} ${cat?.name}`, { tone: 'plan' });
     close();
   };
 
@@ -80,6 +88,12 @@ export function ExpenseSheet({ today }: { today: string }) {
   return (
     <Sheet open={!!target} onClose={close}>
       <h2 className="text-[22px] font-semibold tracking-[-0.02em]">{editing ? 'Edit expense' : 'New expense'}</h2>
+      {editing && (
+        <p className="mt-1 text-[13px] text-muted">
+          {sourceLabel(editing)}
+          {editing.payee ? ` · paid to ${editing.payee}` : ''}
+        </p>
+      )}
 
       <div className="mt-4 flex items-baseline gap-1 border-b-2 border-plan pb-1">
         <span className="text-[34px] font-bold text-muted">₹</span>
@@ -151,6 +165,14 @@ export function ExpenseSheet({ today }: { today: string }) {
           aria-label="Date"
           className="min-h-10 rounded-full border border-line bg-surface-2 px-3 text-[13.5px] text-muted"
         />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3">
+        <div>
+          <div className="text-[14.5px] font-medium">Count it</div>
+          <div className="text-[12.5px] text-faint">Off for transfers to yourself, money lent, refunds…</div>
+        </div>
+        <Switch on={count} onChange={setCount} label="Count this expense" />
       </div>
 
       <motion.button

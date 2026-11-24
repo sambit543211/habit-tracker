@@ -71,3 +71,36 @@ export const merchantKey = (note?: string) =>
 
 /** Colours for the donut, in category order. */
 export const CAT_COLORS = ['#ff6b6b', '#ffa94d', '#ffd43b', '#a9e34b', '#69db7c', '#38d9a9', '#3bc9db', '#4dabf7', '#748ffc', '#9775fa', '#da77f2', '#f783ac', '#e599f7', '#94d82d', '#868e96'];
+
+/** What counts toward totals, stats and budgets: sorted and not marked "don't count". */
+export const counted = (xs: Expense[]) => xs.filter((e) => e.category && !e.excluded);
+
+/** Where an entry came from, for the little badge. */
+export const sourceLabel = (e: Expense) =>
+  e.source === 'sms' ? (e.linked ? '📩 Bank SMS · matched ✓' : '📩 Bank SMS') : e.source === 'voice' ? (e.linked ? '🎙 Voice · bank ✓' : '🎙 Voice') : e.linked ? '✍️ You · bank ✓' : '✍️ You';
+
+const H12 = 12 * 3600 * 1000;
+/** A bank-SMS payment still waiting for a category that this new entry is probably the same as. */
+export const waitingBankMatch = (xs: Expense[], amount: number, now = Date.now()) =>
+  xs
+    .filter((e) => e.source === 'sms' && !e.category && !e.excluded && !e.linked && e.amount === amount && Math.abs(now - e.at) <= H12)
+    .sort((a, b) => b.at - a.at)[0];
+
+/** Likely the same payment logged twice (yours + the bank's), close in time and amount. */
+export function samePaymentPairs(xs: Expense[]) {
+  const bank = xs.filter((e) => e.source === 'sms' && !e.linked && !e.excluded);
+  const mine = xs.filter((e) => e.source !== 'sms' && !e.linked && !e.excluded);
+  const used = new Set<string>();
+  const pairs: { mine: Expense; bank: Expense }[] = [];
+  for (const b of bank)
+    for (const m of mine) {
+      if (used.has(m.id) || used.has(b.id)) continue;
+      const close = Math.abs(m.at - b.at) <= H12 || m.day === b.day;
+      const near = Math.abs(m.amount - b.amount) <= Math.max(20, b.amount * 0.1);
+      if (close && near) {
+        pairs.push({ mine: m, bank: b });
+        used.add(m.id).add(b.id);
+      }
+    }
+  return pairs;
+}

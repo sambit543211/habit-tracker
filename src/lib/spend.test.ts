@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSpendTalk, parseBankSms, parseSpends } from './intent';
+import { isSpendTalk, parseBankSms, parseSpends, smsDate, sortAnswer } from './intent';
 import { DEFAULT_CATEGORIES } from './money';
 
 const cats = DEFAULT_CATEGORIES;
@@ -56,5 +56,28 @@ describe('bank SMS', () => {
   it('ignores credits and OTPs', () => {
     expect(parseBankSms('Rs.5000 credited to your A/c XX1234 by NEFT')).toBeNull();
     expect(parseBankSms('123456 is your OTP for a transaction of Rs.500 at Flipkart')).toBeNull();
+  });
+});
+
+describe('SMS date and answers', () => {
+  it.each([
+    ['Sent Rs.100.00 From HDFC Bank A/C *3072 To RAMCHANDRA KASHIRAM KANOJ On 23/11/26 Ref 133267685984', '2026-11-23'],
+    ['debited on 24-11-2026 towards Swiggy', '2026-11-24'],
+    ['spent on Card XX4321 on 24-Nov-26 at AMAZON', '2026-11-24'],
+  ])('%s', (t, d) => expect(smsDate(t)).toBe(d));
+  it('reads the real HDFC format', () => {
+    const p = parseBankSms('Sent Rs.424.00 From HDFC Bank A/C *3072 To Google India Digital Serv On 24/11/26 Ref 133291283204 Not You? Call 18002586161/SMS BLOCK UPI to 7308080808')!;
+    expect([p.amount, p.merchant, p.date]).toEqual([424, 'Google India Digital Serv', '2026-11-24']);
+  });
+  it.each([
+    ['groceries', 'category groceries'],
+    ['chai', 'category eating'],
+    ['it was a subscription', 'category subscriptions'],
+    ['yes', 'same'],
+    ['my own account transfer', 'drop'],
+    ['hmm', 'null'],
+  ])('answer %s → %s', (a, want) => {
+    const r = sortAnswer(a, cats);
+    expect(r ? (r.kind === 'category' ? `category ${r.id}` : r.kind) : 'null').toBe(want);
   });
 });

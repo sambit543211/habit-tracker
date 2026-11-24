@@ -206,6 +206,12 @@ export interface Expense {
   mode?: string;
   note?: string;
   source?: 'app' | 'voice' | 'sms';
+  /** Who the bank says you paid (bank SMS) */
+  payee?: string;
+  /** Your entry and the bank SMS were matched as one payment */
+  linked?: boolean;
+  /** "Don't count": own-account transfer, money lent… kept but left out of totals */
+  excluded?: boolean;
   at: number;
 }
 

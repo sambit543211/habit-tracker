@@ -129,6 +129,9 @@ export interface ExpenseRow {
   mode: string | null;
   note: string | null;
   source: string;
+  payee?: string | null;
+  linked?: boolean;
+  excluded?: boolean;
   at: string;
 }
 
@@ -141,6 +144,9 @@ export const expenseToRow = (e: Expense, user_id: string): ExpenseRow => ({
   mode: e.mode ?? null,
   note: e.note ?? null,
   source: e.source ?? 'app',
+  payee: e.payee ?? null,
+  linked: !!e.linked,
+  excluded: !!e.excluded,
   at: new Date(e.at).toISOString(),
 });
 
@@ -152,6 +158,9 @@ export const rowToExpense = (r: ExpenseRow): Expense => ({
   mode: r.mode ?? undefined,
   note: r.note ?? undefined,
   source: (r.source as Expense['source']) ?? 'app',
+  payee: r.payee ?? undefined,
+  linked: r.linked || undefined,
+  excluded: r.excluded || undefined,
   at: new Date(r.at).getTime(),
 });
 

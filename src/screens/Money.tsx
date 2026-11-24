@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { formatDay } from '../lib/date';
-import { CAT_COLORS, byCategory, inr, merchantKey, monthLabel, monthOf, moneyOf, shiftMonth, spentByDay, sum } from '../lib/money';
+import { CAT_COLORS, byCategory, counted, inr, merchantKey, monthLabel, monthOf, moneyOf, samePaymentPairs, shiftMonth, sourceLabel, spentByDay, sum } from '../lib/money';
 import type { Expense, MoneyCategory } from '../types';
 import { Sheet } from '../components/Sheet';
 import { haptic } from '../lib/feedback';
@@ -58,16 +58,49 @@ export function MoneyDaily({ today }: { today: string }) {
   const { updateExpense, removeExpense, setMoney } = useStore();
   const openExpense = useUI((s) => s.openExpense);
   const [month, setMonth] = useState(monthOf(today));
+  const [show, setShow] = useState<'all' | 'mine' | 'bank'>('all');
+  const [dismissed, setDismissed] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('sky-not-same') ?? '[]');
+    } catch {
+      return [];
+    }
+  });
   const cat = (id?: string) => money.categories.find((c) => c.id === id);
 
-  const inMonth = expenses.filter((e) => monthOf(e.day) === month && e.category);
-  const toSort = expenses.filter((e) => !e.category).sort((a, b) => b.at - a.at);
+  const inMonth = counted(expenses).filter((e) => monthOf(e.day) === month);
+  // Everything you've logged this month (incl. "don't count"), filtered by where it came from.
+  const listed = expenses.filter(
+    (e) => monthOf(e.day) === month && (e.category || e.excluded) && (show === 'all' || (show === 'bank' ? e.source === 'sms' : e.source !== 'sms')),
+  );
+  const toSort = expenses.filter((e) => !e.category && !e.excluded).sort((a, b) => b.at - a.at);
+  const pairs = samePaymentPairs(expenses).filter((p) => !dismissed.includes(`${p.mine.id}|${p.bank.id}`));
   const days = useMemo(() => {
     const m = new Map<string, Expense[]>();
-    for (const e of [...inMonth].sort((a, b) => b.at - a.at)) m.set(e.day, [...(m.get(e.day) ?? []), e]);
+    for (const e of [...listed].sort((a, b) => b.at - a.at)) m.set(e.day, [...(m.get(e.day) ?? []), e]);
     return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [inMonth]);
-  const todaySpent = sum(expenses.filter((e) => e.day === today));
+  }, [listed]);
+  const todaySpent = sum(counted(expenses).filter((e) => e.day === today));
+  const counts = {
+    mine: expenses.filter((e) => monthOf(e.day) === month && e.source !== 'sms' && (e.category || e.excluded)).length,
+    bank: expenses.filter((e) => monthOf(e.day) === month && e.source === 'sms' && (e.category || e.excluded)).length,
+  };
+  const notSame = (key: string) => {
+    const next = [...dismissed, key];
+    setDismissed(next);
+    try {
+      localStorage.setItem('sky-not-same', JSON.stringify(next.slice(-200)));
+    } catch {
+      /* private mode */
+    }
+  };
+  // Same payment: keep your entry (your category and note) with the bank's exact amount and payee; drop the bank copy.
+  const merge = (mine: Expense, bank: Expense) => {
+    haptic(12);
+    updateExpense(mine.id, { amount: bank.amount, payee: bank.payee, linked: true, mode: mine.mode ?? bank.mode });
+    removeExpense(bank.id);
+    useUI.getState().showToast(`Merged into one ${inr(bank.amount)} payment ✓`, { tone: 'plan' });
+  };
   // Quick picks for sorting: the categories you use most.
   const top = useMemo(() => {
     const n = new Map<string, number>();
@@ -78,7 +111,7 @@ export function MoneyDaily({ today }: { today: string }) {
   const sortInto = (e: Expense, c: MoneyCategory) => {
     haptic(10);
     updateExpense(e.id, { category: c.id });
-    const key = merchantKey(e.note);
+    const key = merchantKey(e.payee ?? e.note);
     if (key) setMoney({ merchants: { ...money.merchants, [key]: c.id } });
   };
 
@@ -88,7 +121,7 @@ export function MoneyDaily({ today }: { today: string }) {
       <section className="card px-4 py-4">
         <div className="text-[13px] font-semibold tracking-wide text-muted uppercase">Spent in {monthLabel(month)}</div>
         <div className="mt-1 text-[34px] leading-none font-bold tracking-[-0.02em] tabular">{inr(sum(inMonth))}</div>
-        <Pace expenses={expenses.filter((e) => e.category)} month={month} today={today} />
+        <Pace expenses={counted(expenses)} month={month} today={today} />
         {month === monthOf(today) && <p className="mt-1 text-[13px] text-faint">Today: {inr(todaySpent)}</p>}
       </section>
 
@@ -101,11 +134,11 @@ export function MoneyDaily({ today }: { today: string }) {
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-semibold tabular">{inr(e.amount)}</span>
                   <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted">
-                    {e.note ?? 'Bank debit'} · {formatDay(e.day, { day: 'numeric', month: 'short' })}
-                    {e.source === 'sms' && ' · 📩 SMS'}
+                    {e.payee ?? e.note ?? 'Bank payment'} · {formatDay(e.day, { day: 'numeric', month: 'short' })}
+                    {e.source === 'sms' && ' · 📩'}
                   </span>
-                  <button onClick={() => removeExpense(e.id)} className="grid size-8 place-items-center text-faint" aria-label="Not an expense — remove">
-                    ✕
+                  <button onClick={() => updateExpense(e.id, { excluded: true })} className="shrink-0 rounded-full px-2 py-1 text-[12px] font-medium text-faint" aria-label="Don't count this payment">
+                    Don't count
                   </button>
                 </div>
                 <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -122,6 +155,50 @@ export function MoneyDaily({ today }: { today: string }) {
         </section>
       )}
 
+      {pairs.map(({ mine, bank }) => (
+        <section key={`${mine.id}|${bank.id}`} className="card border-plan/40 px-4 py-3">
+          <div className="text-[13px] font-semibold tracking-wide text-plan uppercase">Same payment?</div>
+          <div className="mt-1.5 flex flex-col gap-1 text-[13.5px]">
+            <span>
+              ✍️ You: <b className="tabular">{inr(mine.amount)}</b> · {cat(mine.category)?.name ?? 'To sort'}
+              {mine.note ? ` · ${mine.note}` : ''}
+            </span>
+            <span>
+              📩 Bank: <b className="tabular">{inr(bank.amount)}</b>
+              {bank.payee ? ` to ${bank.payee}` : ''} · {formatDay(bank.day, { day: 'numeric', month: 'short' })}
+            </span>
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <button onClick={() => merge(mine, bank)} className="min-h-10 rounded-xl bg-plan text-[13.5px] font-semibold text-white">
+              Yes, merge
+            </button>
+            <button onClick={() => notSame(`${mine.id}|${bank.id}`)} className="min-h-10 rounded-xl bg-surface-2 text-[13.5px] font-semibold">
+              No, both count
+            </button>
+          </div>
+        </section>
+      ))}
+
+      <div className="flex gap-1 rounded-full bg-surface-2 p-0.5 self-start" role="radiogroup" aria-label="Show">
+        {(
+          [
+            ['all', 'All'],
+            ['mine', `✍️ Mine · ${counts.mine}`],
+            ['bank', `📩 Bank SMS · ${counts.bank}`],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            role="radio"
+            aria-checked={show === k}
+            onClick={() => setShow(k)}
+            className={`min-h-8 rounded-full px-3 text-[12.5px] font-semibold ${show === k ? 'bg-surface text-text shadow-sm' : 'text-muted'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {days.length === 0 ? (
         <div className="rounded-[20px] border border-dashed border-line-strong/50 px-5 py-8 text-center">
           <div className="text-[15px] font-medium">No spends logged{month === monthOf(today) ? ' yet' : ''}</div>
@@ -134,24 +211,24 @@ export function MoneyDaily({ today }: { today: string }) {
               <span className="text-[15px] font-semibold">
                 {day === today ? 'Today' : formatDay(day, { weekday: 'short', day: 'numeric', month: 'short' })}
               </span>
-              <span className="text-[14px] font-semibold text-miss tabular">{inr(sum(list))}</span>
+              <span className="text-[14px] font-semibold text-miss tabular">{inr(sum(list.filter((e) => !e.excluded)))}</span>
             </div>
             <ul className="mt-1.5 flex flex-col">
               {list.map((e) => {
                 const c = cat(e.category);
                 return (
                   <li key={e.id} className="list-none">
-                    <button onClick={() => openExpense(e.id)} className="flex min-h-12 w-full items-center gap-3 text-left">
+                    <button onClick={() => openExpense(e.id)} className={`flex min-h-12 w-full items-center gap-3 text-left ${e.excluded ? 'opacity-45' : ''}`}>
                       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-[18px]" aria-hidden>
                         {c?.emoji ?? '❓'}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14.5px] font-medium">{c?.name ?? 'Other'}</span>
+                        <span className="block truncate text-[14.5px] font-medium">{c?.name ?? (e.category ? 'Other' : 'Not sorted')}</span>
                         <span className="block truncate text-[12.5px] text-faint">
-                          {[e.note, e.mode, e.source === 'voice' ? '🎙' : e.source === 'sms' ? '📩' : null].filter(Boolean).join(' · ')}
+                          {[e.excluded ? 'Not counted' : null, e.note ?? e.payee, e.mode, sourceLabel(e)].filter(Boolean).join(' · ')}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[15px] font-semibold tabular">{inr(e.amount)}</span>
+                      <span className={`shrink-0 text-[15px] font-semibold tabular ${e.excluded ? 'line-through' : ''}`}>{inr(e.amount)}</span>
                     </button>
                   </li>
                 );
@@ -211,7 +288,7 @@ function Donut({ parts }: { parts: { value: number; color: string }[] }) {
 }
 
 export function MoneyStats({ today }: { today: string }) {
-  const expenses = useStore((s) => s.expenses).filter((e) => e.category);
+  const expenses = counted(useStore((s) => s.expenses));
   const money = useMoney();
   const openExpense = useUI((s) => s.openExpense);
   const [month, setMonth] = useState(monthOf(today));
@@ -269,7 +346,7 @@ export function MoneyStats({ today }: { today: string }) {
                         <li key={e.id} className="list-none">
                           <button onClick={() => openExpense(e.id)} className="flex min-h-10 w-full items-center gap-2 pr-2 text-left text-[13.5px]">
                             <span className="w-14 shrink-0 text-faint">{formatDay(e.day, { day: 'numeric', month: 'short' })}</span>
-                            <span className="min-w-0 flex-1 truncate text-muted">{e.note ?? e.mode ?? ''}</span>
+                            <span className="min-w-0 flex-1 truncate text-muted">{e.note ?? e.payee ?? e.mode ?? ''}</span>
                             <span className="shrink-0 tabular">{inr(e.amount)}</span>
                           </button>
                         </li>
@@ -319,7 +396,7 @@ function Gauge({ spent, limit }: { spent: number; limit: number }) {
 }
 
 export function MoneyBudget({ today }: { today: string }) {
-  const expenses = useStore((s) => s.expenses).filter((e) => e.category);
+  const expenses = counted(useStore((s) => s.expenses));
   const money = useMoney();
   const setMoney = useStore((s) => s.setMoney);
   const [month, setMonth] = useState(monthOf(today));
