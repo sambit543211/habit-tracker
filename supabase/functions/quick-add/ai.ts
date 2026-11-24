@@ -9,7 +9,8 @@ export type Action =
   | { type: 'habit_done'; habit_id: string }
   | { type: 'habit_skip'; habit_id: string }
   | { type: 'plan_done'; plan_id: string }
-  | { type: 'plan'; title: string; day: 'today' | 'tomorrow'; start: string | null; duration_min: number | null };
+  | { type: 'plan'; title: string; day: 'today' | 'tomorrow'; start: string | null; duration_min: number | null }
+  | { type: 'expense'; amount: number; category: string | null; note: string | null; mode: string | null; day: 'today' | 'yesterday' };
 
 const key = Deno.env.get('ANTHROPIC_API_KEY');
 const groqKey = Deno.env.get('GROQ_API_KEY');
@@ -28,16 +29,20 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['type', 'ml', 'habit_id', 'plan_id', 'title', 'day', 'start', 'duration_min'],
+        required: ['type', 'ml', 'habit_id', 'plan_id', 'title', 'day', 'start', 'duration_min', 'amount', 'category', 'note', 'mode'],
         properties: {
-          type: { enum: ['water', 'habit_done', 'habit_skip', 'plan_done', 'plan'] },
+          type: { enum: ['water', 'habit_done', 'habit_skip', 'plan_done', 'plan', 'expense'] },
           ml: nullable({ type: 'integer' }),
           habit_id: nullable({ type: 'string' }),
           plan_id: nullable({ type: 'string' }),
           title: nullable({ type: 'string' }),
-          day: nullable({ enum: ['today', 'tomorrow'] }),
+          day: nullable({ enum: ['today', 'tomorrow', 'yesterday'] }),
           start: nullable({ type: 'string', description: '24h "HH:MM"' }),
           duration_min: nullable({ type: 'integer' }),
+          amount: nullable({ type: 'number' }),
+          category: nullable({ type: 'string' }),
+          note: nullable({ type: 'string' }),
+          mode: nullable({ type: 'string' }),
         },
       },
     },
@@ -56,9 +61,9 @@ const GROQ_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['type', 'ml', 'habit_id', 'plan_id', 'title', 'day', 'start', 'duration_min'],
+        required: ['type', 'ml', 'habit_id', 'plan_id', 'title', 'day', 'start', 'duration_min', 'amount', 'category', 'note', 'mode'],
         properties: {
-          type: { type: 'string', enum: ['water', 'habit_done', 'habit_skip', 'plan_done', 'plan'] },
+          type: { type: 'string', enum: ['water', 'habit_done', 'habit_skip', 'plan_done', 'plan', 'expense'] },
           ml: orNull('integer'),
           habit_id: orNull('string'),
           plan_id: orNull('string'),
@@ -66,6 +71,10 @@ const GROQ_SCHEMA = {
           day: orNull('string'),
           start: orNull('string'),
           duration_min: orNull('integer'),
+          amount: orNull('number'),
+          category: orNull('string'),
+          note: orNull('string'),
+          mode: orNull('string'),
         },
       },
     },
@@ -80,6 +89,7 @@ Action types:
 - habit_done: they did one of their habits (any tense or phrasing: "I meditated", "went to the gym", "finished reading"). habit_id must be one of the listed habit ids. Pick the closest habit by meaning, e.g. gym/exercise -> a workout habit. Not for water habits: use water instead.
 - habit_skip: they are skipping a habit today on purpose (rest day, "skip X today").
 - plan_done: they say they already did one of their open plans ("paid the gas bill"). plan_id must be one of the listed plan ids.
+- expense: they spent money ("25 rupees groceries", "paid 475 on Blinkit via Amazon Pay", "200 auto"). amount in rupees ("1.5k" = 1500). category = one of the listed category ids that fits best, or null if you can't tell. note = the shop or item if they named one ("Blinkit"), else null. mode = how they paid if said (UPI for GPay/PhonePe/Paytm, Cash, Card, Amazon Pay), else null. day = "yesterday" if they said so, else "today". Several spends in one sentence = several expense actions.
 - plan: something to do later. title = a short, clean task name in Title case, 2-6 words, without filler, dates or times ("so make a plan to meet my house owner at 7 pm" -> "Meet house owner"). day = "tomorrow" if they say tomorrow, otherwise "today". start = "HH:MM" 24h if they gave a time, else null; a bare hour like "at 7" means the next sensible time while awake (they wake at {WAKE}). duration_min if they said how long, else null.
 
 Rules:
@@ -87,9 +97,15 @@ Rules:
 - Only use ids from the lists. If they say they did something that matches no habit or open plan, ignore that part. Never invent habits.
 - If nothing actionable was said, return an empty actions list.
 - Set every field that doesn't apply to an action to null.
-- day is "today" or "tomorrow"; start is 24h "HH:MM".`;
+- day is "today" or "tomorrow" (expenses: "today" or "yesterday"); start is 24h "HH:MM".`;
 
-type Ctx = { habits: { id: string; name: string }[]; plans: { id: string; title: string; day: string }[]; now: string; wake: string };
+type Ctx = {
+  habits: { id: string; name: string }[];
+  plans: { id: string; title: string; day: string }[];
+  categories: { id: string; name: string }[];
+  now: string;
+  wake: string;
+};
 
 export async function understand(text: string, ctx: Ctx): Promise<Action[] | null> {
   if (!groqKey && !client) return null;
@@ -97,6 +113,7 @@ export async function understand(text: string, ctx: Ctx): Promise<Action[] | nul
     `Now: ${ctx.now}`,
     `Habits:\n${ctx.habits.map((h) => `- ${h.id}: ${h.name}`).join('\n') || '(none)'}`,
     `Open plans:\n${ctx.plans.map((p) => `- ${p.id}: ${p.title} (${p.day})`).join('\n') || '(none)'}`,
+    `Expense categories:\n${ctx.categories.map((c) => `- ${c.id}: ${c.name}`).join('\n')}`,
   ].join('\n\n');
   const system = SYSTEM.replace('{WAKE}', ctx.wake);
   const user = `${context}\n\nThey said: "${text}"`;
@@ -160,7 +177,8 @@ async function askClaude(system: string, user: string): Promise<string | null> {
 }
 
 /** Trust nothing: keep only actions that point at real habits/plans and have sane values. */
-function clean(raw: Record<string, unknown>[], ctx: { habits: { id: string }[]; plans: { id: string }[] }): Action[] {
+function clean(raw: Record<string, unknown>[], ctx: { habits: { id: string }[]; plans: { id: string }[]; categories: { id: string }[] }): Action[] {
+  const catIds = new Set(ctx.categories.map((c) => c.id));
   const habitIds = new Set(ctx.habits.map((h) => h.id));
   const planIds = new Set(ctx.plans.map((p) => p.id));
   const out: Action[] = [];
@@ -168,6 +186,15 @@ function clean(raw: Record<string, unknown>[], ctx: { habits: { id: string }[]; 
     if (a.type === 'water' && typeof a.ml === 'number' && a.ml > 0 && a.ml <= 5000) out.push({ type: 'water', ml: Math.round(a.ml) });
     else if ((a.type === 'habit_done' || a.type === 'habit_skip') && habitIds.has(String(a.habit_id))) out.push({ type: a.type === 'habit_skip' ? 'habit_skip' : 'habit_done', habit_id: String(a.habit_id) });
     else if (a.type === 'plan_done' && planIds.has(String(a.plan_id))) out.push({ type: 'plan_done', plan_id: String(a.plan_id) });
+    else if (a.type === 'expense' && typeof a.amount === 'number' && a.amount > 0 && a.amount < 10_000_000)
+      out.push({
+        type: 'expense',
+        amount: Math.round(a.amount * 100) / 100,
+        category: typeof a.category === 'string' && catIds.has(a.category) ? a.category : null,
+        note: typeof a.note === 'string' && a.note.trim() ? a.note.trim().slice(0, 60) : null,
+        mode: typeof a.mode === 'string' && a.mode.trim() ? a.mode.trim().slice(0, 30) : null,
+        day: a.day === 'yesterday' ? 'yesterday' : 'today',
+      });
     else if (a.type === 'plan' && typeof a.title === 'string' && a.title.trim()) {
       const start = typeof a.start === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(a.start) ? a.start : null;
       const dur = typeof a.duration_min === 'number' && a.duration_min >= 5 && a.duration_min <= 720 ? Math.round(a.duration_min) : null;

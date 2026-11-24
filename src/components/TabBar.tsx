@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
-import { CalendarIcon, ChartIcon, NoSmokeIcon, SunIcon, UserIcon, UsersIcon } from './icons';
+import { CalendarIcon, ChartIcon, GaugeIcon, NoSmokeIcon, PieIcon, SunIcon, UserIcon, UsersIcon, WalletIcon } from './icons';
 import { haptic } from '../lib/feedback';
 import { useSync } from '../sync';
 
@@ -9,13 +9,19 @@ import { useSync } from '../sync';
  * when those modes are switched on in Profile.
  */
 export function TabBar({ planBadge }: { planBadge?: boolean }) {
-  const { tab, setTab } = useUI();
+  const { tab, setTab, mode } = useUI();
   const quitOn = useStore((s) => !!s.profile.quit?.enabled);
   const circleOn = useStore((s) => !!s.profile.circle);
   // Unsynced changes or offline → small amber dot on Me (where sync status lives).
   const unsynced = useSync((s) => !!s.session && (s.pending > 0 || s.status === 'offline' || s.status === 'error'));
   type Tab = Parameters<typeof setTab>[0];
-  const tabs: { id: Tab; label: string; Icon: typeof SunIcon }[] = [
+  const moneyTabs: { id: Tab; label: string; Icon: typeof SunIcon }[] = [
+    { id: 'money', label: 'Daily', Icon: WalletIcon },
+    { id: 'mstats', label: 'Stats', Icon: PieIcon },
+    { id: 'budget', label: 'Budget', Icon: GaugeIcon },
+    { id: 'profile', label: 'Me', Icon: UserIcon },
+  ];
+  const habitTabs: { id: Tab; label: string; Icon: typeof SunIcon }[] = [
     { id: 'today', label: 'Today', Icon: SunIcon },
     { id: 'plan', label: 'Plan', Icon: CalendarIcon },
     { id: 'insights', label: 'Insights', Icon: ChartIcon },
@@ -23,6 +29,7 @@ export function TabBar({ planBadge }: { planBadge?: boolean }) {
     ...(quitOn ? [{ id: 'quit' as Tab, label: 'Quit', Icon: NoSmokeIcon }] : []),
     { id: 'profile', label: 'Me', Icon: UserIcon },
   ];
+  const tabs = mode === 'money' ? moneyTabs : habitTabs;
   const current = tab;
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(calc(env(safe-area-inset-bottom)-14px),10px)]">

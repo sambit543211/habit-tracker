@@ -4,6 +4,7 @@ import { useSync } from '../sync';
 import { useUI } from '../store';
 import { APP_NAME } from '../config';
 import { SIRI_EXAMPLES, SiriGuide } from './SiriGuide';
+import { SmsGuide } from './SmsGuide';
 
 const b64url = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const sha256 = async (s: string) =>
@@ -16,6 +17,7 @@ export function ShortcutsCard() {
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [guide, setGuide] = useState(false);
+  const [smsGuide, setSmsGuide] = useState(false);
   const quickUrl = `${location.origin}${location.pathname}#quick`;
 
   const copy = async (text: string, what: string) => {
@@ -78,6 +80,14 @@ export function ShortcutsCard() {
           </button>
         )}
       </div>
+      <div className="mt-4 border-t border-line pt-3">
+        <div className="text-[15px] font-semibold">📩 Auto-log bank SMS</div>
+        <p className="mt-0.5 text-[12.5px] text-muted">Every “Rs … debited” text from your bank lands in Money — no typing. New shops ask you once what they were.</p>
+        <button onClick={() => setSmsGuide(true)} className="mt-2 min-h-11 w-full rounded-2xl bg-surface-2 text-[14px] font-semibold">
+          Show the steps
+        </button>
+      </div>
+      <SmsGuide open={smsGuide} onClose={() => setSmsGuide(false)} />
       <SiriGuide open={guide} onClose={() => setGuide(false)} siriKey={key} onMakeKey={() => void makeKey()} busy={busy} />
     </section>
   );

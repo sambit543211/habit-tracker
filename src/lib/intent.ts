@@ -150,3 +150,125 @@ export function tidyPlan(text: string) {
   }
   return t || text.trim();
 }
+
+// ---------- money ----------
+
+export interface SpendCategory {
+  id: string;
+  name: string;
+}
+export interface ParsedSpend {
+  amount: number;
+  /** Category id, or undefined when it couldn't be told (→ "to sort") */
+  category?: string;
+  note?: string;
+  mode?: string;
+  day: 'today' | 'yesterday';
+}
+
+/** Words that point to the default categories (ids from src/lib/money.ts). */
+const SPEND_WORDS: Record<string, string[]> = {
+  rent: ['rent', 'landlord', 'house owner', 'pg'],
+  groceries: ['grocery', 'groceries', 'vegetables', 'veggies', 'sabzi', 'fruits', 'milk', 'blinkit', 'zepto', 'bigbasket', 'instamart', 'dmart', 'kirana', 'eggs', 'bread'],
+  eating: ['food', 'lunch', 'dinner', 'breakfast', 'snack', 'snacks', 'chai', 'tea', 'coffee', 'restaurant', 'swiggy', 'zomato', 'eating out', 'cafe', 'pizza', 'biryani'],
+  transport: ['auto', 'cab', 'uber', 'ola', 'rapido', 'taxi', 'metro', 'bus', 'train', 'petrol', 'diesel', 'fuel', 'parking', 'toll', 'transport'],
+  bills: ['bill', 'bills', 'electricity', 'wifi', 'internet', 'recharge', 'mobile', 'gas', 'water bill', 'broadband', 'utilities', 'maintenance'],
+  medical: ['medicine', 'medicines', 'doctor', 'pharmacy', 'chemist', 'hospital', 'medical', 'physio', 'tablets', 'test', 'clinic'],
+  shopping: ['shopping', 'clothes', 'shoes', 'amazon', 'flipkart', 'myntra', 'shirt', 'gift'],
+  subscriptions: ['subscription', 'netflix', 'spotify', 'prime', 'hotstar', 'youtube premium', 'icloud'],
+  drinks: ['beer', 'drinks', 'alcohol', 'wine', 'whisky', 'bar', 'pub'],
+  trips: ['trip', 'hotel', 'flight', 'travel', 'holiday', 'airbnb'],
+  entertainment: ['movie', 'movies', 'cinema', 'concert', 'game', 'games', 'show'],
+  grooming: ['haircut', 'salon', 'grooming', 'barber', 'spa', 'shave'],
+  laundry: ['laundry', 'ironing', 'dry clean', 'dhobi'],
+  investments: ['sip', 'mutual fund', 'stocks', 'investment', 'invest', 'fd'],
+};
+/** Shop / app names: always worth keeping as the note, even though they also pick the category. */
+const SHOPS = new Set(['blinkit', 'zepto', 'bigbasket', 'instamart', 'dmart', 'swiggy', 'zomato', 'uber', 'ola', 'rapido', 'amazon', 'flipkart', 'myntra', 'netflix', 'spotify', 'prime', 'hotstar', 'airbnb', 'icloud']);
+const MODES: [RegExp, string][] = [
+  [/\b(gpay|google pay|g pay|upi|phonepe|phone pe|paytm|bhim)\b/i, 'UPI'],
+  [/\bamazon pay\b/i, 'Amazon Pay'],
+  [/\b(card|credit card|debit card)\b/i, 'Card'],
+  [/\bcash\b/i, 'Cash'],
+];
+const MONEY_CUE = /₹|\brs\.?\s?\d|\b\d[\d,.]*\s*(rs|rupees?|rupay|bucks|inr)\b|\b(rupees?|inr|spent|spend|paid|pay|bought|expense|cost)\b/i;
+
+const has = (text: string, w: string) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i').test(text);
+
+/** Which category the words point to: your own category names, learned shops, then common words. */
+export function guessCategory(text: string, categories: SpendCategory[], merchants: Record<string, string> = {}) {
+  const t = text.toLowerCase();
+  for (const [shop, id] of Object.entries(merchants)) if (shop && has(t, shop) && categories.some((c) => c.id === id)) return id;
+  for (const c of categories) if (has(t, c.name.toLowerCase()) || has(t, c.name.toLowerCase().split(/[ /&]/)[0])) return c.id;
+  for (const [id, words] of Object.entries(SPEND_WORDS)) if (categories.some((c) => c.id === id) && words.some((w) => has(t, w))) return id;
+  return undefined;
+}
+
+/** "1.5k" → 1500, "2,450" → 2450 */
+const toAmount = (s: string) => {
+  const m = s.toLowerCase().replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(k|thousand|lakh|l)?\b/);
+  if (!m) return NaN;
+  const n = parseFloat(m[1]);
+  return Math.round(n * (m[2] === 'k' || m[2] === 'thousand' ? 1000 : m[2] === 'lakh' || m[2] === 'l' ? 100000 : 1) * 100) / 100;
+};
+
+/** Is this about money? ("25 rupees groceries", "paid 475 on blinkit", "200 auto") */
+export function isSpendTalk(text: string, categories: SpendCategory[], merchants: Record<string, string> = {}) {
+  if (!/\d/.test(text)) return false;
+  if (/\b\d+\s*(ml|l|ltr|litres?|liters?|glass|glasses|bottles?)\b/i.test(text)) return false; // water
+  if (MONEY_CUE.test(text)) return true;
+  // "200 auto", "50 chai" — a number next to a spending word, with no time words
+  if (/\b(at|am|pm|tomorrow|tonight|min|mins|minutes|hour|hours|pages?)\b/i.test(text)) return false;
+  return !!guessCategory(text, categories, merchants);
+}
+
+/** One or more spends from what was said: "50 chai and 200 auto by cash yesterday". */
+export function parseSpends(text: string, categories: SpendCategory[], merchants: Record<string, string> = {}): ParsedSpend[] {
+  const day: ParsedSpend['day'] = /\byesterday\b|\bkal\b/i.test(text) ? 'yesterday' : 'today';
+  const modeAll = MODES.find(([re]) => re.test(text))?.[1];
+  const parts = text.split(/\s*(?:,\s+|\band\b|\bplus\b|&)\s*(?=[^,]*\d)/i).filter((p) => /\d/.test(p));
+  const out: ParsedSpend[] = [];
+  for (const part of parts.length ? parts : [text]) {
+    const amount = toAmount(part.replace(/₹/g, ' '));
+    if (!(amount > 0) || amount > 10_000_000) continue;
+    const category = guessCategory(part, categories, merchants) ?? guessCategory(text, categories, merchants);
+    // Note: what's left after removing amounts, money words, modes, days and filler.
+    let note = part;
+    for (const [re] of MODES) note = note.replace(new RegExp(re.source, 'gi'), ' ');
+    note = note
+      .replace(/₹|\b(rs\.?|rupees?|rupay|inr|bucks)\b/gi, ' ')
+      .replace(/\d[\d,.]*\s*(k|thousand|lakh)?\b/gi, ' ')
+      .replace(/\b(i|i've|ive|just|spent|spend|paid|pay|bought|expense|cost|for|on|at|in|to|via|using|with|by|from|of|the|a|an|today|yesterday|kal|add|log|so|okay|ok|rupee)\b/gi, ' ');
+    note = note.replace(/[^a-z0-9 ]/gi, ' ').replace(/\s+/g, ' ').trim();
+    const catName = categories.find((c) => c.id === category)?.name.toLowerCase();
+    const isJustCategory = !note || (!SHOPS.has(note.toLowerCase()) && (category && (SPEND_WORDS[category] ?? []).concat(catName ? [catName] : []).some((w) => note.toLowerCase() === w || note.toLowerCase() === `${w}s`)));
+    out.push({ amount, category, note: isJustCategory ? undefined : note.charAt(0).toUpperCase() + note.slice(1), mode: MODES.find(([re]) => re.test(part))?.[1] ?? modeAll, day });
+  }
+  return out;
+}
+
+/**
+ * A bank / UPI SMS: "Rs.475.00 debited from A/c XX1234 on 24-11-26 to VPA blinkit@ybl (UPI Ref 1234)".
+ * Returns null for credits, OTPs and anything that isn't a debit.
+ */
+export function parseBankSms(sms: string): { amount: number; merchant?: string; mode?: string } | null {
+  const t = sms.replace(/\s+/g, ' ');
+  if (!/\b(debited|spent|paid|sent|withdrawn|purchase|debit|txn of|transaction of)\b/i.test(t)) return null;
+  if (/\bcredited\b/i.test(t) && !/\bdebited\b/i.test(t)) return null;
+  if (/\b(otp|one time password)\b/i.test(t)) return null;
+  const m = t.match(/(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
+  if (!m) return null;
+  const amount = Math.round(parseFloat(m[1].replace(/,/g, '')) * 100) / 100;
+  if (!(amount > 0)) return null;
+  const merchant =
+    t.match(/\bvpa\s+([a-z0-9._-]+)@/i)?.[1] ??
+    t.match(/\bto\s+([a-z0-9._-]+)@[a-z]+/i)?.[1] ??
+    t.match(/\b(?:at|to|towards)\s+([A-Za-z][A-Za-z0-9 &.'-]{1,40}?)(?=\s+(?:on|via|ref|upi|avl|avail|a\/c|from|\.|txn|for)\b|[.(]|$)/i)?.[1] ??
+    t.match(/upi\/[^/]*\/[^/]*\/([^/ ]+)/i)?.[1];
+  const clean = merchant
+    ?.replace(/\b(a\/c|ac|account|xx\d+)\b/gi, '')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\d{4,}/g, '')
+    .trim();
+  return { amount, merchant: clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : undefined, mode: /\b(upi|vpa)\b/i.test(t) ? 'UPI' : /\bcard\b/i.test(t) ? 'Card' : undefined };
+}

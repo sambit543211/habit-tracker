@@ -65,6 +65,8 @@ export interface Profile {
   quit?: QuitSettings;
   /** Circle (habit sharing) switched on */
   circle?: boolean;
+  /** Money: categories, budgets, payment modes, learned shops */
+  money?: MoneySettings;
 }
 
 export interface QuitSettings {
@@ -189,6 +191,37 @@ export interface Data {
   weeklyReviews?: Record<string, WeeklyReview>;
   /** Quit-smoking log */
   smokes?: SmokeEvent[];
+  /** Money: what you spent */
+  expenses?: Expense[];
+}
+
+export interface Expense {
+  id: string;
+  day: string;
+  /** Rupees */
+  amount: number;
+  /** Category id; undefined = still to sort (e.g. logged from a bank SMS) */
+  category?: string;
+  /** Cash, UPI, Card… */
+  mode?: string;
+  note?: string;
+  source?: 'app' | 'voice' | 'sms';
+  at: number;
+}
+
+export interface MoneyCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  /** Monthly budget in rupees (optional) */
+  budget?: number;
+}
+
+export interface MoneySettings {
+  categories: MoneyCategory[];
+  modes: string[];
+  /** Learned shop → category, e.g. { blinkit: 'groceries' } */
+  merchants: Record<string, string>;
 }
 
 /** Anything a "missed" sheet can be opened for. */

@@ -13,6 +13,7 @@ export const SIRI_EXAMPLES = [
   ['🛌', 'Skip stretch today', 'skips it, streak safe'],
   ['📅', 'Gym tomorrow at 7 for 1 hour', 'adds a plan'],
   ['📝', 'Remind me to pay the gas bill', 'adds a plan for today'],
+  ['₹', '25 rupees groceries', 'logs an expense'],
 ] as const;
 
 /** A tiny drawing of the Shortcuts editor, with the part to touch highlighted. */

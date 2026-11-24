@@ -120,3 +120,25 @@ export const TrashIcon = (p: P) => (
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
   </svg>
 );
+
+export const WalletIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
+    <rect x="3.5" y="7.5" width="17" height="12" rx="2.5" />
+    <path d="M16 13.5h2" />
+  </svg>
+);
+
+export const PieIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3a9 9 0 1 0 9 9h-9Z" />
+    <path d="M15 3.5A9 9 0 0 1 20.5 9H15Z" />
+  </svg>
+);
+
+export const GaugeIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 17a8 8 0 1 1 16 0" />
+    <path d="M12 17l4-5" />
+  </svg>
+);
