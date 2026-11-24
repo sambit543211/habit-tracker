@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { Sheet } from './Sheet';
 import { addDays } from '../lib/date';
-import { inr, merchantKey, moneyOf, sourceLabel, waitingBankMatch } from '../lib/money';
+import { inr, merchantKey, moneyOf, sourceLabel } from '../lib/money';
 import { Switch } from './Switch';
 import { haptic } from '../lib/feedback';
 
@@ -68,17 +68,15 @@ export function ExpenseSheet({ today }: { today: string }) {
   const save = () => {
     if (!ok) return;
     const data = { amount: value, category, mode, note: note.trim() || undefined, day, excluded: count ? undefined : true };
-    // A bank SMS for this amount is waiting to be sorted → it's the same payment: fill that in instead of adding a second.
-    const bank = !editing && day === today ? waitingBankMatch(expenses, value) : undefined;
+    // Same amount as a bank payment? Daily asks "Has this been recorded already?" — nothing is merged silently.
     if (editing) updateExpense(editing.id, data);
-    else if (bank) updateExpense(bank.id, { ...data, linked: true });
     else addExpense({ ...data, source: 'app' });
     // Remember the shop: what you typed, or who the bank says you paid.
-    const learnKeys = [merchantKey(note), merchantKey((editing ?? bank)?.payee)].filter(Boolean);
+    const learnKeys = [merchantKey(note), merchantKey(editing?.payee)].filter(Boolean);
     if (learnKeys.some((k) => money.merchants[k] !== category))
       setMoney({ merchants: { ...money.merchants, ...Object.fromEntries(learnKeys.map((k) => [k, category!])) } });
     haptic(12);
-    showToast(bank ? `Matched with your bank payment${bank.payee ? ` to ${bank.payee}` : ''} ✓` : `${inr(value)} · ${cat?.emoji} ${cat?.name}`, { tone: 'plan' });
+    showToast(`${inr(value)} · ${cat?.emoji} ${cat?.name}`, { tone: 'plan' });
     close();
   };
 
