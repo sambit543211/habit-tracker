@@ -119,10 +119,6 @@ Deno.serve(async (req) => {
     merchants[key] = category;
     await db.from('profiles').update({ money: { ...(money ?? {}), merchants } }).eq('user_id', user);
   };
-  const monthTotal = async (category: string) => {
-    const { data } = await db.from('expenses').select('amount').eq('user_id', user).eq('category', category).gte('day', `${today.slice(0, 7)}-01`).lte('day', today);
-    return Math.round((data ?? []).reduce((n, r) => n + Number(r.amount), 0));
-  };
 
   const HOURS_12 = 12 * 3600 * 1000;
   type Row = { id: string; amount: number | string; category: string | null; note: string | null; payee: string | null; mode: string | null; source: string; at: string; linked: boolean; excluded: boolean };
@@ -274,7 +270,7 @@ Deno.serve(async (req) => {
       if (error) return `Sorry, I couldn't save ${rupees(a.amount)}.`;
       if (!category) return `${rupees(a.amount)}${a.note ? ` for ${a.note}` : ''} saved — pick a category in Sky.`;
       await learn(a.note, category);
-      return `${rupees(a.amount)} ${catName(category)} added${a.day === 'yesterday' ? ' for yesterday' : ''}. ${rupees(await monthTotal(category))} on ${catName(category).toLowerCase()} this month.`;
+      return `Added ${rupees(a.amount)} to ${catName(category)}${a.day === 'yesterday' ? ' for yesterday' : ''}.`;
     }
     if (a.type === 'plan_done') {
       const p = plans.find((x) => x.id === a.plan_id)!;
