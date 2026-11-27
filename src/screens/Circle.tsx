@@ -384,6 +384,37 @@ export function Circle({ today }: { today: string }) {
             );
           })}
 
+          {(circle.quit?.length ?? 0) > 0 && (
+            <section className="card px-4 py-4">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-[15px] font-semibold">🚭 Quitting together</h2>
+                <span className="text-[12px] text-faint">last 7 days</span>
+              </div>
+              <ul className="mt-2 flex flex-col gap-2.5">
+                {circle.quit!.map((qm) => {
+                  const who = members.find((m) => m.user_id === qm.user_id)?.name.trim().split(/\s+/)[0] ?? 'Friend';
+                  return (
+                    <li key={qm.user_id} className="flex list-none items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14.5px] font-medium">{qm.user_id === data?.me ? 'You' : who}</span>
+                        <span className="block text-[12.5px] text-muted">
+                          {qm.today === 0 ? 'Smoke-free today' : `${qm.today} today`} · used to be {qm.baseline}
+                          {qm.cravings ? ` · ${qm.cravings} cravings beaten` : ''}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 gap-0.5" aria-hidden>
+                        {[...qm.days.slice(-7)].map((c, i) => (
+                          <span key={i} className="h-5 w-1.5 rounded-full" style={{ background: c === 'd' ? 'var(--habit)' : c === 'p' ? 'var(--gold)' : c === 'm' ? 'var(--miss)' : 'var(--track)' }} />
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-[12px] text-faint">Green = smoke-free · amber = fewer than before. Shared from the Quit tab.</p>
+            </section>
+          )}
+
           {circle.goals.length < 8 && (
             <button onClick={() => setGoalSheet(true)} className="min-h-12 rounded-2xl border border-dashed border-line-strong/60 text-[14px] font-semibold text-muted">
               + Add a shared goal{circle.goals.length === 0 ? ' (e.g. Gym)' : ''}

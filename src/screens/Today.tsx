@@ -14,7 +14,7 @@ import { celebrateBig, celebrateSmall, haptic } from '../lib/feedback';
 import { reviewWeekFor } from '../components/WeeklyReviewSheet';
 import { greeting, sinceWake, toMin } from '../lib/time';
 import { pace } from '../lib/game';
-import { fmtElapsed, quitStats } from '../lib/quit';
+import { fmtElapsed, fmtLife, quitStats, todayWin } from '../lib/quit';
 import { bestGroupStreak, circleScore, nudgesForMe, useCircle } from '../lib/circle';
 
 export function Today({ today, hour }: { today: string; hour: number }) {
@@ -71,6 +71,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
   const smokes = useStore((s) => s.smokes);
   const q = profile.quit?.enabled ? profile.quit : null;
   const qs = q ? quitStats(q, smokes, today) : null;
+  const qw = q ? todayWin(q, smokes, today) : null;
   const circleData = useCircle((s) => s.data);
   const refreshCircle = useCircle((s) => s.refresh);
   const circleOn = !!profile.circle;
@@ -199,7 +200,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
       >
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-semibold tracking-[0.12em] text-muted uppercase">
-            {firstName ? `${firstName}'s promises today` : 'Efficacy today'}
+            {"Today's promises"}
           </div>
           <div className="mt-0.5 flex items-start">
             <AnimatedNumber value={score} className="tabular text-[46px] leading-none font-bold tracking-[-0.045em]" />
@@ -264,15 +265,15 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             {qs && (
               <button
                 onClick={() => setTab('quit')}
-                aria-label={`Quit smoking score ${Math.round(qs.score * 100)} percent. ${qs.today} smoked today. Open quit tab`}
+                aria-label={`${qs.today} smoked today${qs.limit ? ` of a limit of ${qs.limit}` : ''}. ${fmtLife(qw!.minutes)} of life won back today. Open quit tab`}
                 className={cell}
               >
                 <span className="min-w-0 truncate text-[13px] font-medium">
                   <span aria-hidden>🚭 </span>
-                  {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} free` : both ? `Quit ${qs.today}/${qs.limit}` : `Quit · ${qs.today} of ${qs.limit} today`}
+                  {qs.limit === 0 ? `${fmtElapsed(qs.smokeFreeMs)} free` : both ? `${qs.today}/${qs.limit} today` : `${qs.today} of ${qs.limit} today`}
                 </span>
-                <span className="tabular shrink-0 text-[15px] font-bold" style={{ color: qs.score === 1 ? 'var(--habit)' : qs.score >= 0.5 ? 'var(--gold)' : 'var(--miss)' }}>
-                  {Math.round(qs.score * 100)}%
+                <span className="tabular shrink-0 text-[13px] font-bold" style={{ color: qs.today > qs.limit ? 'var(--miss)' : 'var(--habit)' }}>
+                  {qw!.minutes > 0 ? `+${fmtLife(qw!.minutes, true)}` : `${qs.today} 🚬`}
                 </span>
               </button>
             )}
@@ -370,7 +371,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
                 whileTap={{ scale: 0.88 }}
                 onClick={addPlan}
                 aria-label="Add a plan for today"
-                className="relative grid size-9 place-items-center rounded-full bg-plan text-white shadow-[0_4px_16px_color-mix(in_srgb,var(--plan)_45%,transparent)] before:absolute before:-inset-1 before:content-['']"
+                className="relative grid size-9 place-items-center rounded-full border border-plan/40 bg-plan/15 text-plan before:absolute before:-inset-1 before:content-['']"
               >
                 <PlusIcon size={18} strokeWidth={2.6} />
               </motion.button>

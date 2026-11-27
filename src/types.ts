@@ -83,6 +83,10 @@ export interface QuitSettings {
   quitDate: string;
   /** Currency symbol for savings */
   currency?: string;
+  /** Your usual triggers, picked at setup, each with what you'll do instead */
+  triggers?: { id: SmokeTrigger; instead?: string }[];
+  /** Share your progress with your circles */
+  share?: boolean;
 }
 
 export const SMOKE_TRIGGERS = ['stress', 'after_meal', 'coffee', 'alcohol', 'boredom', 'social', 'habit', 'other'] as const;
@@ -93,6 +97,7 @@ export interface SmokeEvent {
   day: string;
   at: number;
   kind: 'smoked' | 'craving_passed';
+  /** What set it off (for a cigarette, or a craving you beat) */
   trigger?: SmokeTrigger;
 }
 
@@ -212,7 +217,12 @@ export interface Expense {
   linked?: boolean;
   /** "Don't count": own-account transfer, money lent… kept but left out of totals */
   excluded?: boolean;
+  /** Receipt photo: path in the private "receipts" storage bucket */
+  receipt?: string;
+  /** When it was logged (ms) */
   at: number;
+  /** Last time you changed it (ms) */
+  editedAt?: number;
 }
 
 export interface MoneyCategory {

@@ -41,6 +41,17 @@ export interface CircleReaction {
   /** Nudges can repeat (10 min apart): how many times today */
   times?: number;
 }
+/** A member quitting smoking who chose to share it. Only counts per day — never triggers or times of day. */
+export interface CircleQuit {
+  user_id: string;
+  baseline: number;
+  today: number;
+  cravings: number;
+  last_at: string | null;
+  start: string;
+  /** Last 30 days, oldest first: d = smoke-free, p = fewer than before, m = as many as before, - = not started */
+  days: string;
+}
 export interface CircleInfo {
   id: string;
   name: string;
@@ -48,6 +59,7 @@ export interface CircleInfo {
   members: CircleMember[];
   goals: CircleGoal[];
   reactions: CircleReaction[];
+  quit?: CircleQuit[];
 }
 export interface CircleInvite {
   circle_id: string;
@@ -209,6 +221,10 @@ const DEMO: Omit<CircleData, 'circle'> = {
             { user_id: 'me', habit_id: 'h2', habit: 'Read 10 pages', days: 'dddddddddddddddddddddddddddddd' },
           ],
         },
+      ],
+      quit: [
+        { user_id: 'a', baseline: 8, today: 2, cravings: 3, last_at: null, start: '2026-11-01', days: '---ppmppppppdpppdppddpddpdddpp' },
+        { user_id: 'me', baseline: 6, today: 1, cravings: 1, last_at: null, start: '2026-11-01', days: '---mpppppppppppppdpppppppppppp' },
       ],
       reactions: [],
     },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtElapsed, limitOn, quitScore, quitStats, triggerCounts } from './quit';
+import { fmtElapsed, limitOn, quitScore, quitStats, triggerCounts, fmtLife, todayWin, triggerStats, triggersToday } from './quit';
 import type { QuitSettings, SmokeEvent } from '../types';
 
 const reduce: QuitSettings = { enabled: true, mode: 'reduce', baseline: 12, price: 20, startDay: '2026-11-01', quitDate: '2026-11-29' };
@@ -41,5 +41,30 @@ describe('score and stats', () => {
   it('ranks triggers', () => {
     const ev = [smoke('d', 1, 'stress'), smoke('d', 2, 'stress'), smoke('d', 3, 'coffee')];
     expect(triggerCounts(ev)).toEqual([['stress', 2], ['coffee', 1]]);
+  });
+});
+
+describe('life won back', () => {
+  const q2 = { enabled: true, mode: 'reduce' as const, baseline: 6, price: 18, startDay: '2026-11-01', quitDate: '2026-12-20' };
+  it('counts cigarettes under your old normal at about 20 minutes each', () => {
+    const ev = [
+      { id: '1', day: '2026-11-27', at: 1, kind: 'smoked' as const, trigger: 'coffee' as const },
+      { id: '2', day: '2026-11-27', at: 2, kind: 'craving_passed' as const, trigger: 'stress' as const },
+    ];
+    expect(todayWin(q2, ev, '2026-11-27')).toEqual({ smoked: 1, baseline: 6, avoided: 5, minutes: 100 });
+    expect(triggersToday(ev, '2026-11-27')).toBe(2);
+    const st = triggerStats(ev, '2026-11-21');
+    expect(st.get('coffee')).toEqual({ smoked: 1, beaten: 0 });
+    expect(st.get('stress')).toEqual({ smoked: 0, beaten: 1 });
+  });
+  it('never goes negative on a heavy day', () => {
+    const ev = Array.from({ length: 8 }, (_, i) => ({ id: String(i), day: '2026-11-27', at: i, kind: 'smoked' as const }));
+    expect(todayWin(q2, ev, '2026-11-27').avoided).toBe(0);
+  });
+  it('formats life in minutes, hours and days', () => {
+    expect(fmtLife(40)).toBe('40 min');
+    expect(fmtLife(100)).toBe('1 h 40 min');
+    expect(fmtLife(120)).toBe('2 h');
+    expect(fmtLife(3000)).toBe('2 days 2 h');
   });
 });
