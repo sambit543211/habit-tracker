@@ -1,3 +1,4 @@
+import { fmtWater } from '../lib/water';
 import { motion } from 'framer-motion';
 import type { Recap } from '../lib/game';
 import { formatDay } from '../lib/date';
@@ -24,7 +25,7 @@ export function RecapCard({ recap }: { recap: Recap }) {
           <li className="flex gap-2">
             <span aria-hidden>🏆</span>
             <span>
-              <b>{recap.best.name}</b> — {recap.best.done}/{recap.best.of} days. Your strongest.
+              <b>{recap.best.name}</b> — {recap.best.water ? `${fmtWater(recap.best.water.avg)} a day on average` : `${recap.best.done}/${recap.best.of} days`}. Your strongest.
             </span>
           </li>
         )}
@@ -32,7 +33,7 @@ export function RecapCard({ recap }: { recap: Recap }) {
           <li className="flex gap-2">
             <span aria-hidden>🔧</span>
             <span>
-              <b>{recap.worst.name}</b> slipped — {recap.worst.done}/{recap.worst.of} days
+              <b>{recap.worst.name}</b> {recap.worst.water ? `— ${fmtWater(recap.worst.water.avg)} a day of ${fmtWater(recap.worst.water.goal)}` : `slipped — ${recap.worst.done}/${recap.worst.of} days`}
               {recap.worst.reason ? `, mostly “${reasonLabel(recap.worst.reason).toLowerCase()}”` : ''}.
             </span>
           </li>

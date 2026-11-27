@@ -35,7 +35,10 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
     .map((h) => ({ h, at: sinceWake(h.remindAt!, profile) }));
 
   // Visible window (minutes since wake), whole hours.
-  const points = [...blocks.flatMap((b) => [b.s, Math.min(b.e, total)]), ...markers.map((m) => m.at), ...(now !== null && now >= 0 && now <= total ? [now] : [])];
+  // Habit reminders don't stretch the window when there are plans (a late-night habit would
+  // otherwise turn a one-plan morning into the whole day); they show if they fall inside it.
+  const nowPts = now !== null && now >= 0 && now <= total ? [now] : [];
+  const points = blocks.length ? [...blocks.flatMap((b) => [b.s, Math.min(b.e, total)]), ...nowPts] : [...markers.map((m) => m.at), ...nowPts];
   const timed = blocks.length > 0 || markers.length > 0;
   let from = 0;
   let to = total;
@@ -46,6 +49,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
     if (to - from < 240) from = Math.max(0, to - 240);
   }
   const cropped = from > 0 || to < total;
+  const shown = markers.filter((m) => m.at >= from && m.at <= to);
 
   if (!timed && !full) {
     return (
@@ -61,7 +65,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
   const height = ((to - from) / 60) * HOUR;
   const px = (min: number) => ((min - from) / 60) * HOUR;
   // Habit markers get their own lane on the right so they never cover plans.
-  const LANE = markers.length ? 92 : 0;
+  const LANE = shown.length ? 92 : 0;
   const right = 8 + LANE;
 
   const onEmptyTap = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -92,7 +96,7 @@ export function DayCalendar({ day, plans, habits, profile, now, doneHabits }: Pr
         <div className="absolute right-0 bottom-2 cursor-copy" style={{ top: 8, left: GUTTER }} onClick={onEmptyTap} aria-label="Add a plan at this time" />
 
         {/* Habit reminder markers */}
-        {markers.map(({ h, at }) => (
+        {shown.map(({ h, at }) => (
           <div
             key={h.id}
             className="pointer-events-none absolute right-1.5 flex max-w-[86px] -translate-y-1/2 items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium"

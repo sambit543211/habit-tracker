@@ -2,6 +2,7 @@
  * Gamification, derived purely from your history (nothing extra is stored):
  * reliability level, badges, personal bests and the weekly quest.
  */
+import { fmtWater, waterTarget } from './water';
 import type { Data, ReasonCode } from '../types';
 import { addDays, range } from './date';
 import { dayStats, reasonCounts, streak } from './score';
@@ -235,8 +236,8 @@ export interface Recap {
   to: string;
   days: number;
   avg: number | null;
-  best: { name: string; done: number; of: number } | null;
-  worst: { name: string; done: number; of: number; reason?: ReasonCode } | null;
+  best: { name: string; done: number; of: number; water?: { avg: number; goal: number } } | null;
+  worst: { name: string; done: number; of: number; reason?: ReasonCode; water?: { avg: number; goal: number } } | null;
   plans: { done: number; of: number };
   tip: string;
 }
@@ -255,6 +256,13 @@ export function lastWeekRecap(data: Data, today: string): Recap | null {
       const done = counted.filter((d) => data.logs[d]?.[h.id]?.status === 'done').length;
       const reasons = counted.map((d) => data.logs[d]?.[h.id]?.miss?.reason).filter((r): r is ReasonCode => !!r && r !== 'skip');
       const top = reasons.sort((a, b) => reasons.filter((x) => x === b).length - reasons.filter((x) => x === a).length)[0];
+      // Water: judged by how much you drank, not only by days the full target was reached.
+      const goal = waterTarget(h);
+      if (goal) {
+        const ml = counted.map((d) => (data.logs[d]?.[h.id]?.status === 'done' ? goal : Math.min(goal, data.amounts?.[d]?.[h.id] ?? 0)));
+        const avg = ml.length ? ml.reduce((a, b) => a + b, 0) / ml.length : 0;
+        return { name: h.name, done, of: counted.length, rate: goal ? avg / goal : 0, reason: top, water: { avg: Math.round(avg / 100) * 100, goal } };
+      }
       return { name: h.name, done, of: counted.length, rate: counted.length ? done / counted.length : 0, reason: top };
     })
     .filter((x) => x.of > 0)
@@ -264,7 +272,9 @@ export function lastWeekRecap(data: Data, today: string): Recap | null {
   const worst = per.length > 1 && per[per.length - 1].rate < best!.rate ? per[per.length - 1] : null;
   const tip = worst?.reason
     ? REASON_TIPS[worst.reason]
-    : worst
+    : worst?.water
+      ? `Keep a bottle in sight and log each refill — you're at ${fmtWater(worst.water.avg)} of ${fmtWater(worst.water.goal)} a day.`
+      : worst
       ? `Make “${worst.name}” smaller this week — a 2-minute version still counts.`
       : 'Steady week. Keep the same plan and protect your streak.';
   return {
@@ -272,8 +282,8 @@ export function lastWeekRecap(data: Data, today: string): Recap | null {
     to,
     days: days.length,
     avg: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
-    best: best && { name: best.name, done: best.done, of: best.of },
-    worst: worst && { name: worst.name, done: worst.done, of: worst.of, reason: worst.reason },
+    best: best && { name: best.name, done: best.done, of: best.of, water: best.water },
+    worst: worst && { name: worst.name, done: worst.done, of: worst.of, reason: worst.reason, water: worst.water },
     plans: { done: plans.filter((p) => p.status === 'done').length, of: plans.filter((p) => p.status !== 'carried').length },
     tip,
   };

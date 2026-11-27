@@ -163,7 +163,7 @@ export const useStore = create<Store>()(
         set((s) => ({ expenses: [...s.expenses, { ...e, id, at: e.at ?? Date.now() }] }));
         return id;
       },
-      updateExpense: (id, patch) => set((s) => ({ expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
+      updateExpense: (id, patch) => set((s) => ({ expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch, editedAt: Date.now() } : e)) })),
       removeExpense: (id) => set((s) => ({ expenses: s.expenses.filter((e) => e.id !== id) })),
       setMoney: (patch) => set((s) => ({ profile: { ...s.profile, money: { ...moneyOf(s.profile.money), ...patch } } })),
       logSmoke: (kind, trigger) => {

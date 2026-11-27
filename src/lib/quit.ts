@@ -116,3 +116,65 @@ export function fmtElapsed(ms: number) {
   if (h > 0) return `${h}h ${mm}m`;
   return `${mm}m`;
 }
+
+/**
+ * Life regained per cigarette not smoked. A 2024 University College London study
+ * (Jackson et al., Journal of Addiction) estimated each cigarette costs about 20 minutes
+ * of life on average (17 for men, 22 for women). An average, not a promise.
+ */
+export const LIFE_MIN_PER_CIG = 20;
+
+/** 100 → "1 h 40 min", 3000 → "2 days 2 h" (short: "1h 40m", "2d 2h") */
+export function fmtLife(min: number, short = false) {
+  const m = Math.round(min);
+  if (short) {
+    const d = Math.floor(m / 1440);
+    const h = Math.floor((m % 1440) / 60);
+    if (d > 0) return `${d}d${h ? ` ${h}h` : ''}`;
+    if (h > 0) return `${h}h${m % 60 ? ` ${m % 60}m` : ''}`;
+    return `${m}m`;
+  }
+  if (m < 60) return `${m} min`;
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  const mm = m % 60;
+  if (d > 0) return `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}`;
+  return `${h} h${mm ? ` ${mm} min` : ''}`;
+}
+
+/** Today against your old normal: cigarettes not smoked and the life that buys back. */
+export function todayWin(q: QuitSettings, events: SmokeEvent[], today: string) {
+  const smoked = smokedOn(events, today);
+  const avoided = Math.max(0, q.baseline - smoked);
+  return { smoked, baseline: q.baseline, avoided, minutes: avoided * LIFE_MIN_PER_CIG };
+}
+
+/** Triggers that showed up today (cigarettes and cravings both count). */
+export function triggersToday(events: SmokeEvent[], today: string) {
+  return events.filter((e) => e.day === today && e.trigger).length;
+}
+
+/** How often each trigger came up since `from` — smoked vs beaten. */
+export function triggerStats(events: SmokeEvent[], from: string) {
+  const out = new Map<SmokeTrigger, { smoked: number; beaten: number }>();
+  for (const e of events) {
+    if (!e.trigger || e.day < from) continue;
+    const t = out.get(e.trigger) ?? { smoked: 0, beaten: 0 };
+    if (e.kind === 'smoked') t.smoked++;
+    else t.beaten++;
+    out.set(e.trigger, t);
+  }
+  return out;
+}
+
+/** A ready-made "instead" for each trigger, so setup is one tap. */
+export const INSTEAD: Record<SmokeTrigger, string> = {
+  stress: 'Take 10 slow breaths',
+  after_meal: 'Brush teeth or walk 5 min',
+  coffee: 'Chew gum with my coffee',
+  alcohol: 'Keep a drink in my smoking hand',
+  boredom: 'Play the craving game',
+  social: 'Step away and text a friend',
+  habit: 'Drink a glass of water',
+  other: 'Wait 3 minutes first',
+};

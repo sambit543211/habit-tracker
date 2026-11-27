@@ -260,6 +260,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Quit smoking: an end-of-day win against your old normal (about 20 min of life per cigarette not smoked).
+    const quit = p.quit as { enabled?: boolean; baseline?: number; startDay?: string } | null;
+    if (quit?.enabled && quit.baseline && (!quit.startDay || quit.startDay <= today) && isDue(p.evening_reminder, now.minutes)) {
+      const { data: ev } = await db.from('smoke_events').select('kind').eq('user_id', p.user_id).eq('day', today);
+      const smoked = (ev ?? []).filter((e) => e.kind === 'smoked').length;
+      const beaten = (ev ?? []).filter((e) => e.kind === 'craving_passed').length;
+      const avoided = Math.max(0, quit.baseline - smoked);
+      const mins = avoided * 20;
+      const life = mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ''}` : `${mins} min`;
+      candidates.push(
+        avoided > 0
+          ? {
+              kind: 'quit',
+              title: smoked === 0 ? withName(pick(['🌱 Smoke-free today, {N}', '🌱 A clean day so far'], seed('quit'))) : `🌱 ${smoked} today — you used to smoke ${quit.baseline}`,
+              body: `That's ${plural(avoided, 'cigarette')} not smoked: about ${life} of life won back today${beaten ? ` and ${plural(beaten, 'craving')} beaten` : ''}.`,
+            }
+          : {
+              kind: 'quit',
+              title: 'Tomorrow is a fresh count',
+              body: 'Next time a craving hits, open Sky and tap “I have a craving” — it passes in a few minutes.',
+            },
+      );
+    }
+
     // Per-habit reminders at their trigger time.
     for (const h of todayHabits) {
       if (!isDue(h.remind_at, now.minutes) || logSet.has(`${today}:${h.id}`)) continue;

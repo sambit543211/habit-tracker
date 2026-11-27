@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { formatDay } from '../lib/date';
-import { CAT_COLORS, byCategory, counted, inr, merchantKey, monthLabel, monthOf, moneyOf, samePaymentPairs, shiftMonth, sourceLabel, spentByDay, sum } from '../lib/money';
+import { clock } from '../lib/receipts';
+import { CAT_COLORS, byCategory, counted, inr, merchantKey, monthLabel, monthOf, moneyOf, samePaymentPairs, shiftMonth, spentByDay, sum } from '../lib/money';
 import type { Expense, MoneyCategory } from '../types';
 import { Sheet } from '../components/Sheet';
 import { haptic } from '../lib/feedback';
@@ -59,6 +60,7 @@ export function MoneyDaily({ today }: { today: string }) {
   const openExpense = useUI((s) => s.openExpense);
   const [month, setMonth] = useState(monthOf(today));
   const [show, setShow] = useState<'all' | 'mine' | 'bank'>('all');
+  const fabHidden = useHideOnScroll();
   const [dismissed, setDismissed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('sky-not-same') ?? '[]');
@@ -155,17 +157,20 @@ export function MoneyDaily({ today }: { today: string }) {
         </section>
       )}
 
-      {pairs.map(({ mine, bank }) => (
+      {pairs.slice(0, 1).map(({ mine, bank }) => (
         <section key={`${mine.id}|${bank.id}`} className="card border-plan/40 px-4 py-3">
-          <div className="text-[13px] font-semibold tracking-wide text-plan uppercase">Has this been recorded already?</div>
+          <div className="flex justify-between gap-2 text-[13px] font-semibold tracking-wide text-plan uppercase">
+            <span>Same payment twice?</span>
+            {pairs.length > 1 && <span className="text-faint normal-case tracking-normal">1 of {pairs.length}</span>}
+          </div>
           <div className="mt-1.5 flex flex-col gap-1 text-[13.5px]">
             <span>
               ✍️ You: <b className="tabular">{inr(mine.amount)}</b> · {cat(mine.category)?.name ?? 'To sort'}
-              {mine.note ? ` · ${mine.note}` : ''}
+              {mine.note ? ` · ${mine.note}` : ''} · {formatDay(mine.day, { day: 'numeric', month: 'short' })}, {clock(mine.at)}
             </span>
             <span>
               📩 Bank: <b className="tabular">{inr(bank.amount)}</b>
-              {bank.payee ? ` to ${bank.payee}` : ''} · {formatDay(bank.day, { day: 'numeric', month: 'short' })}
+              {bank.payee ? ` to ${bank.payee}` : ''} · {formatDay(bank.day, { day: 'numeric', month: 'short' })}, {clock(bank.at)}
             </span>
           </div>
           <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -211,7 +216,7 @@ export function MoneyDaily({ today }: { today: string }) {
               <span className="text-[15px] font-semibold">
                 {day === today ? 'Today' : formatDay(day, { weekday: 'short', day: 'numeric', month: 'short' })}
               </span>
-              <span className="text-[14px] font-semibold text-miss tabular">{inr(sum(list.filter((e) => !e.excluded)))}</span>
+              <span className="text-[14px] font-semibold text-muted tabular">{inr(sum(list.filter((e) => !e.excluded)))}</span>
             </div>
             <ul className="mt-1.5 flex flex-col">
               {list.map((e) => {
@@ -225,7 +230,9 @@ export function MoneyDaily({ today }: { today: string }) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14.5px] font-medium">{c?.name ?? (e.category ? 'Other' : 'Not sorted')}</span>
                         <span className="block truncate text-[12.5px] text-faint">
-                          {[e.excluded ? 'Not counted' : null, e.note ?? e.payee, e.mode, sourceLabel(e)].filter(Boolean).join(' · ')}
+                          {[e.excluded ? 'Not counted' : null, e.note ?? e.payee, clock(e.at), e.source === 'sms' ? '📩' : e.source === 'voice' ? '🎙' : null, e.receipt ? '📎' : null]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
                       </span>
                       <span className={`shrink-0 text-[15px] font-semibold tabular ${e.excluded ? 'line-through' : ''}`}>{inr(e.amount)}</span>
@@ -241,6 +248,8 @@ export function MoneyDaily({ today }: { today: string }) {
       <motion.button
         whileTap={{ scale: 0.92 }}
         onClick={() => openExpense('new')}
+        animate={{ y: fabHidden ? 120 : 0, opacity: fabHidden ? 0 : 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 34 }}
         className="fixed right-5 bottom-[calc(max(env(safe-area-inset-bottom),10px)+84px)] z-30 grid size-14 place-items-center rounded-full bg-plan text-white shadow-lg shadow-plan/30"
         aria-label="Add expense"
       >
@@ -401,6 +410,7 @@ export function MoneyBudget({ today }: { today: string }) {
   const setMoney = useStore((s) => s.setMoney);
   const [month, setMonth] = useState(monthOf(today));
   const [editing, setEditing] = useState<MoneyCategory | 'new' | null>(null);
+  const [allCats, setAllCats] = useState(false);
   const spent = new Map(byCategory(expenses, month).map((r) => [r.id, r.amount]));
   const budgeted = money.categories.filter((c) => c.budget);
   const limit = budgeted.reduce((n, c) => n + (c.budget ?? 0), 0);
@@ -414,6 +424,10 @@ export function MoneyBudget({ today }: { today: string }) {
     if (a.budget && b.budget) return (spent.get(b.id) ?? 0) / b.budget - (spent.get(a.id) ?? 0) / a.budget;
     return (spent.get(b.id) ?? 0) - (spent.get(a.id) ?? 0);
   });
+  // Unused categories without a budget stay folded away until you need them.
+  const active = rows.filter((c) => c.budget || spent.get(c.id));
+  const quiet = rows.length - active.length;
+  const shown = allCats || active.length === 0 ? rows : active;
 
   return (
     <div className="flex flex-col gap-3">
@@ -447,7 +461,7 @@ export function MoneyBudget({ today }: { today: string }) {
 
       <section className="card px-2 py-2">
         <ul className="flex flex-col">
-          {rows.map((c) => {
+          {shown.map((c) => {
             const s = spent.get(c.id) ?? 0;
             const p = c.budget ? s / c.budget : 0;
             return (
@@ -486,9 +500,16 @@ export function MoneyBudget({ today }: { today: string }) {
             );
           })}
         </ul>
-        <button onClick={() => setEditing('new')} className="mt-1 min-h-11 w-full rounded-2xl border border-dashed border-line-strong/60 text-[14px] font-medium text-muted">
-          + New category
-        </button>
+        {quiet > 0 && shown !== rows && (
+          <button onClick={() => setAllCats(true)} className="min-h-11 w-full text-[14px] font-medium text-plan">
+            {quiet} more categories
+          </button>
+        )}
+        {(allCats || shown === rows) && (
+          <button onClick={() => setEditing('new')} className="mt-1 min-h-11 w-full rounded-2xl border border-dashed border-line-strong/60 text-[14px] font-medium text-muted">
+            + New category
+          </button>
+        )}
       </section>
 
       <ModesCard modes={money.modes} onChange={(modes) => setMoney({ modes })} />
@@ -611,4 +632,21 @@ function CategorySheet({
       )}
     </Sheet>
   );
+}
+
+/** True while you scroll down through the list (the + gets out of the way), false when you scroll back up. */
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setHidden(y > last && y > 120);
+      last = y;
+    };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return hidden;
 }

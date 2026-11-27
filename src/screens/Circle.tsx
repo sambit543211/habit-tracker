@@ -98,10 +98,10 @@ export function Circle({ today }: { today: string }) {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setAdding(true)}
-            aria-label="Add a friend"
-            className="grid size-11 shrink-0 place-items-center rounded-2xl bg-plan text-white shadow-[0_6px_20px_color-mix(in_srgb,var(--plan)_35%,transparent)]"
+            aria-label="Invite a friend"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-plan/40 bg-plan/15 px-4 text-[14px] font-semibold text-plan"
           >
-            <PlusIcon size={22} strokeWidth={2.4} />
+            <PlusIcon size={16} strokeWidth={2.6} /> Invite
           </motion.button>
         )}
       </header>
@@ -384,6 +384,37 @@ export function Circle({ today }: { today: string }) {
             );
           })}
 
+          {(circle.quit?.length ?? 0) > 0 && (
+            <section className="card px-4 py-4">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-[15px] font-semibold">🚭 Quitting together</h2>
+                <span className="text-[12px] text-faint">last 7 days</span>
+              </div>
+              <ul className="mt-2 flex flex-col gap-2.5">
+                {circle.quit!.map((qm) => {
+                  const who = members.find((m) => m.user_id === qm.user_id)?.name.trim().split(/\s+/)[0] ?? 'Friend';
+                  return (
+                    <li key={qm.user_id} className="flex list-none items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14.5px] font-medium">{qm.user_id === data?.me ? 'You' : who}</span>
+                        <span className="block text-[12.5px] text-muted">
+                          {qm.today === 0 ? 'Smoke-free today' : `${qm.today} today`} · used to be {qm.baseline}
+                          {qm.cravings ? ` · ${qm.cravings} cravings beaten` : ''}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 gap-0.5" aria-hidden>
+                        {[...qm.days.slice(-7)].map((c, i) => (
+                          <span key={i} className="h-5 w-1.5 rounded-full" style={{ background: c === 'd' ? 'var(--habit)' : c === 'p' ? 'var(--gold)' : c === 'm' ? 'var(--miss)' : 'var(--track)' }} />
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-[12px] text-faint">Green = smoke-free · amber = fewer than before. Shared from the Quit tab.</p>
+            </section>
+          )}
+
           {circle.goals.length < 8 && (
             <button onClick={() => setGoalSheet(true)} className="min-h-12 rounded-2xl border border-dashed border-line-strong/60 text-[14px] font-semibold text-muted">
               + Add a shared goal{circle.goals.length === 0 ? ' (e.g. Gym)' : ''}
@@ -393,7 +424,15 @@ export function Circle({ today }: { today: string }) {
           <p className="px-1 text-[12.5px] leading-relaxed text-faint">
             Friends see only the habits you link here: done, missed or not yet, and the streak. Your plans, notes and reasons stay private.
           </p>
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+          <details className="group rounded-2xl border border-line">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[14.5px] font-medium">
+              Circle settings
+              <span className="text-faint transition-transform group-open:rotate-90" aria-hidden>
+                ›
+              </span>
+            </summary>
+            <div className="flex flex-col gap-1 border-t border-line px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between gap-3 py-1">
             <div className="min-w-0">
               <div className="text-[14.5px] font-medium">Notifications from this circle</div>
               <div className="text-[12.5px] text-faint">Nudges, cheers and “your nudge worked”</div>
@@ -418,6 +457,8 @@ export function Circle({ today }: { today: string }) {
           >
             {confirmLeave ? `Tap again to leave “${circle.name}”` : 'Leave this circle'}
           </button>
+            </div>
+          </details>
         </>
       )}
 

@@ -4,6 +4,7 @@ import { addDays, formatDay, fromKey, range, WEEKDAYS } from '../lib/date';
 import { habitsOn } from '../lib/score';
 import type { Data, Habit } from '../types';
 import { isPartial, partCredit } from '../lib/parts';
+import { waterTarget } from '../lib/water';
 
 const SPANS = [7, 14, 30] as const;
 const MIN_DAYS = 3;
@@ -24,7 +25,17 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
     if (data.logs[d]?.[h.id]?.miss?.reason === 'skip') return 'off';
     if (h.perWeek) return d === today ? 'today' : 'off'; // weekly: a day without it isn't a miss
     if (s === 'missed') return 'missed';
+    // Water: some drunk but short of the target is a part-done day, not "no check-in".
+    if (d !== today && (data.amounts?.[d]?.[h.id] ?? 0) > 0 && waterTarget(h)) return 'part';
     return d === today ? 'today' : 'unchecked';
+  };
+
+  // Share of the day's credit: combo parts by weight, water by how much of the target you drank.
+  const credit = (h: Habit, d: string) => {
+    const log = data.logs[d]?.[h.id];
+    if (log?.status === 'done') return partCredit(h, log);
+    const goal = waterTarget(h);
+    return goal ? Math.min(0.99, (data.amounts?.[d]?.[h.id] ?? 0) / goal) : 0;
   };
 
   const rows = habits
@@ -34,7 +45,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
       const past = cells.slice(0, -1);
       const counted = past.filter((c) => c === 'done' || c === 'part' || c === 'missed' || c === 'unchecked').length;
       // A part-done day counts by its share (Stretch only = 0.3 of a day).
-      const done = Math.round(past.reduce((n, c, i) => n + (c === 'done' ? 1 : c === 'part' ? partCredit(h, data.logs[days[i]]?.[h.id]) : 0), 0) * 10) / 10;
+      const done = Math.round(past.reduce((n, c, i) => n + (c === 'done' ? 1 : c === 'part' ? credit(h, days[i]) : 0), 0) * 10) / 10;
       // Weekly habits: done vs. what the target asks for in these days (3× a week over 14 days → 6).
       const due = h.perWeek ? Math.max(1, Math.round((h.perWeek * past.filter((c) => c !== 'off' || h.perWeek).length) / 7)) : counted;
       const enough = h.perWeek ? past.length >= 7 : counted >= MIN_DAYS;
@@ -46,7 +57,7 @@ export function HabitGrid({ data, today, onOpen }: { data: Data; today: string; 
   const daily = days.map((d) => {
     const on = habits.filter((h) => cell(h, d) !== 'off');
     if (!on.length || d === today) return null;
-    return on.reduce((n, h) => n + (cell(h, d) === 'done' ? 1 : cell(h, d) === 'part' ? partCredit(h, data.logs[d]?.[h.id]) : 0), 0) / on.length;
+    return on.reduce((n, h) => n + (cell(h, d) === 'done' ? 1 : cell(h, d) === 'part' ? credit(h, d) : 0), 0) / on.length;
   });
 
   const rated = rows.filter((r) => r.rate !== null);

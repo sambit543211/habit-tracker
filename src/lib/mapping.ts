@@ -132,7 +132,9 @@ export interface ExpenseRow {
   payee?: string | null;
   linked?: boolean;
   excluded?: boolean;
+  receipt?: string | null;
   at: string;
+  edited_at?: string | null;
 }
 
 export const expenseToRow = (e: Expense, user_id: string): ExpenseRow => ({
@@ -147,7 +149,9 @@ export const expenseToRow = (e: Expense, user_id: string): ExpenseRow => ({
   payee: e.payee ?? null,
   linked: !!e.linked,
   excluded: !!e.excluded,
+  receipt: e.receipt ?? null,
   at: new Date(e.at).toISOString(),
+  edited_at: e.editedAt ? new Date(e.editedAt).toISOString() : null,
 });
 
 export const rowToExpense = (r: ExpenseRow): Expense => ({
@@ -161,7 +165,9 @@ export const rowToExpense = (r: ExpenseRow): Expense => ({
   payee: r.payee ?? undefined,
   linked: r.linked || undefined,
   excluded: r.excluded || undefined,
+  receipt: r.receipt ?? undefined,
   at: new Date(r.at).getTime(),
+  editedAt: r.edited_at ? new Date(r.edited_at).getTime() : undefined,
 });
 
 /** Postgres returns "HH:MM:SS"; the app uses "HH:MM". */
