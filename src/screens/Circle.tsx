@@ -98,10 +98,10 @@ export function Circle({ today }: { today: string }) {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setAdding(true)}
-            aria-label="Add a friend"
-            className="grid size-11 shrink-0 place-items-center rounded-2xl bg-plan text-white shadow-[0_6px_20px_color-mix(in_srgb,var(--plan)_35%,transparent)]"
+            aria-label="Invite a friend"
+            className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-plan/40 bg-plan/15 px-4 text-[14px] font-semibold text-plan"
           >
-            <PlusIcon size={22} strokeWidth={2.4} />
+            <PlusIcon size={16} strokeWidth={2.6} /> Invite
           </motion.button>
         )}
       </header>
@@ -424,7 +424,15 @@ export function Circle({ today }: { today: string }) {
           <p className="px-1 text-[12.5px] leading-relaxed text-faint">
             Friends see only the habits you link here: done, missed or not yet, and the streak. Your plans, notes and reasons stay private.
           </p>
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-line px-4 py-3">
+          <details className="group rounded-2xl border border-line">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[14.5px] font-medium">
+              Circle settings
+              <span className="text-faint transition-transform group-open:rotate-90" aria-hidden>
+                ›
+              </span>
+            </summary>
+            <div className="flex flex-col gap-1 border-t border-line px-4 pt-3 pb-2">
+          <div className="flex items-center justify-between gap-3 py-1">
             <div className="min-w-0">
               <div className="text-[14.5px] font-medium">Notifications from this circle</div>
               <div className="text-[12.5px] text-faint">Nudges, cheers and “your nudge worked”</div>
@@ -449,6 +457,8 @@ export function Circle({ today }: { today: string }) {
           >
             {confirmLeave ? `Tap again to leave “${circle.name}”` : 'Leave this circle'}
           </button>
+            </div>
+          </details>
         </>
       )}
 

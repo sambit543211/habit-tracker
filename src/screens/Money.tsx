@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, useUI } from '../store';
 import { formatDay } from '../lib/date';
@@ -60,6 +60,7 @@ export function MoneyDaily({ today }: { today: string }) {
   const openExpense = useUI((s) => s.openExpense);
   const [month, setMonth] = useState(monthOf(today));
   const [show, setShow] = useState<'all' | 'mine' | 'bank'>('all');
+  const fabHidden = useHideOnScroll();
   const [dismissed, setDismissed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('sky-not-same') ?? '[]');
@@ -247,6 +248,8 @@ export function MoneyDaily({ today }: { today: string }) {
       <motion.button
         whileTap={{ scale: 0.92 }}
         onClick={() => openExpense('new')}
+        animate={{ y: fabHidden ? 120 : 0, opacity: fabHidden ? 0 : 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 34 }}
         className="fixed right-5 bottom-[calc(max(env(safe-area-inset-bottom),10px)+84px)] z-30 grid size-14 place-items-center rounded-full bg-plan text-white shadow-lg shadow-plan/30"
         aria-label="Add expense"
       >
@@ -629,4 +632,21 @@ function CategorySheet({
       )}
     </Sheet>
   );
+}
+
+/** True while you scroll down through the list (the + gets out of the way), false when you scroll back up. */
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setHidden(y > last && y > 120);
+      last = y;
+    };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return hidden;
 }

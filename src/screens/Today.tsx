@@ -32,6 +32,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
 
   const stats = useMemo(() => dayStats(data, today), [data, today]);
   const st = useMemo(() => streakFor(data, today, profile), [data, today, profile]);
+  const wide = useWide();
   const todayHabits = habitsOn(data, today);
   const todayPlans = plansOn(data, today);
   const tomorrowCount = plansOn(data, addDays(today, 1)).length;
@@ -173,6 +174,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             )}
           </h1>
         </div>
+        {st.current > 0 && (
         <motion.div
           animate={atRisk ? { scale: [1, 1.06, 1] } : { scale: 1 }}
           transition={atRisk ? { repeat: Infinity, duration: 1.6 } : undefined}
@@ -189,6 +191,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             </span>
           )}
         </motion.div>
+        )}
       </header>
 
       {/* Score card: efficacy + concentric rings */}
@@ -327,8 +330,8 @@ export function Today({ today, hour }: { today: string; hour: number }) {
         )}
       </AnimatePresence>
 
-      {/* Habits | Plans side by side */}
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* Habits then Plans on phones; side by side when there's room */}
+      <div className={wide ? 'grid grid-cols-2 gap-2.5' : 'flex flex-col gap-4'}>
         <section className="min-w-0">
           <ColumnHeader
             title="Habits"
@@ -354,7 +357,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
               habits={todayHabits}
               day={today}
               showTiny={hour >= 18 || hour < 2}
-              compact
+              compact={wide}
             />
           ) : (
             <EmptyColumn text="No habits yet" cta="Add a habit" onClick={() => editHabit('new')} />
@@ -378,7 +381,7 @@ export function Today({ today, hour }: { today: string; hour: number }) {
             }
           />
           {todayPlans.length ? (
-            <PlanRows plans={todayPlans} compact />
+            <PlanRows plans={todayPlans} compact={wide} />
           ) : (
             <SmartEmptyPlans today={today} onAdd={addPlan} />
           )}
@@ -478,4 +481,17 @@ function useCelebrations(allHabits: boolean, perfect: boolean, day: string) {
     }
     prev.current = { allHabits, perfect, day };
   }, [allHabits, perfect, day]);
+}
+
+/** Two columns only when the screen is wide enough for them to read well (tablets, big landscape). */
+function useWide(min = 560) {
+  const q = `(min-width: ${min}px)`;
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, [q]);
+  return wide;
 }
